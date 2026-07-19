@@ -152,24 +152,34 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $historyInput = isset($input['history']) && is_array($input['history']) ? $input['history'] : [];
         
         // Obtener resumen de las finanzas del usuario (para contextualizar)
-        // 1. Balance por tipo de cuenta
-        $stmtAccounts = $db->prepare("SELECT name, type, balance, currency FROM accounts WHERE user_id = ?");
-        $stmtAccounts->execute([$userId]);
-        $accounts = $stmtAccounts->fetchAll();
-        
-        // 2. Transacciones recientes
-        $stmtTx = $db->prepare("SELECT t.type, t.amount, t.description, t.date, c.name as category 
-                                FROM transactions t 
-                                LEFT JOIN categories c ON t.category_id = c.id 
-                                WHERE t.user_id = ? 
-                                ORDER BY t.date DESC LIMIT 10");
-        $stmtTx->execute([$userId]);
-        $recentTransactions = $stmtTx->fetchAll();
+        $accounts = [];
+        $recentTransactions = [];
+        $loans = [];
 
-        // 3. Préstamos activos
-        $stmtLoans = $db->prepare("SELECT person_name, type, amount, balance FROM loans WHERE user_id = ? AND status = 'active'");
-        $stmtLoans->execute([$userId]);
-        $loans = $stmtLoans->fetchAll();
+        try {
+            $stmtAccounts = $db->prepare("SELECT name, type, balance, currency FROM accounts WHERE user_id = ?");
+            $stmtAccounts->execute([$userId]);
+            $accounts = $stmtAccounts->fetchAll();
+        } catch (Exception $e) {}
+        
+        try {
+            $stmtTx = $db->prepare("SELECT t.type, t.amount, t.description, t.date, c.name as category 
+                                    FROM transactions t 
+                                    LEFT JOIN categories c ON t.category_id = c.id 
+                                    WHERE t.user_id = ? 
+                                    ORDER BY t.date DESC LIMIT 10");
+            $stmtTx->execute([$userId]);
+            $recentTransactions = $stmtTx->fetchAll();
+        } catch (Exception $e) {}
+
+        try {
+            $stmtLoans = $db->prepare("SELECT l.amount, l.type, c.name as person_name 
+                                       FROM loans l 
+                                       LEFT JOIN loan_clients c ON l.client_id = c.id 
+                                       WHERE l.user_id = ? AND l.status != 'finalizado'");
+            $stmtLoans->execute([$userId]);
+            $loans = $stmtLoans->fetchAll();
+        } catch (Exception $e) {}
 
         // Estructurar el resumen
         $summary = "Cuentas del usuario:\n";
@@ -183,7 +193,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (!empty($loans)) {
             $summary .= "\nPréstamos registrados:\n";
             foreach ($loans as $l) {
-                $summary .= "- " . ($l['type'] === 'por_cobrar' ? "Por Cobrar a " : "Por Pagar a ") . "{$l['person_name']}: Saldo {$l['balance']} (Monto inicial: {$l['amount']})\n";
+                $summary .= "- Préstamo a/de {$l['person_name']}: Monto inicial {$l['amount']}\n";
             }
         }
 
