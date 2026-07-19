@@ -1,5 +1,70 @@
 <template>
   <div class="dashboard-container">
+    <!-- Filtros de Período -->
+    <div class="glass-card filter-card" style="margin-bottom: 8px; padding: 16px;">
+      <div class="filter-header" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+        <h4 style="margin:0; font-size:14px; font-weight:700; color:var(--text-primary); display:flex; align-items:center; gap:8px;">
+          <i class="fa-solid fa-filter" style="color:var(--color-primary);"></i> Filtrar Período
+        </h4>
+        <span class="filter-active-indicator" style="font-size:12px; color:var(--text-secondary);">
+          Mostrando: <strong style="color:var(--color-primary);">{{ getActiveFilterLabel }}</strong>
+        </span>
+      </div>
+      <div class="filter-row" style="display:flex; flex-wrap:wrap; gap:12px; align-items:center;">
+        <div class="filter-group" style="flex:1; min-width:140px;">
+          <label style="display:block; font-size:11px; color:var(--text-secondary); margin-bottom:4px; font-weight:600;">Rango de Fecha</label>
+          <select v-model="filterRangeMode" style="width:100%; height:38px; border-radius:8px; border:1px solid var(--card-border); background:rgba(255,255,255,0.05); color:var(--text-primary); padding:0 8px; font-size:13px; outline:none;">
+            <option value="month">Por Mes</option>
+            <option value="week">Esta Semana (Últimos 7 días)</option>
+            <option value="custom">Rango Personalizado</option>
+          </select>
+        </div>
+
+        <div v-if="filterRangeMode === 'month'" class="filter-group" style="flex:1.2; min-width:160px; display:flex; gap:8px;">
+          <div style="flex:1.5;">
+            <label style="display:block; font-size:11px; color:var(--text-secondary); margin-bottom:4px; font-weight:600;">Mes</label>
+            <select v-model.number="filterMonth" style="width:100%; height:38px; border-radius:8px; border:1px solid var(--card-border); background:rgba(255,255,255,0.05); color:var(--text-primary); padding:0 8px; font-size:13px; outline:none;">
+              <option value="1">Enero</option>
+              <option value="2">Febrero</option>
+              <option value="3">Marzo</option>
+              <option value="4">Abril</option>
+              <option value="5">Mayo</option>
+              <option value="6">Junio</option>
+              <option value="7">Julio</option>
+              <option value="8">Agosto</option>
+              <option value="9">Septiembre</option>
+              <option value="10">Octubre</option>
+              <option value="11">Noviembre</option>
+              <option value="12">Diciembre</option>
+            </select>
+          </div>
+          <div style="flex:1;">
+            <label style="display:block; font-size:11px; color:var(--text-secondary); margin-bottom:4px; font-weight:600;">Año</label>
+            <select v-model.number="filterYear" style="width:100%; height:38px; border-radius:8px; border:1px solid var(--card-border); background:rgba(255,255,255,0.05); color:var(--text-primary); padding:0 8px; font-size:13px; outline:none;">
+              <option value="2026">2026</option>
+              <option value="2025">2025</option>
+              <option value="2024">2024</option>
+            </select>
+          </div>
+        </div>
+
+        <div v-if="filterRangeMode === 'custom'" class="filter-group" style="flex:2; min-width:240px; display:flex; gap:8px;">
+          <div style="flex:1;">
+            <label style="display:block; font-size:11px; color:var(--text-secondary); margin-bottom:4px; font-weight:600;">Desde</label>
+            <input type="date" v-model="filterStartDate" style="width:100%; height:38px; border-radius:8px; border:1px solid var(--card-border); background:rgba(255,255,255,0.05); color:var(--text-primary); padding:0 8px; font-size:13px; outline:none;" />
+          </div>
+          <div style="flex:1;">
+            <label style="display:block; font-size:11px; color:var(--text-secondary); margin-bottom:4px; font-weight:600;">Hasta</label>
+            <input type="date" v-model="filterEndDate" style="width:100%; height:38px; border-radius:8px; border:1px solid var(--card-border); background:rgba(255,255,255,0.05); color:var(--text-primary); padding:0 8px; font-size:13px; outline:none;" />
+          </div>
+        </div>
+
+        <button @click="applyDateFilters" class="btn-primary" style="height:38px; margin-top:19px; padding:0 16px; font-size:13px; border-radius:8px; display:flex; align-items:center; gap:6px;">
+          <i class="fa-solid fa-rotate"></i> Aplicar
+        </button>
+      </div>
+    </div>
+
     <!-- Encabezado de bienvenida -->
     <div class="view-header dashboard-header">
       <div>
@@ -130,6 +195,8 @@
                       :stroke-dashoffset="sector.strokeDashOffset"
                       @mouseenter="activeSector = sector"
                       @mouseleave="activeSector = null"
+                      @click="toggleCategoryFilter(sector.name)"
+                      style="cursor:pointer;"
                       stroke-width="12"
                       fill="transparent" />
               
@@ -147,7 +214,11 @@
 
           <!-- Listado de progreso -->
           <div class="categories-list">
-            <div v-for="cat in categoriesReport" :key="cat.name" class="category-progress-item">
+            <div v-for="cat in categoriesReport" 
+                 :key="cat.name" 
+                 class="category-progress-item" 
+                 @click="toggleCategoryFilter(cat.name)" 
+                 :style="{ cursor: 'pointer', padding: '6px', borderRadius: '8px', transition: 'all 0.2s', background: selectedCategoryFilter === cat.name ? 'rgba(255,255,255,0.05)' : 'transparent', opacity: selectedCategoryFilter && selectedCategoryFilter !== cat.name ? 0.4 : 1 }">
               <div class="category-meta">
                 <span class="category-name-badge">
                   <span class="color-dot" :style="{ backgroundColor: cat.color }"></span>
@@ -171,19 +242,22 @@
           <router-link to="/accounts" class="header-link">Ver Cuentas</router-link>
         </div>
 
-        <div v-if="transactions.length === 0" class="empty-state">
-          <p>No hay transacciones registradas.</p>
+        <!-- Banner de Filtro de Categoría Activo -->
+        <div v-if="selectedCategoryFilter" class="category-filter-banner" style="display:flex; justify-content:space-between; align-items:center; background:rgba(10,132,255,0.15); border:1px solid rgba(10,132,255,0.3); padding:10px 14px; border-radius:8px; margin-bottom:16px; font-size:13.5px; color:var(--text-primary);">
+          <span><i class="fa-solid fa-filter" style="color:#0a84ff; margin-right:6px;"></i> Filtrando categoría: <strong style="color:#0a84ff;">{{ selectedCategoryFilter }}</strong></span>
+          <button @click="selectedCategoryFilter = null" style="background:none; border:none; color:#0a84ff; font-weight:700; cursor:pointer; font-size:12px; outline:none;">Quitar Filtro</button>
+        </div>
+
+        <div v-if="filteredTransactions.length === 0" class="empty-state">
+          <p>No hay transacciones registradas en esta categoría.</p>
         </div>
 
         <div v-else class="transactions-list">
-          <div v-for="tx in transactions" :key="tx.id" class="transaction-item">
+          <div v-for="tx in filteredTransactions" :key="tx.id" class="transaction-item">
             <div class="tx-info">
-              <div class="tx-icon" :style="{ backgroundColor: tx.category_color + '15', color: tx.category_color }">
-                <!-- Icono de categoría dinámico básico -->
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="icon-svg">
-                  <circle cx="12" cy="12" r="10"></circle>
-                  <line x1="12" y1="8" x2="12" y2="16"></line>
-                </svg>
+              <div class="tx-icon" :style="{ backgroundColor: (tx.category_color || '#64748b') + '15', color: tx.category_color || '#64748b' }">
+                <!-- Icono de categoría real de FontAwesome -->
+                <i :class="['fa-solid', tx.category_icon || 'fa-tag']" style="font-size:14px;"></i>
               </div>
               <div>
                 <h4 class="tx-title">{{ tx.description || tx.category_name }}</h4>
@@ -320,6 +394,17 @@ export default {
     const modalError = ref('')
     const aiLoading = ref(false)
 
+    // Nuevos Estados para Filtrado
+    const filterRangeMode = ref('month') // 'month', 'week', 'custom'
+    const filterMonth = ref(new Date().getMonth() + 1)
+    const filterYear = ref(new Date().getFullYear())
+    
+    // Rango personalizado (por defecto últimos 30 días)
+    const filterStartDate = ref(new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0])
+    const filterEndDate = ref(new Date().toISOString().split('T')[0])
+    
+    const selectedCategoryFilter = ref(null)
+
     // Formulario de Transacción
     const form = ref({
       amount: '',
@@ -351,14 +436,42 @@ export default {
         const resCat = await fetch(`${API_BASE}/categories.php`, { headers })
         categories.value = await resCat.json()
 
-        // 3. Cargar Transacciones (últimas 10)
-        const resTx = await fetch(`${API_BASE}/transactions.php?limit=10`, { headers })
+        // Calcular fechas según el rango de filtrado seleccionado
+        let start = ''
+        let end = ''
+        let repUrl = ''
+        let txUrl = `${API_BASE}/transactions.php?limit=100`
+
+        if (filterRangeMode.value === 'month') {
+          const formattedMonth = String(filterMonth.value).padStart(2, '0')
+          start = `${filterYear.value}-${formattedMonth}-01`
+          const lastDay = new Date(filterYear.value, filterMonth.value, 0).getDate()
+          end = `${filterYear.value}-${formattedMonth}-${String(lastDay).padStart(2, '0')}`
+          
+          repUrl = `${API_BASE}/reports.php?month=${filterMonth.value}&year=${filterYear.value}`
+          txUrl += `&start_date=${start}&end_date=${end}`
+        } else if (filterRangeMode.value === 'week') {
+          const today = new Date()
+          const sevenDaysAgo = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000)
+          start = sevenDaysAgo.toISOString().split('T')[0]
+          end = today.toISOString().split('T')[0]
+          
+          repUrl = `${API_BASE}/reports.php?start_date=${start}&end_date=${end}`
+          txUrl += `&start_date=${start}&end_date=${end}`
+        } else if (filterRangeMode.value === 'custom') {
+          start = filterStartDate.value
+          end = filterEndDate.value
+          
+          repUrl = `${API_BASE}/reports.php?start_date=${start}&end_date=${end}`
+          txUrl += `&start_date=${start}&end_date=${end}`
+        }
+
+        // 3. Cargar Transacciones
+        const resTx = await fetch(txUrl, { headers })
         transactions.value = await resTx.json()
 
-        // 4. Cargar Reportes Mensuales (Sincronizados con el mes y año locales del navegador)
-        const currentMonth = new Date().getMonth() + 1
-        const currentYear = new Date().getFullYear()
-        const resRep = await fetch(`${API_BASE}/reports.php?month=${currentMonth}&year=${currentYear}`, { headers })
+        // 4. Cargar Reportes
+        const resRep = await fetch(repUrl, { headers })
         const repData = await resRep.json()
         if (repData.totals) totals.value = repData.totals
         if (repData.categories) categoriesReport.value = repData.categories
@@ -725,6 +838,44 @@ export default {
       }, 300)
     })
 
+    const toggleCategoryFilter = (catName) => {
+      if (selectedCategoryFilter.value === catName) {
+        selectedCategoryFilter.value = null
+      } else {
+        selectedCategoryFilter.value = catName
+      }
+    }
+
+    const applyDateFilters = () => {
+      selectedCategoryFilter.value = null
+      fetchData()
+    }
+
+    const getActiveFilterLabel = computed(() => {
+      if (filterRangeMode.value === 'month') {
+        const months = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre']
+        return `${months[filterMonth.value - 1]} ${filterYear.value}`
+      } else if (filterRangeMode.value === 'week') {
+        return 'Últimos 7 días'
+      } else if (filterRangeMode.value === 'custom') {
+        if (filterStartDate.value && filterEndDate.value) {
+          return `${filterStartDate.value} al ${filterEndDate.value}`
+        }
+        return 'Rango Personalizado'
+      }
+      return ''
+    })
+
+    const filteredTransactions = computed(() => {
+      if (!selectedCategoryFilter.value) {
+        return transactions.value
+      }
+      return transactions.value.filter(tx => {
+        const catName = tx.category_name || 'Sin Categoría'
+        return catName.toLowerCase() === selectedCategoryFilter.value.toLowerCase()
+      })
+    })
+
     return {
       receiptInput,
       user,
@@ -759,7 +910,17 @@ export default {
       formatCurrency,
       formatDate,
       getPercentage,
-      truncateText
+      truncateText,
+      filterRangeMode,
+      filterMonth,
+      filterYear,
+      filterStartDate,
+      filterEndDate,
+      selectedCategoryFilter,
+      toggleCategoryFilter,
+      applyDateFilters,
+      getActiveFilterLabel,
+      filteredTransactions
     }
   }
 }

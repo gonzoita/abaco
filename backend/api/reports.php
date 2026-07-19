@@ -12,18 +12,29 @@ $method = $_SERVER['REQUEST_METHOD'];
 
 if ($method === 'GET') {
     try {
-        // Obtener el mes y año actual, u opcionalmente por parámetros GET
         $month = isset($_GET['month']) ? intval($_GET['month']) : intval(date('m'));
         $year = isset($_GET['year']) ? intval($_GET['year']) : intval(date('Y'));
+        $startDate = isset($_GET['start_date']) ? trim($_GET['start_date']) : null;
+        $endDate = isset($_GET['end_date']) ? trim($_GET['end_date']) : null;
 
         // 1. Resumen mensual total de ingresos y egresos
-        $stmtSummary = $db->prepare("
-            SELECT type, SUM(amount) as total 
-            FROM transactions 
-            WHERE user_id = ? AND MONTH(date) = ? AND YEAR(date) = ?
-            GROUP BY type
-        ");
-        $stmtSummary->execute([$userId, $month, $year]);
+        if ($startDate && $endDate) {
+            $stmtSummary = $db->prepare("
+                SELECT type, SUM(amount) as total 
+                FROM transactions 
+                WHERE user_id = ? AND date >= ? AND date <= ?
+                GROUP BY type
+            ");
+            $stmtSummary->execute([$userId, $startDate, $endDate]);
+        } else {
+            $stmtSummary = $db->prepare("
+                SELECT type, SUM(amount) as total 
+                FROM transactions 
+                WHERE user_id = ? AND MONTH(date) = ? AND YEAR(date) = ?
+                GROUP BY type
+            ");
+            $stmtSummary->execute([$userId, $month, $year]);
+        }
         $summaryRaw = $stmtSummary->fetchAll();
 
         $totals = ['ingresos' => 0.00, 'egresos' => 0.00, 'neto' => 0.00];
@@ -37,18 +48,33 @@ if ($method === 'GET') {
         $totals['neto'] = $totals['ingresos'] - $totals['egresos'];
 
         // 2. Gastos agrupados por Categoría (para gráficos circulares)
-        $stmtCategories = $db->prepare("
-            SELECT COALESCE(c.name, 'Sin Categoría') as name, 
-                   COALESCE(c.color, '#64748b') as color, 
-                   COALESCE(c.icon, 'fa-tag') as icon, 
-                   SUM(t.amount) as total 
-            FROM transactions t
-            LEFT JOIN categories c ON t.category_id = c.id
-            WHERE t.user_id = ? AND t.type = 'egreso' AND MONTH(t.date) = ? AND YEAR(t.date) = ?
-            GROUP BY c.id, c.name, c.color, c.icon
-            ORDER BY total DESC
-        ");
-        $stmtCategories->execute([$userId, $month, $year]);
+        if ($startDate && $endDate) {
+            $stmtCategories = $db->prepare("
+                SELECT COALESCE(c.name, 'Sin Categoría') as name, 
+                       COALESCE(c.color, '#64748b') as color, 
+                       COALESCE(c.icon, 'fa-tag') as icon, 
+                       SUM(t.amount) as total 
+                FROM transactions t
+                LEFT JOIN categories c ON t.category_id = c.id
+                WHERE t.user_id = ? AND t.type = 'egreso' AND t.date >= ? AND t.date <= ?
+                GROUP BY c.id, c.name, c.color, c.icon
+                ORDER BY total DESC
+            ");
+            $stmtCategories->execute([$userId, $startDate, $endDate]);
+        } else {
+            $stmtCategories = $db->prepare("
+                SELECT COALESCE(c.name, 'Sin Categoría') as name, 
+                       COALESCE(c.color, '#64748b') as color, 
+                       COALESCE(c.icon, 'fa-tag') as icon, 
+                       SUM(t.amount) as total 
+                FROM transactions t
+                LEFT JOIN categories c ON t.category_id = c.id
+                WHERE t.user_id = ? AND t.type = 'egreso' AND MONTH(t.date) = ? AND YEAR(t.date) = ?
+                GROUP BY c.id, c.name, c.color, c.icon
+                ORDER BY total DESC
+            ");
+            $stmtCategories->execute([$userId, $month, $year]);
+        }
         $categoriesData = $stmtCategories->fetchAll();
 
         // Convertir montos a float
@@ -105,16 +131,29 @@ if ($method === 'GET') {
              LEFT JOIN categories c ON b.category_id = c.id
              WHERE b.user_id = ? AND b.month = ? AND b.year = ?
         ");
-        $stmtBudgets->execute([$userId, $month, $year]);
+        $bMonth = $startDate ? intval(date('m', strtotime($startDate))) : $month;
+        $bYear = $startDate ? intval(date('Y', strtotime($startDate))) : $year;
+
+        $stmtBudgets->execute([$userId, $bMonth, $bYear]);
         $budgetsRaw = $stmtBudgets->fetchAll();
 
-        $stmtSpent = $db->prepare("
-            SELECT category_id, SUM(amount) as spent 
-            FROM transactions 
-            WHERE user_id = ? AND type = 'egreso' AND MONTH(date) = ? AND YEAR(date) = ?
-            GROUP BY category_id
-        ");
-        $stmtSpent->execute([$userId, $month, $year]);
+        if ($startDate && $endDate) {
+            $stmtSpent = $db->prepare("
+                SELECT category_id, SUM(amount) as spent 
+                FROM transactions 
+                WHERE user_id = ? AND type = 'egreso' AND date >= ? AND date <= ?
+                GROUP BY category_id
+            ");
+            $stmtSpent->execute([$userId, $startDate, $endDate]);
+        } else {
+            $stmtSpent = $db->prepare("
+                SELECT category_id, SUM(amount) as spent 
+                FROM transactions 
+                WHERE user_id = ? AND type = 'egreso' AND MONTH(date) = ? AND YEAR(date) = ?
+                GROUP BY category_id
+            ");
+            $stmtSpent->execute([$userId, $month, $year]);
+        }
         $spentRaw = $stmtSpent->fetchAll();
 
         $spentMap = [];

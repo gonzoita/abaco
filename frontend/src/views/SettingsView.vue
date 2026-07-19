@@ -267,16 +267,28 @@ export default {
     const errorMsg = ref('')
     const catError = ref('')
 
-    // 32 Iconos de FontAwesome Populares
+    // Listado Extenso de Iconos de FontAwesome (Más de 80 iconos temáticos)
     const fontAwesomeIcons = [
-      'fa-utensils', 'fa-house', 'fa-car', 'fa-heart-pulse', 'fa-gamepad', 
-      'fa-bolt', 'fa-graduation-cap', 'fa-cart-shopping', 'fa-building-columns', 
-      'fa-briefcase', 'fa-wallet', 'fa-piggy-bank', 'fa-beer-mug-empty', 
-      'fa-bus', 'fa-plane', 'fa-dumbbell', 'fa-ticket', 'fa-gift', 
-      'fa-paw', 'fa-shirt', 'fa-music', 'fa-mobile-screen', 'fa-laptop', 
-      'fa-scissors', 'fa-screwdriver-wrench', 'fa-key', 'fa-gavel', 
-      'fa-notes-medical', 'fa-coins', 'fa-credit-card', 'fa-money-bill-trend-up', 
-      'fa-box-open'
+      // Alimentos y Bebidas
+      'fa-utensils', 'fa-burger', 'fa-pizza-slice', 'fa-mug-hot', 'fa-beer-mug-empty', 'fa-wine-glass', 'fa-ice-cream',
+      // Hogar y Servicios
+      'fa-house', 'fa-couch', 'fa-faucet', 'fa-bolt', 'fa-fire', 'fa-wifi', 'fa-trash', 'fa-soap',
+      // Transporte y Viajes
+      'fa-car', 'fa-bus', 'fa-train', 'fa-plane', 'fa-motorcycle', 'fa-bicycle', 'fa-gas-pump', 'fa-taxi',
+      // Compras y Ropa
+      'fa-cart-shopping', 'fa-bag-shopping', 'fa-store', 'fa-tag', 'fa-gift', 'fa-shirt', 'fa-glasses', 'fa-shoe-prints',
+      // Ocio y Entretenimiento
+      'fa-gamepad', 'fa-tv', 'fa-film', 'fa-ticket', 'fa-music', 'fa-book', 'fa-camera', 'fa-spa', 'fa-dumbbell', 'fa-umbrella-beach', 'fa-tree',
+      // Salud y Mascotas
+      'fa-heart-pulse', 'fa-stethoscope', 'fa-notes-medical', 'fa-capsules', 'fa-tooth', 'fa-baby', 'fa-paw',
+      // Finanzas y Negocios
+      'fa-wallet', 'fa-piggy-bank', 'fa-coins', 'fa-credit-card', 'fa-money-bill-trend-up', 'fa-building-columns', 'fa-briefcase', 'fa-chart-pie', 'fa-receipt', 'fa-file-invoice-dollar',
+      // Educación y Niños
+      'fa-graduation-cap', 'fa-school', 'fa-pencil', 'fa-child', 'fa-shapes',
+      // Tecnología
+      'fa-mobile-screen', 'fa-laptop', 'fa-desktop', 'fa-headphones', 'fa-keyboard',
+      // Otros e Interesantes
+      'fa-key', 'fa-gavel', 'fa-screwdriver-wrench', 'fa-hammer', 'fa-scissors', 'fa-brush', 'fa-basket-shopping', 'fa-shield-halved', 'fa-percent', 'fa-envelope', 'fa-bell', 'fa-heart', 'fa-star', 'fa-face-smile'
     ]
 
     const fetchSettings = async () => {
