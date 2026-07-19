@@ -84,7 +84,6 @@ export default {
     const handleGoogleCredentialResponse = async (response) => {
       loading.value = true
       googleError.value = ''
-      errorMessage.value = ''
       
       try {
         const res = await fetch(`${API_BASE}/auth.php?action=google_login`, {
@@ -116,7 +115,6 @@ export default {
         router.push('/')
       } catch (err) {
         googleError.value = err.message
-        errorMessage.value = err.message
       } finally {
         loading.value = false
       }
