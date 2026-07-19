@@ -11,59 +11,62 @@
         <h2 class="text-gradient-purple" style="margin-top: 14px; font-size: 24px; font-weight: 800;">Crear Cuenta</h2>
       </div>
 
-      <form @submit.prevent="handleRegister" class="auth-form">
-        <div class="form-group">
-          <label for="name">Nombre Completo</label>
-          <input type="text" id="name" v-model="name" placeholder="Tu nombre" required />
-        </div>
-
-        <div class="form-group">
-          <label for="email">Correo Electrónico</label>
-          <input type="email" id="email" v-model="email" placeholder="ejemplo@correo.com" required />
-        </div>
-
-        <div class="form-group">
-          <label for="password">Contraseña</label>
-          <input type="password" id="password" v-model="password" placeholder="Mínimo 6 caracteres" required minlength="6" />
-        </div>
-
-        <div class="form-group">
-          <label for="currency">Moneda Principal</label>
-          <select id="currency" v-model="currency">
-            <option value="COP">Peso Colombiano (COP)</option>
-            <option value="USD">Dólar Estadounidense (USD)</option>
-            <option value="MXN">Peso Mexicano (MXN)</option>
-            <option value="EUR">Euro (EUR)</option>
-            <option value="ARS">Peso Argentino (ARS)</option>
-            <option value="CLP">Peso Chileno (CLP)</option>
-          </select>
-        </div>
-
-        <div v-if="errorMessage" class="error-msg">
-          {{ errorMessage }}
-        </div>
-        <div v-if="successMessage" class="success-msg">
-          {{ successMessage }}
-        </div>
-
-        <button type="submit" class="btn-primary btn-block" :disabled="loading">
-          <span v-if="loading">Creando Cuenta...</span>
-          <span v-else>Registrarse</span>
-        </button>
-      </form>
-
-      <!-- Divisor para registro con Google -->
-      <div class="auth-divider">
-        <span>o regístrate con</span>
+      <div v-if="errorMessage" class="error-msg" style="margin-bottom: 16px; text-align: center;">
+        {{ errorMessage }}
       </div>
 
       <!-- Contenedor Oficial del Botón de Google -->
-      <div class="google-btn-wrapper" style="display:flex; justify-content:center; margin: 16px 0;">
+      <div class="google-btn-wrapper" style="display:flex; justify-content:center; margin: 24px 0 16px 0;">
         <div id="google-btn-container"></div>
       </div>
 
-      <div class="auth-footer">
+      <div class="auth-footer" style="margin-bottom: 24px;">
         <p>¿Ya tienes cuenta? <router-link to="/login" class="auth-link">Inicia sesión</router-link></p>
+      </div>
+
+      <!-- Instrucciones de Instalación PWA (Apple HIG) -->
+      <div class="pwa-install-guide">
+        <h4 class="guide-title">
+          <i class="fa-solid fa-mobile-screen-button"></i> Instala Ábaco en tu celular
+        </h4>
+        <div class="guide-tabs">
+          <button :class="['tab-btn', activeTab === 'ios' ? 'active' : '']" @click="activeTab = 'ios'">
+            <i class="fa-brands fa-apple"></i> iPhone (iOS)
+          </button>
+          <button :class="['tab-btn', activeTab === 'android' ? 'active' : '']" @click="activeTab = 'android'">
+            <i class="fa-brands fa-android"></i> Android
+          </button>
+        </div>
+        <div class="guide-content">
+          <div v-if="activeTab === 'ios'" class="guide-step-list">
+            <div class="step-item">
+              <span class="step-num">1</span>
+              <p>Abre <strong>Safari</strong> y entra a <code>abaco.briela.app</code></p>
+            </div>
+            <div class="step-item">
+              <span class="step-num">2</span>
+              <p>Toca el botón <strong>Compartir</strong> <i class="fa-solid fa-arrow-up-from-bracket" style="color: #007aff;"></i> en la parte inferior</p>
+            </div>
+            <div class="step-item">
+              <span class="step-num">3</span>
+              <p>Selecciona la opción <strong>Añadir a pantalla de inicio</strong> <i class="fa-regular fa-square-plus"></i></p>
+            </div>
+          </div>
+          <div v-else class="guide-step-list">
+            <div class="step-item">
+              <span class="step-num">1</span>
+              <p>Abre <strong>Chrome</strong> y entra a <code>abaco.briela.app</code></p>
+            </div>
+            <div class="step-item">
+              <span class="step-num">2</span>
+              <p>Toca el menú de <strong>tres puntos</strong> <i class="fa-solid fa-ellipsis-vertical"></i> arriba a la derecha</p>
+            </div>
+            <div class="step-item">
+              <span class="step-num">3</span>
+              <p>Selecciona <strong>Instalar aplicación</strong> o <strong>Añadir a pantalla de inicio</strong></p>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -78,57 +81,10 @@ export default {
   name: 'RegisterView',
   emits: ['auth-change'],
   setup(props, { emit }) {
-    const name = ref('')
-    const email = ref('')
-    const password = ref('')
-    const currency = ref('COP')
+    const activeTab = ref('ios')
     const loading = ref(false)
     const errorMessage = ref('')
-    const successMessage = ref('')
     const router = useRouter()
-
-    const handleRegister = async () => {
-      loading.value = true
-      errorMessage.value = ''
-      successMessage.value = ''
-
-      try {
-        const response = await fetch(`${API_BASE}/auth.php?action=register`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            name: name.value,
-            email: email.value,
-            password: password.value,
-            currency: currency.value
-          })
-        })
-
-        const responseText = await response.text()
-        let data
-        try {
-          data = JSON.parse(responseText)
-        } catch (e) {
-          throw new Error('Servidor error (no JSON): ' + responseText.substring(0, 150))
-        }
-
-        if (!response.ok) {
-          throw new Error(data.error || 'Error al registrar el usuario.')
-        }
-
-        successMessage.value = '¡Registro completado! Hemos enviado un enlace de activación a tu correo electrónico. Por favor revisa tu bandeja de entrada para activar tu cuenta antes de iniciar sesión.'
-        // Limpiar campos para evitar doble envío
-        name.value = ''
-        email.value = ''
-        password.value = ''
-      } catch (err) {
-        errorMessage.value = err.message
-      } finally {
-        loading.value = false
-      }
-    }
 
     const handleGoogleCredentialResponse = async (response) => {
       loading.value = true
@@ -193,14 +149,9 @@ export default {
     })
 
     return {
-      name,
-      email,
-      password,
-      currency,
+      activeTab,
       loading,
       errorMessage,
-      successMessage,
-      handleRegister,
       handleGoogleCredentialResponse
     }
   }
@@ -314,5 +265,114 @@ export default {
     opacity: 1;
     transform: translateY(0);
   }
+}
+
+.pwa-install-guide {
+  margin-top: 24px;
+  padding-top: 20px;
+  border-top: 1px solid var(--card-border);
+  text-align: left;
+}
+
+.guide-title {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.guide-tabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 16px;
+  background: rgba(255, 255, 255, 0.04);
+  padding: 4px;
+  border-radius: 8px;
+}
+body.light-theme .guide-tabs {
+  background: rgba(0, 0, 0, 0.03);
+}
+
+.tab-btn {
+  flex: 1;
+  background: none;
+  border: none;
+  padding: 6px 12px;
+  font-size: 11.5px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  border-radius: 6px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  transition: all 0.2s ease;
+}
+
+.tab-btn.active {
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--text-primary);
+  font-weight: 600;
+}
+body.light-theme .tab-btn.active {
+  background: #fff;
+  color: var(--text-primary);
+  box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+}
+
+.guide-step-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.step-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.step-num {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: rgba(10, 132, 255, 0.15);
+  color: #0a84ff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10.5px;
+  font-weight: 700;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+body.light-theme .step-num {
+  background: rgba(0, 122, 255, 0.1);
+  color: #007aff;
+}
+
+.step-item p {
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--text-secondary);
+  line-height: 1.4;
+}
+
+.step-item p strong {
+  color: var(--text-primary);
+}
+
+.step-item p code {
+  background: rgba(255, 255, 255, 0.05);
+  padding: 2px 4px;
+  border-radius: 4px;
+  font-family: monospace;
+}
+body.light-theme .step-item p code {
+  background: rgba(0, 0, 0, 0.04);
 }
 </style>
