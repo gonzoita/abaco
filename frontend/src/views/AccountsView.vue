@@ -744,11 +744,21 @@ Dame un análisis financiero y 3 o 4 consejos específicos sobre cómo puedo pag
     }
 
     const formatCurrency = (val) => {
+      let currencyCode = 'COP'
+      try {
+        const user = JSON.parse(localStorage.getItem('user'))
+        if (user && user.currency) {
+          currencyCode = user.currency
+        }
+      } catch (e) {}
+
+      const locale = currencyCode === 'COP' ? 'es-CO' : (currencyCode === 'MXN' ? 'es-MX' : (currencyCode === 'USD' ? 'en-US' : 'de-DE'))
       const absVal = Math.abs(val)
-      const formatted = new Intl.NumberFormat('es-CO', {
+      const formatted = new Intl.NumberFormat(locale, {
         style: 'currency',
-        currency: 'COP',
-        minimumFractionDigits: 0
+        currency: currencyCode,
+        minimumFractionDigits: currencyCode === 'USD' || currencyCode === 'EUR' ? 2 : 0,
+        maximumFractionDigits: currencyCode === 'USD' || currencyCode === 'EUR' ? 2 : 0
       }).format(absVal)
       
       return val < 0 ? `-${formatted}` : formatted

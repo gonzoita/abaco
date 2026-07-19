@@ -10,9 +10,12 @@
         <button class="theme-toggle-btn-mobile" @click="toggleTheme" title="Cambiar tema" style="background:none; border:none; color:var(--text-primary); font-size:18px; cursor:pointer;">
           <i :class="currentTheme === 'dark' ? 'fa-solid fa-sun' : 'fa-solid fa-moon'"></i>
         </button>
-        <button class="settings-toggle-btn-mobile" @click="showMobileSettings = true" title="Menú de opciones" style="background:none; border:none; padding:0; margin-left: 16px; cursor:pointer;">
-          <div class="header-profile-avatar">
-            {{ userInitials }}
+        <button class="settings-toggle-btn-mobile" @click="showMobileSettings = true" title="Menú de opciones" style="background:none; border:none; padding:0; margin-left: 14px; cursor:pointer;">
+          <div class="header-menu-pill">
+            <i class="fa-solid fa-bars menu-icon-bar"></i>
+            <div class="header-profile-avatar">
+              {{ userInitials }}
+            </div>
           </div>
         </button>
       </div>
@@ -556,6 +559,31 @@ body.light-theme .logout-color { background: #ff3b30; }
 }
 .header-profile-avatar:active {
   transform: scale(0.95);
+}
+
+.header-menu-pill {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--card-border);
+  padding: 3px 3px 3px 10px;
+  border-radius: 30px;
+  transition: all 0.2s ease;
+}
+body.light-theme .header-menu-pill {
+  background: rgba(0, 0, 0, 0.03);
+}
+.header-menu-pill:hover, .header-menu-pill:active {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.15);
+}
+body.light-theme .header-menu-pill:hover, body.light-theme .header-menu-pill:active {
+  background: rgba(0, 0, 0, 0.06);
+}
+.menu-icon-bar {
+  font-size: 13px;
+  color: var(--text-secondary);
 }
 </style>
 

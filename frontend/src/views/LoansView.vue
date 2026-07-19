@@ -1217,12 +1217,21 @@ export default {
 
     const formatCOP = (value) => {
       if (value === null || value === undefined || isNaN(value)) return '$ 0'
-      return new Intl.NumberFormat('es-CO', {
+      let currencyCode = 'COP'
+      try {
+        const user = JSON.parse(localStorage.getItem('user'))
+        if (user && user.currency) {
+          currencyCode = user.currency
+        }
+      } catch (e) {}
+
+      const locale = currencyCode === 'COP' ? 'es-CO' : (currencyCode === 'MXN' ? 'es-MX' : (currencyCode === 'USD' ? 'en-US' : 'de-DE'))
+      return new Intl.NumberFormat(locale, {
         style: 'currency',
-        currency: 'COP',
-        minimumFractionDigits: 0,
-        maximumFractionDigits: 0
-      }).format(value).replace('COP', '$').trim()
+        currency: currencyCode,
+        minimumFractionDigits: currencyCode === 'USD' || currencyCode === 'EUR' ? 2 : 0,
+        maximumFractionDigits: currencyCode === 'USD' || currencyCode === 'EUR' ? 2 : 0
+      }).format(value)
     }
 
     const formatDate = (dateStr) => {
