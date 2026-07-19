@@ -200,14 +200,20 @@ export default {
           })
         })
 
-        const data = await response.json()
+        const rawText = await response.text()
+        let data = {}
+        try {
+          data = JSON.parse(rawText)
+        } catch (e) {
+          throw new Error('Respuesta no válida del servidor. Por favor reintenta.')
+        }
 
         if (!response.ok) {
           throw new Error(data.error || 'Error al conectar con el Asesor IA.')
         }
 
         // Agregar respuesta del asistente
-        messages.value.push({ role: 'assistant', text: data.response, sender: 'assistant' })
+        messages.value.push({ role: 'assistant', text: data.response || 'No se recibió texto de respuesta.', sender: 'assistant' })
         saveHistory()
       } catch (err) {
         messages.value.push({ role: 'assistant', text: `Lo siento, ocurrió un error: ${err.message}`, sender: 'assistant' })

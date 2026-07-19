@@ -203,37 +203,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                       . $summary . "\n"
                       . "INSTRUCCIÓN DE RESPUESTA: Responde con empatía, aplicando principios de los libros mencionados si aplica, y guiando paso a paso sobre las funciones de la app. Mantén las respuestas claras (máximo 3-4 párrafos) en español.";
 
-        // Construir arreglo de contenidos con historial para mantener el contexto
-        $contents = [];
-        $contents[] = [
-            "role" => "user",
-            "parts" => [["text" => $systemPrompt]]
-        ];
-        $contents[] = [
-            "role" => "model",
-            "parts" => [["text" => "¡Hola! Entendido. Soy Ábaco, tu asesor y mentor financiero personal. Mantendré el contexto de nuestras conversaciones y estoy listo para ayudarte con tus finanzas y enseñarte a aprovechar al máximo todas las herramientas."]]
-        ];
-
-        // Agregar historial de la conversación previa
-        foreach ($historyInput as $hMsg) {
-            $role = ($hMsg['sender'] === 'user') ? 'user' : 'model';
-            $text = trim($hMsg['text'] ?? '');
-            if (!empty($text)) {
-                $contents[] = [
-                    "role" => $role,
-                    "parts" => [["text" => $text]]
-                ];
+        $contextualHistory = "";
+        if (!empty($historyInput)) {
+            $contextualHistory .= "\n[ HISTORIAL RECIENTE DE CONVERSACIÓN CON EL USUARIO ]:\n";
+            foreach ($historyInput as $hMsg) {
+                $senderName = (isset($hMsg['sender']) && $hMsg['sender'] === 'user') ? 'Usuario' : 'Ábaco (Tú)';
+                $text = trim($hMsg['text'] ?? '');
+                if (!empty($text)) {
+                    $contextualHistory .= "- {$senderName}: {$text}\n";
+                }
             }
         }
 
-        // Agregar el mensaje actual del usuario
-        $contents[] = [
-            "role" => "user",
-            "parts" => [["text" => $message]]
-        ];
+        $fullPrompt = $systemPrompt . $contextualHistory . "\n[ PREGUNTA ACTUAL DEL USUARIO ]: " . $message;
 
         $payload = [
-            "contents" => $contents
+            "contents" => [
+                [
+                    "role" => "user",
+                    "parts" => [
+                        ["text" => $fullPrompt]
+                    ]
+                ]
+            ]
         ];
 
         try {
