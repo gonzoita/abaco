@@ -488,16 +488,66 @@ export default {
       }
     }
 
+    // Función para comprimir imágenes antes de subir
+    const compressImage = (file, maxWidth = 1200, maxHeight = 1200) => {
+      return new Promise((resolve) => {
+        const reader = new FileReader()
+        reader.readAsDataURL(file)
+        reader.onload = (event) => {
+          const img = new Image()
+          img.src = event.target.result
+          img.onload = () => {
+            const canvas = document.createElement('canvas')
+            let width = img.width
+            let height = img.height
+
+            if (width > height) {
+              if (width > maxWidth) {
+                height = Math.round((height * maxWidth) / width)
+                width = maxWidth
+              }
+            } else {
+              if (height > maxHeight) {
+                width = Math.round((width * maxHeight) / height)
+                height = maxHeight
+              }
+            }
+
+            canvas.width = width
+            canvas.height = height
+            const ctx = canvas.getContext('2d')
+            ctx.drawImage(img, 0, 0, width, height)
+
+            canvas.toBlob((blob) => {
+              const compressedFile = new File([blob], file.name, {
+                type: 'image/jpeg',
+                lastModified: Date.now()
+              })
+              resolve(compressedFile)
+            }, 'image/jpeg', 0.75) // Calidad del 75%
+          }
+        }
+      })
+    }
+
     // Escáner de recibos con IA
     const handleReceiptScan = async (event) => {
       const file = event.target.files[0]
       if (!file) return
 
       aiLoading.value = true
+      
+      let finalFile = file
+      try {
+        finalFile = await compressImage(file)
+      } catch (err) {
+        console.error('Error al comprimir imagen:', err)
+      }
+
       const token = localStorage.getItem('token')
 
       const formData = new FormData()
-      formData.append('receipt', file)
+      formData.append('receipt', finalFile)
 
       try {
         const customApiKey = localStorage.getItem('gemini_api_key') || ''
