@@ -1,9 +1,8 @@
-const CACHE_NAME = 'antigravity-finanzas-v1';
+const CACHE_NAME = 'antigravity-finanzas-v2';
 const ASSETS = [
   './',
   './index.html',
   './manifest.json',
-  // Los archivos compilados de JS y CSS se cachearán dinámicamente en tiempo de ejecución
 ];
 
 // Instalar Service Worker y guardar en caché archivos estáticos básicos
@@ -30,7 +29,7 @@ self.addEventListener('activate', (event) => {
   );
 });
 
-// Estrategia de Fetch: Cache-First para estáticos, Network-Only para la API
+// Estrategia de Fetch: Network-First para index.html/navegaciones, Cache-First para recursos estáticos pesados, Network-Only para API
 self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
 
@@ -40,6 +39,30 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
+  // Estrategia Network-First para index.html y navegación base para evitar que se atranquen las actualizaciones
+  if (event.request.mode === 'navigate' || url.pathname === '/' || url.pathname.endsWith('index.html')) {
+    event.respondWith(
+      fetch(event.request)
+        .then((networkResponse) => {
+          if (networkResponse.status === 200) {
+            const responseToCache = networkResponse.clone();
+            caches.open(CACHE_NAME).then((cache) => {
+              cache.put(event.request, responseToCache);
+            });
+          }
+          return networkResponse;
+        })
+        .catch(() => {
+          return caches.match(event.request).then((cachedResponse) => {
+            if (cachedResponse) return cachedResponse;
+            return caches.match('./index.html');
+          });
+        })
+    );
+    return;
+  }
+
+  // Estrategia Cache-First para otros estáticos (JS, CSS, Imágenes)
   event.respondWith(
     caches.match(event.request).then((cachedResponse) => {
       if (cachedResponse) {
@@ -47,7 +70,6 @@ self.addEventListener('fetch', (event) => {
       }
       
       return fetch(event.request).then((networkResponse) => {
-        // Guardar dinámicamente los activos estáticos del frontend (CSS, JS) en caché
         if (event.request.method === 'GET' && networkResponse.status === 200) {
           const responseToCache = networkResponse.clone();
           caches.open(CACHE_NAME).then((cache) => {
@@ -56,11 +78,6 @@ self.addEventListener('fetch', (event) => {
         }
         return networkResponse;
       });
-    }).catch(() => {
-      // Offline fallback para páginas HTML
-      if (event.request.mode === 'navigate') {
-        return caches.match('./index.html');
-      }
     })
   );
 });
