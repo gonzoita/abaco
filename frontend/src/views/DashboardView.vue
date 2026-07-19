@@ -1,70 +1,5 @@
 <template>
   <div class="dashboard-container">
-    <!-- Filtros de Período -->
-    <div class="glass-card filter-card" style="margin-bottom: 8px; padding: 16px;">
-      <div class="filter-header" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
-        <h4 style="margin:0; font-size:14px; font-weight:700; color:var(--text-primary); display:flex; align-items:center; gap:8px;">
-          <i class="fa-solid fa-filter" style="color:var(--color-primary);"></i> Filtrar Período
-        </h4>
-        <span class="filter-active-indicator" style="font-size:12px; color:var(--text-secondary);">
-          Mostrando: <strong style="color:var(--color-primary);">{{ getActiveFilterLabel }}</strong>
-        </span>
-      </div>
-      <div class="filter-row" style="display:flex; flex-wrap:wrap; gap:12px; align-items:center;">
-        <div class="filter-group" style="flex:1; min-width:140px;">
-          <label style="display:block; font-size:11px; color:var(--text-secondary); margin-bottom:4px; font-weight:600;">Rango de Fecha</label>
-          <select v-model="filterRangeMode" style="width:100%; height:38px; border-radius:8px; border:1px solid var(--card-border); background:rgba(255,255,255,0.05); color:var(--text-primary); padding:0 8px; font-size:13px; outline:none;">
-            <option value="month">Por Mes</option>
-            <option value="week">Esta Semana (Últimos 7 días)</option>
-            <option value="custom">Rango Personalizado</option>
-          </select>
-        </div>
-
-        <div v-if="filterRangeMode === 'month'" class="filter-group" style="flex:1.2; min-width:160px; display:flex; gap:8px;">
-          <div style="flex:1.5;">
-            <label style="display:block; font-size:11px; color:var(--text-secondary); margin-bottom:4px; font-weight:600;">Mes</label>
-            <select v-model.number="filterMonth" style="width:100%; height:38px; border-radius:8px; border:1px solid var(--card-border); background:rgba(255,255,255,0.05); color:var(--text-primary); padding:0 8px; font-size:13px; outline:none;">
-              <option value="1">Enero</option>
-              <option value="2">Febrero</option>
-              <option value="3">Marzo</option>
-              <option value="4">Abril</option>
-              <option value="5">Mayo</option>
-              <option value="6">Junio</option>
-              <option value="7">Julio</option>
-              <option value="8">Agosto</option>
-              <option value="9">Septiembre</option>
-              <option value="10">Octubre</option>
-              <option value="11">Noviembre</option>
-              <option value="12">Diciembre</option>
-            </select>
-          </div>
-          <div style="flex:1;">
-            <label style="display:block; font-size:11px; color:var(--text-secondary); margin-bottom:4px; font-weight:600;">Año</label>
-            <select v-model.number="filterYear" style="width:100%; height:38px; border-radius:8px; border:1px solid var(--card-border); background:rgba(255,255,255,0.05); color:var(--text-primary); padding:0 8px; font-size:13px; outline:none;">
-              <option value="2026">2026</option>
-              <option value="2025">2025</option>
-              <option value="2024">2024</option>
-            </select>
-          </div>
-        </div>
-
-        <div v-if="filterRangeMode === 'custom'" class="filter-group" style="flex:2; min-width:240px; display:flex; gap:8px;">
-          <div style="flex:1;">
-            <label style="display:block; font-size:11px; color:var(--text-secondary); margin-bottom:4px; font-weight:600;">Desde</label>
-            <input type="date" v-model="filterStartDate" style="width:100%; height:38px; border-radius:8px; border:1px solid var(--card-border); background:rgba(255,255,255,0.05); color:var(--text-primary); padding:0 8px; font-size:13px; outline:none;" />
-          </div>
-          <div style="flex:1;">
-            <label style="display:block; font-size:11px; color:var(--text-secondary); margin-bottom:4px; font-weight:600;">Hasta</label>
-            <input type="date" v-model="filterEndDate" style="width:100%; height:38px; border-radius:8px; border:1px solid var(--card-border); background:rgba(255,255,255,0.05); color:var(--text-primary); padding:0 8px; font-size:13px; outline:none;" />
-          </div>
-        </div>
-
-        <button @click="applyDateFilters" class="btn-primary" style="height:38px; margin-top:19px; padding:0 16px; font-size:13px; border-radius:8px; display:flex; align-items:center; gap:6px;">
-          <i class="fa-solid fa-rotate"></i> Aplicar
-        </button>
-      </div>
-    </div>
-
     <!-- Encabezado de bienvenida -->
     <div class="view-header dashboard-header">
       <div>
@@ -137,6 +72,73 @@
         <div class="spinner" v-else></div>
         <span>{{ aiLoading ? 'Procesando Recibo IA...' : 'Escanear Recibo (IA)' }}</span>
       </label>
+    </div>
+
+    <!-- Filtros de Período (Barra compacta desplegable abajo de las acciones) -->
+    <div class="glass-card filter-card-compact" style="padding: 10px 16px; border-radius: 12px; margin-bottom: 4px;">
+      <div class="filter-header-toggle" @click="showFilterDrawer = !showFilterDrawer" style="display:flex; justify-content:space-between; align-items:center; cursor:pointer;">
+        <h4 style="margin:0; font-size:13px; font-weight:600; color:var(--text-primary); display:flex; align-items:center; gap:8px;">
+          <i class="fa-solid fa-calendar-days" style="color:var(--color-primary);"></i> Período de vista: <strong style="color:var(--color-primary);">{{ getActiveFilterLabel }}</strong>
+        </h4>
+        <span style="font-size:12px; color:var(--text-secondary); display:flex; align-items:center; gap:4px; font-weight:600;">
+          {{ showFilterDrawer ? 'Ocultar' : 'Cambiar Fecha' }}
+          <i class="fa-solid" :class="showFilterDrawer ? 'fa-chevron-up' : 'fa-chevron-down'"></i>
+        </span>
+      </div>
+
+      <div v-if="showFilterDrawer" class="filter-row" style="display:flex; flex-wrap:wrap; gap:12px; align-items:center; margin-top:12px; padding-top:12px; border-top:1px solid rgba(255,255,255,0.08);">
+        <div class="filter-group" style="flex:1; min-width:140px;">
+          <label style="display:block; font-size:11px; color:var(--text-secondary); margin-bottom:4px; font-weight:600;">Modo Rango</label>
+          <select v-model="filterRangeMode" style="width:100%; height:38px; border-radius:8px; border:1px solid var(--card-border); background:rgba(255,255,255,0.05); color:var(--text-primary); padding:0 8px; font-size:13px; outline:none;">
+            <option value="month">Por Mes</option>
+            <option value="week">Esta Semana (Últimos 7 días)</option>
+            <option value="custom">Rango Personalizado</option>
+          </select>
+        </div>
+
+        <div v-if="filterRangeMode === 'month'" class="filter-group" style="flex:1.2; min-width:160px; display:flex; gap:8px;">
+          <div style="flex:1.5;">
+            <label style="display:block; font-size:11px; color:var(--text-secondary); margin-bottom:4px; font-weight:600;">Mes</label>
+            <select v-model.number="filterMonth" style="width:100%; height:38px; border-radius:8px; border:1px solid var(--card-border); background:rgba(255,255,255,0.05); color:var(--text-primary); padding:0 8px; font-size:13px; outline:none;">
+              <option value="1">Enero</option>
+              <option value="2">Febrero</option>
+              <option value="3">Marzo</option>
+              <option value="4">Abril</option>
+              <option value="5">Mayo</option>
+              <option value="6">Junio</option>
+              <option value="7">Julio</option>
+              <option value="8">Agosto</option>
+              <option value="9">Septiembre</option>
+              <option value="10">Octubre</option>
+              <option value="11">Noviembre</option>
+              <option value="12">Diciembre</option>
+            </select>
+          </div>
+          <div style="flex:1;">
+            <label style="display:block; font-size:11px; color:var(--text-secondary); margin-bottom:4px; font-weight:600;">Año</label>
+            <select v-model.number="filterYear" style="width:100%; height:38px; border-radius:8px; border:1px solid var(--card-border); background:rgba(255,255,255,0.05); color:var(--text-primary); padding:0 8px; font-size:13px; outline:none;">
+              <option value="2026">2026</option>
+              <option value="2025">2025</option>
+              <option value="2024">2024</option>
+            </select>
+          </div>
+        </div>
+
+        <div v-if="filterRangeMode === 'custom'" class="filter-group" style="flex:2; min-width:240px; display:flex; gap:8px;">
+          <div style="flex:1;">
+            <label style="display:block; font-size:11px; color:var(--text-secondary); margin-bottom:4px; font-weight:600;">Desde</label>
+            <input type="date" v-model="filterStartDate" style="width:100%; height:38px; border-radius:8px; border:1px solid var(--card-border); background:rgba(255,255,255,0.05); color:var(--text-primary); padding:0 8px; font-size:13px; outline:none;" />
+          </div>
+          <div style="flex:1;">
+            <label style="display:block; font-size:11px; color:var(--text-secondary); margin-bottom:4px; font-weight:600;">Hasta</label>
+            <input type="date" v-model="filterEndDate" style="width:100%; height:38px; border-radius:8px; border:1px solid var(--card-border); background:rgba(255,255,255,0.05); color:var(--text-primary); padding:0 8px; font-size:13px; outline:none;" />
+          </div>
+        </div>
+
+        <button @click="applyDateFilters" class="btn-primary" style="height:38px; margin-top:19px; padding:0 16px; font-size:13px; border-radius:8px; display:flex; align-items:center; gap:6px;">
+          <i class="fa-solid fa-rotate"></i> Aplicar
+        </button>
+      </div>
     </div>
 
     <!-- Recordatorios de Pago -->
@@ -395,6 +397,7 @@ export default {
     const aiLoading = ref(false)
 
     // Nuevos Estados para Filtrado
+    const showFilterDrawer = ref(false)
     const filterRangeMode = ref('month') // 'month', 'week', 'custom'
     const filterMonth = ref(new Date().getMonth() + 1)
     const filterYear = ref(new Date().getFullYear())
@@ -911,6 +914,7 @@ export default {
       formatDate,
       getPercentage,
       truncateText,
+      showFilterDrawer,
       filterRangeMode,
       filterMonth,
       filterYear,

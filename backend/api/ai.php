@@ -149,6 +149,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             exit();
         }
 
+        $historyInput = isset($input['history']) && is_array($input['history']) ? $input['history'] : [];
+        
         // Obtener resumen de las finanzas del usuario (para contextualizar)
         // 1. Balance por tipo de cuenta
         $stmtAccounts = $db->prepare("SELECT name, type, balance, currency FROM accounts WHERE user_id = ?");
@@ -164,6 +166,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $stmtTx->execute([$userId]);
         $recentTransactions = $stmtTx->fetchAll();
 
+        // 3. Préstamos activos
+        $stmtLoans = $db->prepare("SELECT person_name, type, amount, balance FROM loans WHERE user_id = ? AND status = 'active'");
+        $stmtLoans->execute([$userId]);
+        $loans = $stmtLoans->fetchAll();
+
         // Estructurar el resumen
         $summary = "Cuentas del usuario:\n";
         foreach ($accounts as $acc) {
@@ -173,29 +180,60 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         foreach ($recentTransactions as $tx) {
             $summary .= "- {$tx['date']} | {$tx['type']} | {$tx['amount']} | {$tx['description']} ({$tx['category']})\n";
         }
+        if (!empty($loans)) {
+            $summary .= "\nPréstamos registrados:\n";
+            foreach ($loans as $l) {
+                $summary .= "- " . ($l['type'] === 'por_cobrar' ? "Por Cobrar a " : "Por Pagar a ") . "{$l['person_name']}: Saldo {$l['balance']} (Monto inicial: {$l['amount']})\n";
+            }
+        }
 
-        $systemPrompt = "Eres 'Ábaco', un asesor financiero personal interactivo y tutor oficial de la aplicación de control de finanzas. "
-                      . "Tu tono debe ser profesional, cercano, motivador y directo. Ayuda a planificar presupuestos, dar consejos y, muy importante, explica cómo usar la herramienta.\n\n"
-                      . "CONOCIMIENTO DE LA HERRAMIENTA ÁBACO:\n"
-                      . "- 1. Dashboard (Resumen): Muestra el balance general, ingresos y gastos mensuales. Tiene la gráfica 'Distribución de Gastos' (puedes hacer clic en cualquier categoría de la gráfica para filtrar el historial de abajo), y botones rápidos para registrar ingresos y gastos manualmente. Cuenta con un 'Escáner de Recibos (IA)' (icono de cámara) que procesa fotos de facturas físicas y registra los datos automáticamente.\n"
-                      . "- 2. Cuentas y Tarjetas: Gestiona tus cuentas (Efectivo, Banco, Tarjetas de Crédito con límites) y permite crear metas de ahorro con barras de progreso.\n"
-                      . "- 3. Presupuestos (Límites): Permite fijar límites mensuales por categoría para controlar tus gastos. Incluye una función de 'Optimización por IA' que analiza tus datos y propone límites sugeridos.\n"
-                      . "- 4. Deudas y Préstamos: Controla los préstamos realizados (por cobrar) y los recibidos (por pagar), registrando abonos parciales.\n"
-                      . "- 5. Ajustes: Permite crear categorías personalizadas con colores y más de 80 iconos de FontAwesome, exportar respaldos y configurar tu moneda (COP, USD, MXN, EUR).\n\n"
-                      . "Si el usuario pregunta cómo hacer algo, cómo funciona una sección o pide un tutorial de Ábaco, explícale detalladamente basándote en este conocimiento.\n\n"
-                      . "Aquí están las finanzas actuales del usuario:\n"
+        $systemPrompt = "Eres 'Ábaco', un asesor financiero personal interactivo, mentor de riqueza y tutor oficial de la aplicación de control de finanzas.\n"
+                      . "Tu tono es profesional, cercano, directo, motivador y sabio. Tu misión es educar sobre el uso de la herramienta y guiar al usuario hacia la libertad financiera.\n\n"
+                      . "FILOSOFÍA Y LIBROS DE RECOMENDACIÓN FINANCIERA DE ÁBACO:\n"
+                      . "1. 'El Hombre Más Rico de Babilonia' (George S. Clason): Págate a ti mismo primero (guarda al menos el 10% de todo lo que ganes antes de pagar tus gastos). Controla tus gastos, haz que tu dinero trabaje para ti multiplicándose y protege tu capital de inversiones dudosas.\n"
+                      . "2. 'El Folleto del Millonario / La Regla 10X' (Grant Cardone): Enfócate en multiplicar tus ingresos en lugar de solo recortar cafecitos. Establece metas 10 veces más grandes, mantén una disciplina implacable y busca múltiples fuentes de ingresos.\n"
+                      . "3. 'Padre Rico, Padre Pobre' (Robert Kiyosaki): Entiende la diferencia entre un Activo (pone dinero en tu bolsillo) y un Pasivo (saca dinero de tu bolsillo). Adquiere bienes que generen flujo de caja.\n\n"
+                      . "TUTORIAL Y FUNCIONALIDADES DE ÁBACO:\n"
+                      . "- Módulo de Préstamos (¡Importante cuando prestas dinero a personas!): Puedes registrar préstamos 'Por Cobrar' (dinero que prestaste a amigos, familiares o clientes) o 'Por Pagar' (deudas tuyas). Cada préstamo te permite llevar el historial de abonos parciales, calcular el saldo pendiente y marcar cuando el préstamo esté saldado por completo.\n"
+                      . "- Dashboard: Balance total, gráfica interactiva de 'Distribución de Gastos' (al hacer clic en cualquier categoría del gráfico se filtran tus movimientos abajo), botones rápidos de Ingreso/Gasto y el 'Escáner de Recibos IA' (icono cámara) para leer facturas físicas.\n"
+                      . "- Cuentas y Metas de Ahorro: Manejo de cuentas de efectivo, banco y tarjetas de crédito con corte/pago, más metas de ahorro con progreso.\n"
+                      . "- Presupuestos: Establece límites mensuales por categoría y utiliza el 'Optimizador IA' para reajustar los límites según tus hábitos reales.\n"
+                      . "- Ajustes: Configuración de perfil, cambio de moneda (COP, USD, MXN, EUR) y creador de categorías con más de 80 iconos de FontAwesome.\n\n"
+                      . "Aquí está el estado financiero actual del usuario:\n"
                       . $summary . "\n"
-                      . "Responde la pregunta del usuario basándose en este contexto (si aplica). Mantén tu respuesta concisa (máximo 3 párrafos), con sugerencias muy claras en la moneda del usuario. Responde siempre en español.";
+                      . "INSTRUCCIÓN DE RESPUESTA: Responde con empatía, aplicando principios de los libros mencionados si aplica, y guiando paso a paso sobre las funciones de la app. Mantén las respuestas claras (máximo 3-4 párrafos) en español.";
+
+        // Construir arreglo de contenidos con historial para mantener el contexto
+        $contents = [];
+        $contents[] = [
+            "role" => "user",
+            "parts" => [["text" => $systemPrompt]]
+        ];
+        $contents[] = [
+            "role" => "model",
+            "parts" => [["text" => "¡Hola! Entendido. Soy Ábaco, tu asesor y mentor financiero personal. Mantendré el contexto de nuestras conversaciones y estoy listo para ayudarte con tus finanzas y enseñarte a aprovechar al máximo todas las herramientas."]]
+        ];
+
+        // Agregar historial de la conversación previa
+        foreach ($historyInput as $hMsg) {
+            $role = ($hMsg['sender'] === 'user') ? 'user' : 'model';
+            $text = trim($hMsg['text'] ?? '');
+            if (!empty($text)) {
+                $contents[] = [
+                    "role" => $role,
+                    "parts" => [["text" => $text]]
+                ];
+            }
+        }
+
+        // Agregar el mensaje actual del usuario
+        $contents[] = [
+            "role" => "user",
+            "parts" => [["text" => $message]]
+        ];
 
         $payload = [
-            "contents" => [
-                [
-                    "role" => "user",
-                    "parts" => [
-                        ["text" => $systemPrompt . "\n\nPregunta del usuario: " . $message]
-                    ]
-                ]
-            ]
+            "contents" => $contents
         ];
 
         try {

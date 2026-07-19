@@ -124,103 +124,109 @@
       </div>
     </div>
 
-    <!-- Segunda fila: Editor de Categorías -->
+    <!-- Segunda fila: Gestión de Categorías con Modal -->
     <div class="glass-card category-manager-panel">
-      <h3 class="card-title text-gradient-purple">
-        <i class="fa-solid fa-tags"></i> Gestión de Categorías
-      </h3>
-      <p class="card-subtitle">Define tus categorías de ingresos y egresos (gastos bancarios, ocio, facturas, etc.). Selecciona iconos de FontAwesome.</p>
-
-      <div class="category-manager-grid">
-        <!-- Formulario Crear/Editar -->
-        <div class="category-editor-form">
-          <h4 class="form-section-title">{{ editingCategory ? 'Editar Categoría' : 'Añadir Nueva Categoría' }}</h4>
-          
-          <form @submit.prevent="submitCategoryForm" class="cat-editor">
-            <div class="form-group">
-              <label for="cat-name">Nombre de la Categoría</label>
-              <input type="text" id="cat-name" placeholder="Ej: Gastos Bancarios, Ocio" v-model="catForm.name" required />
-            </div>
-
-            <div class="form-row">
-              <div class="form-group">
-                <label for="cat-type">Tipo de Categoría</label>
-                <select id="cat-type" v-model="catForm.type" required>
-                  <option value="egreso">Egreso (Gasto)</option>
-                  <option value="ingreso">Ingreso</option>
-                </select>
-              </div>
-
-              <div class="form-group">
-                <label for="cat-color">Color para Reportes</label>
-                <input type="color" id="cat-color" v-model="catForm.color" class="color-picker-input" />
-              </div>
-            </div>
-
-            <!-- Catálogo de Iconos FontAwesome -->
-            <div class="form-group">
-              <label>Seleccionar Icono FontAwesome</label>
-              <div class="icon-selector-grid">
-                <button type="button" 
-                        v-for="iconClass in fontAwesomeIcons" 
-                        :key="iconClass"
-                        class="btn-icon-option"
-                        :class="{ active: catForm.icon === iconClass }"
-                        @click="catForm.icon = iconClass"
-                        :title="iconClass">
-                  <i :class="'fa-solid ' + iconClass"></i>
-                </button>
-              </div>
-            </div>
-
-            <div class="form-group">
-              <label for="cat-custom-icon">O escribe una clase FontAwesome personalizada</label>
-              <input type="text" id="cat-custom-icon" placeholder="Ej: fa-motorcycle, fa-dumbbell" v-model="catForm.icon" />
-              <span class="input-help-text">
-                Icono actual: <i :class="'fa-solid ' + (catForm.icon || 'fa-tag')"></i> ({{ catForm.icon || 'Ninguno' }})
-              </span>
-            </div>
-
-            <div v-if="catError" class="error-msg">{{ catError }}</div>
-
-            <div class="form-actions">
-              <button type="submit" class="btn-primary">
-                {{ editingCategory ? 'Actualizar Categoría' : 'Añadir Categoría' }}
-              </button>
-              <button type="button" class="btn-secondary" v-if="editingCategory" @click="cancelEdit">
-                Cancelar
-              </button>
-            </div>
-          </form>
+      <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px; margin-bottom:16px;">
+        <div>
+          <h3 class="card-title text-gradient-purple" style="margin:0;">
+            <i class="fa-solid fa-tags"></i> Gestión de Categorías
+          </h3>
+          <p class="card-subtitle" style="margin:4px 0 0 0;">Define tus categorías personalizadas de ingresos y egresos con colores e iconos.</p>
         </div>
+        <button class="btn-primary" @click="openCategoryModal()" style="display:flex; align-items:center; gap:8px;">
+          <i class="fa-solid fa-plus"></i> Nueva Categoría
+        </button>
+      </div>
 
-        <!-- Listado de Categorías -->
-        <div class="category-display-list">
-          <h4 class="form-section-title">Listado de Categorías</h4>
-          
-          <div class="categories-container-list">
-            <div v-for="cat in categories" :key="cat.id" class="category-item-card" :class="{ 'system-cat': !cat.user_id }">
-              <div class="cat-left">
-                <div class="cat-icon-badge" :style="{ backgroundColor: cat.color + '20', color: cat.color }">
-                  <i :class="'fa-solid ' + (cat.icon || 'fa-tag')"></i>
-                </div>
-                <div>
-                  <strong class="cat-title">{{ cat.name }}</strong>
-                  <span class="cat-type-label">{{ cat.type === 'ingreso' ? 'Ingreso' : 'Egreso' }}</span>
-                </div>
-              </div>
-
-              <div class="cat-right-actions">
-                <button class="btn-edit-action" @click="startEdit(cat)" title="Editar categoría">
-                  <i class="fa-solid fa-pen"></i>
-                </button>
-                <button class="btn-delete-action" @click="deleteCategory(cat.id)" title="Eliminar categoría">
-                  <i class="fa-solid fa-trash-can"></i>
-                </button>
-              </div>
+      <!-- Listado de Categorías de ancho completo -->
+      <div class="categories-container-list" style="display:grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap:12px;">
+        <div v-for="cat in categories" :key="cat.id" class="category-item-card" :class="{ 'system-cat': !cat.user_id }">
+          <div class="cat-left">
+            <div class="cat-icon-badge" :style="{ backgroundColor: cat.color + '20', color: cat.color }">
+              <i :class="'fa-solid ' + (cat.icon || 'fa-tag')"></i>
+            </div>
+            <div>
+              <strong class="cat-title">{{ cat.name }}</strong>
+              <span class="cat-type-label">{{ cat.type === 'ingreso' ? 'Ingreso' : 'Egreso' }}</span>
             </div>
           </div>
+
+          <div class="cat-right-actions">
+            <button class="btn-edit-action" @click="openCategoryModal(cat)" title="Editar categoría">
+              <i class="fa-solid fa-pen"></i>
+            </button>
+            <button class="btn-delete-action" @click="deleteCategory(cat.id)" title="Eliminar categoría">
+              <i class="fa-solid fa-trash-can"></i>
+            </button>
+          </div>
         </div>
+      </div>
+    </div>
+
+    <!-- MODAL DE CREAR / EDITAR CATEGORÍA -->
+    <div v-if="showCategoryModal" class="modal-overlay" @click.self="closeCategoryModal">
+      <div class="glass-card modal-content" style="max-width: 540px; width: 92%;">
+        <div class="modal-header">
+          <h3>{{ editingCategory ? 'Editar Categoría' : 'Nueva Categoría' }}</h3>
+          <button class="btn-close" @click="closeCategoryModal">&times;</button>
+        </div>
+
+        <form @submit.prevent="submitCategoryForm" class="modal-form">
+          <div class="form-group">
+            <label for="cat-name">Nombre de la Categoría</label>
+            <input type="text" id="cat-name" placeholder="Ej: Gastos Bancarios, Ocio, Salario" v-model="catForm.name" required />
+          </div>
+
+          <div class="form-row" style="display:flex; gap:12px;">
+            <div class="form-group" style="flex:1;">
+              <label for="cat-type">Tipo de Categoría</label>
+              <select id="cat-type" v-model="catForm.type" required>
+                <option value="egreso">Egreso (Gasto)</option>
+                <option value="ingreso">Ingreso</option>
+              </select>
+            </div>
+
+            <div class="form-group" style="flex:1;">
+              <label for="cat-color">Color para Reportes</label>
+              <input type="color" id="cat-color" v-model="catForm.color" class="color-picker-input" style="height:42px; padding:2px;" />
+            </div>
+          </div>
+
+          <!-- Catálogo de Iconos FontAwesome -->
+          <div class="form-group">
+            <label>Seleccionar Icono FontAwesome (Más de 80 disponibles)</label>
+            <div class="icon-selector-grid" style="max-height: 180px; overflow-y: auto;">
+              <button type="button" 
+                      v-for="iconClass in fontAwesomeIcons" 
+                      :key="iconClass"
+                      class="btn-icon-option"
+                      :class="{ active: catForm.icon === iconClass }"
+                      @click="catForm.icon = iconClass"
+                      :title="iconClass">
+                <i :class="'fa-solid ' + iconClass"></i>
+              </button>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label for="cat-custom-icon">O escribe una clase personalizada de FontAwesome</label>
+            <input type="text" id="cat-custom-icon" placeholder="Ej: fa-motorcycle, fa-dumbbell" v-model="catForm.icon" />
+            <span class="input-help-text" style="display:block; margin-top:4px; font-size:12px; color:var(--text-secondary);">
+              Vista previa icono: <i :class="'fa-solid ' + (catForm.icon || 'fa-tag')" :style="{ color: catForm.color }"></i> ({{ catForm.icon || 'Ninguno' }})
+            </span>
+          </div>
+
+          <div v-if="catError" class="error-msg">{{ catError }}</div>
+
+          <div class="modal-actions" style="display:flex; justify-content:flex-end; gap:10px; margin-top:16px;">
+            <button type="button" class="btn-secondary" @click="closeCategoryModal">
+              Cancelar
+            </button>
+            <button type="submit" class="btn-primary">
+              {{ editingCategory ? 'Guardar Cambios' : 'Crear Categoría' }}
+            </button>
+          </div>
+        </form>
       </div>
     </div>
   </div>
@@ -252,6 +258,7 @@ export default {
 
     const categories = ref([])
     const editingCategory = ref(null)
+    const showCategoryModal = ref(false)
 
     // Formulario de categoría
     const catForm = ref({
@@ -260,6 +267,34 @@ export default {
       color: '#6366f1',
       icon: 'fa-tag'
     })
+
+    const openCategoryModal = (cat = null) => {
+      if (cat) {
+        editingCategory.value = cat
+        catForm.value = {
+          name: cat.name,
+          type: cat.type,
+          color: cat.color,
+          icon: cat.icon || 'fa-tag'
+        }
+      } else {
+        editingCategory.value = null
+        catForm.value = {
+          name: '',
+          type: 'egreso',
+          color: '#6366f1',
+          icon: 'fa-tag'
+        }
+      }
+      catError.value = ''
+      showCategoryModal.value = true
+    }
+
+    const closeCategoryModal = () => {
+      showCategoryModal.value = false
+      editingCategory.value = null
+      catError.value = ''
+    }
 
     // UI Estados
     const btnLoading = ref(false)
@@ -410,7 +445,7 @@ export default {
           throw new Error(data.error || 'Error al procesar la categoría.')
         }
 
-        cancelEdit()
+        closeCategoryModal()
         await fetchCategories()
       } catch (err) {
         catError.value = err.message
@@ -541,6 +576,9 @@ export default {
       resetDatabase,
       currentTheme,
       toggleTheme,
+      showCategoryModal,
+      openCategoryModal,
+      closeCategoryModal,
       geminiApiKey,
       aiKeySuccessMsg,
       saveGeminiKey

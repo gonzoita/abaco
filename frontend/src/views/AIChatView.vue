@@ -1,8 +1,17 @@
 <template>
   <div class="chat-container">
-    <div class="view-header">
-      <h1 class="view-title text-gradient-purple">Asesor Financiero IA</h1>
-      <p class="view-subtitle">Pregúntale a nuestra IA consejos sobre presupuestos, ahorro o análisis de tus gastos</p>
+    <div class="view-header chat-header-top">
+      <div>
+        <h1 class="view-title text-gradient-purple">Asesor Financiero IA</h1>
+        <p class="view-subtitle">Tu mentor financiero personal y tutor interactivo de Ábaco</p>
+      </div>
+      <button class="btn-clear-history" @click="clearHistory" title="Limpiar historial de conversación">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="btn-icon">
+          <polyline points="3 6 5 6 21 6"></polyline>
+          <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+        </svg>
+        <span>Limpiar Chat</span>
+      </button>
     </div>
 
     <!-- Banner de API Key (Informativo e interactivo) -->
@@ -18,10 +27,10 @@
           <line x1="12" y1="8" x2="12.01" y2="8"></line>
         </svg>
         <span v-if="hasCustomKey">
-          🔐 Conectado directamente a tu cuenta de **Google Gemini** (API Key Personal).
+          🔐 Conectado a tu cuenta de **Google Gemini** (API Key Personal).
         </span>
         <span v-else>
-          💡 Usando IA compartida del servidor. Para mayor velocidad y privacidad total, puedes vincular tu API Key de Gemini en <router-link to="/settings" class="banner-link">Ajustes</router-link>.
+          💡 Usando IA compartida del servidor. Puedes vincular tu API Key de Gemini en <router-link to="/settings" class="banner-link">Ajustes</router-link>.
         </span>
       </div>
     </div>
@@ -39,16 +48,19 @@
             </svg>
           </div>
           <div class="message-bubble">
-            <p>¡Hola, {{ userName }}! Soy tu asistente financiero de Ábaco. He analizado tus balances y cuentas de este mes. ¿En qué te puedo ayudar hoy?</p>
+            <p>¡Hola, {{ userName }}! Soy tu asesor financiero y mentor en Ábaco. Mantengo el contexto de nuestra conversación para ayudarte a ahorrar, administrar tus préstamos y aplicar las mejores leyes de riqueza. ¿En qué trabajamos hoy?</p>
             <div class="suggestions-list">
-              <button class="btn-suggestion" @click="sendPredefined('¿Cómo puedo reducir mis gastos de este mes?')">
-                ¿Cómo reduzco gastos?
+              <button class="btn-suggestion" @click="sendPredefined('¿Cómo funciona el módulo de préstamos cuando le presto dinero a alguien?')">
+                🤝 Préstamos a personas
               </button>
-              <button class="btn-suggestion" @click="sendPredefined('Dame 3 consejos prácticos para ahorrar más.')">
-                Consejos de ahorro
+              <button class="btn-suggestion" @click="sendPredefined('Dame consejos de ahorro basados en El Hombre Más Rico de Babilonia.')">
+                📖 Regla del 10% (Babilonia)
               </button>
-              <button class="btn-suggestion" @click="sendPredefined('Analiza mis cuentas y dime si voy bien con mi balance.')">
-                Analizar mis cuentas
+              <button class="btn-suggestion" @click="sendPredefined('¿Cómo puedo aumentar mis ingresos siguiendo la regla 10X de Grant Cardone?')">
+                🚀 Estrategia 10X (Cardone)
+              </button>
+              <button class="btn-suggestion" @click="sendPredefined('Dame un tutorial completo de cómo usar Ábaco.')">
+                📘 Tutorial de Ábaco
               </button>
             </div>
           </div>
@@ -87,7 +99,7 @@
 
       <!-- Barra de entrada de texto -->
       <form @submit.prevent="sendMessage" class="chat-input-bar">
-        <input type="text" v-model="userInput" placeholder="Escribe tu consulta aquí..." :disabled="loading" required />
+        <input type="text" v-model="userInput" placeholder="Escribe tu consulta o pide un consejo..." :disabled="loading" required />
         <button type="submit" class="btn-send btn-primary" :disabled="loading">
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <line x1="22" y1="2" x2="11" y2="13"></line>
@@ -113,6 +125,28 @@ export default {
     const loading = ref(false)
     const messagesBox = ref(null)
 
+    const loadHistory = () => {
+      const saved = localStorage.getItem('abaco_ai_chat_history')
+      if (saved) {
+        try {
+          messages.value = JSON.parse(saved)
+        } catch (e) {
+          messages.value = []
+        }
+      }
+    }
+
+    const saveHistory = () => {
+      localStorage.setItem('abaco_ai_chat_history', JSON.stringify(messages.value))
+    }
+
+    const clearHistory = () => {
+      if (confirm('¿Deseas borrar el historial de conversación con el Asesor IA?')) {
+        messages.value = []
+        localStorage.removeItem('abaco_ai_chat_history')
+      }
+    }
+
     const checkUserName = () => {
       const stored = localStorage.getItem('user')
       if (stored) {
@@ -133,7 +167,8 @@ export default {
       if (!text) return
 
       // Agregar mensaje del usuario a la lista
-      messages.value.push({ role: 'user', text })
+      messages.value.push({ role: 'user', text, sender: 'user' })
+      saveHistory()
       userInput.value = ''
       loading.value = true
       scrollToBottom()
@@ -150,10 +185,19 @@ export default {
           headers['X-Gemini-API-Key'] = customApiKey
         }
 
+        // Obtener los últimos 8 mensajes para mantener contexto de la conversación sin exceder tokens
+        const historyToSend = messages.value.slice(-9, -1).map(m => ({
+          sender: m.role === 'user' ? 'user' : 'assistant',
+          text: m.text
+        }))
+
         const response = await fetch(`${API_BASE}/ai.php?action=get_advice`, {
           method: 'POST',
           headers,
-          body: JSON.stringify({ message: text })
+          body: JSON.stringify({ 
+            message: text,
+            history: historyToSend
+          })
         })
 
         const data = await response.json()
@@ -163,9 +207,11 @@ export default {
         }
 
         // Agregar respuesta del asistente
-        messages.value.push({ role: 'assistant', text: data.response })
+        messages.value.push({ role: 'assistant', text: data.response, sender: 'assistant' })
+        saveHistory()
       } catch (err) {
-        messages.value.push({ role: 'assistant', text: `Lo siento, ocurrió un error: ${err.message}` })
+        messages.value.push({ role: 'assistant', text: `Lo siento, ocurrió un error: ${err.message}`, sender: 'assistant' })
+        saveHistory()
       } finally {
         loading.value = false
         scrollToBottom()
@@ -179,6 +225,8 @@ export default {
 
     onMounted(() => {
       checkUserName()
+      loadHistory()
+      scrollToBottom()
     })
 
     return {
@@ -190,7 +238,8 @@ export default {
       sendMessage,
       sendPredefined,
       scrollToBottom,
-      hasCustomKey
+      hasCustomKey,
+      clearHistory
     }
   }
 }
@@ -233,6 +282,33 @@ export default {
   font-weight: 500;
 }
 
+.chat-header-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.btn-clear-history {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.25);
+  color: #ef4444;
+  padding: 6px 12px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: var(--transition-smooth);
+}
+.btn-clear-history:hover {
+  background: rgba(239, 68, 68, 0.2);
+}
+.btn-clear-history svg {
+  width: 14px;
+  height: 14px;
+}
+
 .chat-container {
   display: flex;
   flex-direction: column;
@@ -258,19 +334,26 @@ export default {
 
 .messages-container {
   flex: 1;
-  padding: 20px;
+  padding: 16px;
   overflow-y: auto;
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 16px;
 }
 
 .message {
   display: flex;
-  gap: 12px;
-  max-width: 80%;
+  gap: 10px;
+  max-width: 95%;
+  width: auto;
   align-self: flex-start;
   animation: messageSlideIn 0.3s ease-out;
+}
+
+@media (min-width: 769px) {
+  .message {
+    max-width: 88%;
+  }
 }
 
 .message.user {
