@@ -310,28 +310,57 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     if ($action === 'google_login') {
-        $email = trim($input['email'] ?? '');
-        $name = trim($input['name'] ?? '');
+        $token = trim($input['token'] ?? '');
 
-        if (empty($email) || empty($name)) {
+        if (empty($token)) {
             http_response_code(400);
-            echo json_encode(["error" => "Datos de Google incompletos."]);
+            echo json_encode(["error" => "Token de Google no provisto."]);
             exit();
         }
 
-        // Buscar si el usuario ya existe
+        // Validar el token contra los servidores oficiales de Google
+        $url = "https://oauth2.googleapis.com/tokeninfo?id_token=" . urlencode($token);
+        
+        $ch = curl_init();
+        curl_setopt($ch, CURLOPT_URL, $url);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_TIMEOUT, 10);
+        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, true);
+        $responseJson = curl_exec($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+
+        if ($httpCode !== 200 || !$responseJson) {
+            http_response_code(401);
+            echo json_encode(["error" => "Autenticación de Google inválida o expirada."]);
+            exit();
+        }
+
+        $googleUser = json_decode($responseJson, true);
+        
+        if (empty($googleUser['email'])) {
+            http_response_code(401);
+            echo json_encode(["error" => "No se pudo recuperar el correo desde Google."]);
+            exit();
+        }
+
+        $email = trim($googleUser['email']);
+        $name = trim($googleUser['name'] ?? $googleUser['given_name'] ?? 'Usuario Google');
+
+        // Buscar si el usuario ya existe en la base de datos
         $stmt = $db->prepare("SELECT id, name, email, currency, subscription_status, subscription_expires_at, is_active, role FROM users WHERE email = ?");
         $stmt->execute([$email]);
         $user = $stmt->fetch();
 
         if ($user && isset($user['is_active']) && intval($user['is_active']) === 0) {
-            http_response_code(403);
-            echo json_encode(["error" => "Por favor activa tu cuenta antes de iniciar sesión con Google. Revisa tu correo de confirmación."]);
-            exit();
+            // Si ya existe pero estaba inactivo, lo activamos automáticamente ya que Google certifica la propiedad del correo
+            $stmtAct = $db->prepare("UPDATE users SET is_active = 1, activation_token = NULL WHERE id = ?");
+            $stmtAct->execute([$user['id']]);
+            $user['is_active'] = 1;
         }
 
         if (!$user) {
-            // Registrar usuario dinámicamente si no existe (OAuth Auto-Signup) pero inactivo
+            // Registrar usuario dinámicamente si no existe (Auto-Signup OAuth) - Activado directamente
             try {
                 $db->beginTransaction();
 
@@ -339,10 +368,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $passwordHash = password_hash($randomPassword, PASSWORD_BCRYPT);
                 $currency = 'COP';
                 $expiresAt = date('Y-m-d H:i:s', strtotime('+30 days'));
-                $activationToken = bin2hex(random_bytes(16));
 
-                $stmtInsert = $db->prepare("INSERT INTO users (name, email, password_hash, currency, subscription_status, subscription_expires_at, is_active, activation_token) VALUES (?, ?, ?, ?, 'trial', ?, 0, ?)");
-                $stmtInsert->execute([$name, $email, $passwordHash, $currency, $expiresAt, $activationToken]);
+                $stmtInsert = $db->prepare("INSERT INTO users (name, email, password_hash, currency, subscription_status, subscription_expires_at, is_active, activation_token) VALUES (?, ?, ?, ?, 'trial', ?, 1, NULL)");
+                $stmtInsert->execute([$name, $email, $passwordHash, $currency, $expiresAt]);
                 $userId = $db->lastInsertId();
 
                 // Crear cuentas predeterminadas
@@ -352,43 +380,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                 $db->commit();
 
-                // Enviar correo de activación
-                $protocol = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off' || $_SERVER['SERVER_PORT'] == 443) ? "https://" : "http://";
-                $host = $_SERVER['HTTP_HOST'];
-                $requestUri = explode('?', $_SERVER['REQUEST_URI'], 2)[0];
-                $activationLink = $protocol . $host . $requestUri . "?action=activate&token=" . $activationToken;
-                
-                $to = $email;
-                $subject = "Activa tu cuenta de Google en Abaco, finanzas";
-                $message = "
-                <html>
-                <head>
-                    <meta charset='UTF-8'>
-                    <title>Activa tu cuenta - Ábaco</title>
-                </head>
-                <body style='font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, sans-serif; background-color: #f2f2f7; padding: 40px; margin: 0;'>
-                    <div style='background-color: #ffffff; max-width: 500px; margin: 0 auto; padding: 40px; border-radius: 20px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); text-align: center;'>
-                        <h2 style='color: #000000; font-size: 22px; font-weight: 600; margin-bottom: 10px;'>¡Activa tu acceso de Google en Ábaco!</h2>
-                        <p style='color: #636366; font-size: 15px; line-height: 1.5; margin-bottom: 30px;'>Hola {$name}, has registrado tu cuenta vinculada a Google. Para poder entrar, actívala haciendo clic en el botón de abajo:</p>
-                        <a href='{$activationLink}' style='background-color: #0a84ff; color: #ffffff; text-decoration: none; padding: 12px 30px; border-radius: 10px; font-weight: 500; display: inline-block; font-size: 15px;'>Activar Cuenta</a>
-                        <hr style='border: 0; border-top: 1px solid #e5e5ea; margin: 30px 0;'>
-                        <p style='color: #8e8e93; font-size: 12px;'>Si no has iniciado esto, puedes omitir este correo.</p>
-                    </div>
-                </body>
-                </html>
-                ";
-                
-                $headers = "MIME-Version: 1.0" . "\r\n";
-                $headers .= "Content-type:text/html;charset=UTF-8" . "\r\n";
-                $headers .= "From: no-reply@abaco.finance" . "\r\n";
-                $headers .= "Reply-To: no-reply@abaco.finance" . "\r\n";
-                $headers .= "X-Mailer: PHP/" . phpversion();
-                
-                @mail($to, $subject, $message, $headers);
-
-                http_response_code(403);
-                echo json_encode(["error" => "Registro exitoso vía Google. Hemos enviado un correo de verificación para activar tu cuenta antes de iniciar sesión."]);
-                exit();
+                // Crear el objeto user para la respuesta
+                $user = [
+                    'id' => $userId,
+                    'name' => $name,
+                    'email' => $email,
+                    'currency' => $currency,
+                    'subscription_status' => 'trial',
+                    'subscription_expires_at' => $expiresAt,
+                    'is_active' => 1,
+                    'role' => 'user'
+                ];
 
             } catch (Exception $e) {
                 if ($db->inTransaction()) {

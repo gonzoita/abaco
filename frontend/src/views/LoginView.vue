@@ -36,87 +36,22 @@
         <span>o continúa con</span>
       </div>
 
-      <!-- Botón de Google elegante estilo Apple HIG -->
-      <button type="button" class="btn-google btn-block" @click="showGoogleSelector = true" :disabled="loading">
-        <svg class="google-icon" viewBox="0 0 24 24" fill="currentColor">
-          <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
-          <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
-          <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" fill="#FBBC05"/>
-          <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
-        </svg>
-        <span>Iniciar sesión con Google</span>
-      </button>
+      <!-- Contenedor Oficial del Botón de Google -->
+      <div class="google-btn-wrapper" style="display:flex; justify-content:center; margin: 16px 0;">
+        <div id="google-btn-container"></div>
+      </div>
 
       <div class="auth-footer">
         <p>¿No tienes cuenta? <router-link to="/register" class="auth-link">Regístrate gratis</router-link></p>
-      </div>
-    </div>
-
-    <!-- Modal de Selección de Cuentas de Google (Simulada e Integrada al Backend) -->
-    <div v-if="showGoogleSelector" class="google-modal-overlay" @click.self="showGoogleSelector = false">
-      <div class="google-modal-card glass-card">
-        <div v-if="googleError" class="error-msg" style="margin-bottom: 14px; background: rgba(255, 69, 58, 0.08); border-color: rgba(255, 69, 58, 0.2); color: var(--color-danger); padding: 10px; border-radius: var(--radius-sm); font-size: 13.5px;">
-          {{ googleError }}
-        </div>
-        <div class="google-modal-header">
-          <svg class="google-modal-logo" viewBox="0 0 24 24" fill="currentColor">
-            <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
-            <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
-            <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" fill="#FBBC05"/>
-            <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
-          </svg>
-          <h3>Elige una cuenta</h3>
-          <p>para continuar en Ábaco Finanzas</p>
-        </div>
-
-        <div class="google-accounts-list">
-          <div class="google-account-item" @click="handleGoogleOAuth('abaco.finance@gmail.com', 'Ábaco Finance')">
-            <div class="account-avatar">AF</div>
-            <div class="account-details">
-              <strong>Ábaco Finance</strong>
-              <span>abaco.finance@gmail.com</span>
-            </div>
-          </div>
-
-          <div class="google-account-item" @click="handleGoogleOAuth('demo.finanzas@gmail.com', 'Demo Finanzas')">
-            <div class="account-avatar">DF</div>
-            <div class="account-details">
-              <strong>Demo Finanzas</strong>
-              <span>demo.finanzas@gmail.com</span>
-            </div>
-          </div>
-
-          <!-- Opción de personalizar o usar otra -->
-          <div class="google-account-item custom-email-item" v-if="!showCustomInput" @click="showCustomInput = true">
-            <div class="account-avatar-plus">+</div>
-            <div class="account-details">
-              <strong>Usar otra cuenta</strong>
-              <span>Ingresa un correo electrónico personalizado</span>
-            </div>
-          </div>
-
-          <div class="google-custom-input-form" v-else>
-            <input type="text" v-model="customName" placeholder="Nombre completo" class="google-input" />
-            <input type="email" v-model="customEmail" placeholder="correo@gmail.com" class="google-input" />
-            <div class="google-input-actions">
-              <button class="btn-google-cancel" @click="showCustomInput = false">Atrás</button>
-              <button class="btn-google-submit" @click="submitCustomGoogle">Continuar</button>
-            </div>
-          </div>
-        </div>
-
-        <div class="google-modal-footer">
-          <p>Para continuar, Google compartirá tu nombre, dirección de correo electrónico y foto de perfil con Ábaco Finanzas.</p>
-        </div>
       </div>
     </div>
   </div>
 </template>
 
 <script>
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { API_BASE } from '../config.js'
+import { API_BASE, GOOGLE_CLIENT_ID } from '../config.js'
 
 export default {
   name: 'LoginView',
@@ -128,12 +63,6 @@ export default {
     const errorMessage = ref('')
     const googleError = ref('')
     const router = useRouter()
-
-    // Control de Google Login
-    const showGoogleSelector = ref(false)
-    const showCustomInput = ref(false)
-    const customName = ref('')
-    const customEmail = ref('')
 
     const handleLogin = async () => {
       loading.value = true
@@ -170,33 +99,31 @@ export default {
       }
     }
 
-    const handleGoogleOAuth = async (googleEmail, googleName) => {
+    const handleGoogleCredentialResponse = async (response) => {
       loading.value = true
       googleError.value = ''
       errorMessage.value = ''
       
       try {
-        const response = await fetch(`${API_BASE}/auth.php?action=google_login`, {
+        const res = await fetch(`${API_BASE}/auth.php?action=google_login`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json'
           },
           body: JSON.stringify({
-            email: googleEmail,
-            name: googleName
+            token: response.credential
           })
         })
 
-        const data = await response.json()
+        const data = await res.json()
 
-        if (!response.ok) {
+        if (!res.ok) {
           throw new Error(data.error || 'Error al autenticar con Google.')
         }
 
         localStorage.setItem('token', data.token)
         localStorage.setItem('user', JSON.stringify(data.user))
         
-        showGoogleSelector.value = false
         emit('auth-change')
         router.push('/')
       } catch (err) {
@@ -207,13 +134,27 @@ export default {
       }
     }
 
-    const submitCustomGoogle = () => {
-      if (!customName.value || !customEmail.value) {
-        alert('Por favor, ingresa tu nombre y correo.')
-        return
-      }
-      handleGoogleOAuth(customEmail.value, customName.value)
-    }
+    onMounted(() => {
+      const checkGoogleSDK = setInterval(() => {
+        if (window.google) {
+          clearInterval(checkGoogleSDK)
+          window.google.accounts.id.initialize({
+            client_id: GOOGLE_CLIENT_ID,
+            callback: handleGoogleCredentialResponse
+          })
+
+          window.google.accounts.id.renderButton(
+            document.getElementById("google-btn-container"),
+            { 
+              theme: document.body.classList.contains('light-theme') ? "outline" : "filled_black", 
+              size: "large", 
+              width: 360,
+              text: "signin_with"
+            }
+          )
+        }
+      }, 100)
+    })
 
     return {
       email,
@@ -221,13 +162,8 @@ export default {
       loading,
       errorMessage,
       googleError,
-      showGoogleSelector,
-      showCustomInput,
-      customName,
-      customEmail,
       handleLogin,
-      handleGoogleOAuth,
-      submitCustomGoogle
+      handleGoogleCredentialResponse
     }
   }
 }

@@ -31,3 +31,4 @@ const getApiBase = () => {
 };
 
 export const API_BASE = getApiBase();
+export const GOOGLE_CLIENT_ID = '15579802304-4vs3kkl6pi5o3imkvdq6aecc9mcjgd8g.apps.googleusercontent.com';

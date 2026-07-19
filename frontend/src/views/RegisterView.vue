@@ -52,6 +52,16 @@
         </button>
       </form>
 
+      <!-- Divisor para registro con Google -->
+      <div class="auth-divider">
+        <span>o regístrate con</span>
+      </div>
+
+      <!-- Contenedor Oficial del Botón de Google -->
+      <div class="google-btn-wrapper" style="display:flex; justify-content:center; margin: 16px 0;">
+        <div id="google-btn-container"></div>
+      </div>
+
       <div class="auth-footer">
         <p>¿Ya tienes cuenta? <router-link to="/login" class="auth-link">Inicia sesión</router-link></p>
       </div>
@@ -60,13 +70,14 @@
 </template>
 
 <script>
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { API_BASE } from '../config.js'
+import { API_BASE, GOOGLE_CLIENT_ID } from '../config.js'
 
 export default {
   name: 'RegisterView',
-  setup() {
+  emits: ['auth-change'],
+  setup(props, { emit }) {
     const name = ref('')
     const email = ref('')
     const password = ref('')
@@ -113,6 +124,62 @@ export default {
       }
     }
 
+    const handleGoogleCredentialResponse = async (response) => {
+      loading.value = true
+      errorMessage.value = ''
+      successMessage.value = ''
+      
+      try {
+        const res = await fetch(`${API_BASE}/auth.php?action=google_login`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            token: response.credential
+          })
+        })
+
+        const data = await res.json()
+
+        if (!res.ok) {
+          throw new Error(data.error || 'Error al registrar con Google.')
+        }
+
+        localStorage.setItem('token', data.token)
+        localStorage.setItem('user', JSON.stringify(data.user))
+        
+        emit('auth-change')
+        router.push('/')
+      } catch (err) {
+        errorMessage.value = err.message
+      } finally {
+        loading.value = false
+      }
+    }
+
+    onMounted(() => {
+      const checkGoogleSDK = setInterval(() => {
+        if (window.google) {
+          clearInterval(checkGoogleSDK)
+          window.google.accounts.id.initialize({
+            client_id: GOOGLE_CLIENT_ID,
+            callback: handleGoogleCredentialResponse
+          })
+
+          window.google.accounts.id.renderButton(
+            document.getElementById("google-btn-container"),
+            { 
+              theme: document.body.classList.contains('light-theme') ? "outline" : "filled_black", 
+              size: "large", 
+              width: 360,
+              text: "signup_with"
+            }
+          )
+        }
+      }, 100)
+    })
+
     return {
       name,
       email,
@@ -121,7 +188,8 @@ export default {
       loading,
       errorMessage,
       successMessage,
-      handleRegister
+      handleRegister,
+      handleGoogleCredentialResponse
     }
   }
 }
