@@ -355,8 +355,10 @@ export default {
         const resTx = await fetch(`${API_BASE}/transactions.php?limit=10`, { headers })
         transactions.value = await resTx.json()
 
-        // 4. Cargar Reportes Mensuales
-        const resRep = await fetch(`${API_BASE}/reports.php`, { headers })
+        // 4. Cargar Reportes Mensuales (Sincronizados con el mes y año locales del navegador)
+        const currentMonth = new Date().getMonth() + 1
+        const currentYear = new Date().getFullYear()
+        const resRep = await fetch(`${API_BASE}/reports.php?month=${currentMonth}&year=${currentYear}`, { headers })
         const repData = await resRep.json()
         if (repData.totals) totals.value = repData.totals
         if (repData.categories) categoriesReport.value = repData.categories
@@ -897,12 +899,20 @@ export default {
 }
 
 .trial-badge {
-  padding: 6px 12px;
-  border-radius: var(--radius-sm);
-  font-size: 12px;
+  padding: 6px 14px;
+  border-radius: 20px;
+  font-size: 11px;
   font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
   color: var(--color-primary);
-  border-color: rgba(139, 92, 246, 0.3);
+  background: rgba(10, 132, 255, 0.08);
+  border: 1px solid rgba(10, 132, 255, 0.15);
+}
+body.light-theme .trial-badge {
+  background: rgba(0, 122, 255, 0.06);
+  border-color: rgba(0, 122, 255, 0.12);
+  color: #007aff;
 }
 
 .balance-grid {

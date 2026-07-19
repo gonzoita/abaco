@@ -28,8 +28,8 @@
         <button class="theme-toggle-btn-mobile" @click="toggleTheme" title="Cambiar tema" style="background:none; border:none; color:var(--text-primary); font-size:18px; cursor:pointer;">
           <i :class="currentTheme === 'dark' ? 'fa-solid fa-sun' : 'fa-solid fa-moon'"></i>
         </button>
-        <button class="settings-toggle-btn-mobile" @click="showMobileSettings = true" title="Menú de usuario" style="background:none; border:none; color:var(--text-primary); font-size:18px; cursor:pointer; margin-left: 16px;">
-          <i class="fa-solid fa-circle-user"></i>
+        <button class="settings-toggle-btn-mobile" @click="showMobileSettings = true" title="Menú de opciones" style="background:none; border:none; color:var(--text-primary); font-size:18px; cursor:pointer; margin-left: 16px;">
+          <i class="fa-solid fa-bars"></i>
         </button>
       </div>
     </div>
