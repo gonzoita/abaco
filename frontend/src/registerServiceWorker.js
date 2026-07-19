@@ -1,14 +1,24 @@
 // C:\laragon\www\control-finanzas\frontend\src\registerServiceWorker.js
 
+// Desregistrar Service Worker y limpiar cachés para forzar actualización inmediata
 if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => {
-    // Registrar el Service Worker desde la raíz de la carpeta pública
-    navigator.serviceWorker.register('./sw.js')
-      .then((registration) => {
-        console.log('PWA Service Worker registrado con éxito bajo el alcance:', registration.scope);
-      })
-      .catch((error) => {
-        console.error('Error en el registro del PWA Service Worker:', error);
+  navigator.serviceWorker.getRegistrations().then((registrations) => {
+    for (let registration of registrations) {
+      registration.unregister().then((success) => {
+        if (success) {
+          console.log('Service Worker desregistrado para forzar actualización.');
+        }
       });
+    }
+  });
+}
+
+if ('caches' in window) {
+  caches.keys().then((names) => {
+    for (let name of names) {
+      caches.delete(name).then(() => {
+        console.log('Caché eliminada:', name);
+      });
+    }
   });
 }
