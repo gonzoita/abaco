@@ -51,8 +51,8 @@ body.light-theme {
   --text-muted: rgba(0, 0, 0, 0.38); /* iOS Text Label Tertiary Light */
   
   --color-primary: #007aff;      /* Azul Apple Light */
-  --color-secondary: #34c759;
-  --color-success: #34c759;      /* Verde Apple Light */
+  --color-secondary: #2fa84e;
+  --color-success: #2fa84e;      /* Verde Apple Light */
   --color-danger: #ff3b30;       /* Rojo Apple Light */
   --color-warning: #ff9500;      /* Naranja Apple Light */
   --color-accent: #5856d6;       /* Indigo Apple Light */

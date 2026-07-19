@@ -1357,4 +1357,64 @@ export default {
   flex: 1;
   width: 100%;
 }
+
+/* ==========================================================================
+   ESTILOS MINIMALISTAS APPLE HIG (Sin colores chillones)
+   ========================================================================== */
+
+/* Hacer los balances de las tarjetas completamente monocromáticos */
+.balance-card .amount {
+  color: var(--text-primary) !important;
+}
+
+/* Modificar botones de acción para que sean transparentes y vidriosos estilo iOS */
+.actions-container .btn-primary {
+  background: rgba(255, 69, 58, 0.08) !important;
+  border: 1px solid rgba(255, 69, 58, 0.15) !important;
+  color: var(--color-danger) !important;
+  box-shadow: none !important;
+}
+body.light-theme .actions-container .btn-primary {
+  background: rgba(255, 59, 48, 0.08) !important;
+  color: #ff3b30 !important;
+  border-color: rgba(255, 59, 48, 0.15) !important;
+}
+.actions-container .btn-primary:hover {
+  background: rgba(255, 69, 58, 0.15) !important;
+  border-color: var(--color-danger) !important;
+  transform: scale(1.01) !important;
+}
+
+.actions-container .btn-success {
+  background: rgba(48, 209, 88, 0.08) !important;
+  border: 1px solid rgba(48, 209, 88, 0.15) !important;
+  color: var(--color-success) !important;
+  box-shadow: none !important;
+}
+body.light-theme .actions-container .btn-success {
+  background: rgba(52, 199, 89, 0.08) !important;
+  color: #34c759 !important;
+  border-color: rgba(52, 199, 89, 0.15) !important;
+}
+.actions-container .btn-success:hover {
+  background: rgba(48, 209, 88, 0.15) !important;
+  border-color: var(--color-success) !important;
+  transform: scale(1.01) !important;
+}
+
+.actions-container .btn-ai-scan {
+  background: rgba(94, 92, 230, 0.08) !important;
+  border: 1px solid rgba(94, 92, 230, 0.15) !important;
+  color: var(--color-accent) !important;
+  box-shadow: none !important;
+}
+body.light-theme .actions-container .btn-ai-scan {
+  background: rgba(88, 86, 214, 0.08) !important;
+  color: #5856d6 !important;
+  border-color: rgba(88, 86, 214, 0.15) !important;
+}
+.actions-container .btn-ai-scan:hover {
+  background: rgba(94, 92, 230, 0.15) !important;
+  border-color: var(--color-accent) !important;
+}
 </style>
