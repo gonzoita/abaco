@@ -24,9 +24,12 @@
         <img src="./assets/logo-white.png" class="logo-img logo-dark" alt="Ábaco" style="max-height: 28px;" />
         <img src="./assets/logo-black.png" class="logo-img logo-light" alt="Ábaco" style="max-height: 28px;" />
       </div>
-      <div class="mobile-header-actions">
+      <div class="mobile-header-actions" style="display: flex; align-items: center;">
         <button class="theme-toggle-btn-mobile" @click="toggleTheme" title="Cambiar tema" style="background:none; border:none; color:var(--text-primary); font-size:18px; cursor:pointer;">
           <i :class="currentTheme === 'dark' ? 'fa-solid fa-sun' : 'fa-solid fa-moon'"></i>
+        </button>
+        <button class="settings-toggle-btn-mobile" @click="showMobileSettings = true" title="Menú de usuario" style="background:none; border:none; color:var(--text-primary); font-size:18px; cursor:pointer; margin-left: 16px;">
+          <i class="fa-solid fa-circle-user"></i>
         </button>
       </div>
     </div>
@@ -76,7 +79,7 @@
         <span>Asesor IA</span>
       </router-link>
 
-      <!-- Presupuestos -->
+      <!-- Presupuestos (Solo Desktop) -->
       <router-link to="/budgets" class="nav-item">
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <line x1="12" y1="1" x2="12" y2="23"></line>
@@ -85,7 +88,7 @@
         <span>Presupuestos</span>
       </router-link>
 
-      <!-- Préstamos -->
+      <!-- Préstamos (Solo Desktop) -->
       <router-link to="/loans" class="nav-item">
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <circle cx="12" cy="12" r="10"></circle>
@@ -94,7 +97,7 @@
         <span>Préstamos</span>
       </router-link>
 
-      <!-- Configuración -->
+      <!-- Configuración (Solo Desktop) -->
       <router-link to="/settings" class="nav-item">
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <circle cx="12" cy="12" r="3"></circle>
@@ -103,7 +106,7 @@
         <span>Ajustes</span>
       </router-link>
 
-      <!-- Administración -->
+      <!-- Administración (Solo Desktop) -->
       <router-link v-if="isAdmin" to="/admin" class="nav-item">
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
@@ -111,16 +114,6 @@
         </svg>
         <span>Admin</span>
       </router-link>
-
-      <!-- Botón "Más" (Menú Alternativo - Solo Móvil) -->
-      <button class="nav-item mobile-only-menu mobile-visible" @click="showMoreMenu = true">
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <line x1="3" y1="12" x2="21" y2="12"></line>
-          <line x1="3" y1="6" x2="21" y2="6"></line>
-          <line x1="3" y1="18" x2="21" y2="18"></line>
-        </svg>
-        <span>Más</span>
-      </button>
 
       <!-- Cerrar Sesión -->
       <a href="#" @click.prevent="logout" class="nav-item">
@@ -158,42 +151,67 @@
       </div>
     </div>
 
-    <!-- Menú "Más" Fullscreen Overlay (Solo Móvil) -->
-    <div class="more-menu-overlay" v-if="showMoreMenu" @click.self="showMoreMenu = false">
-      <div class="more-menu-card glass-card">
-        <div class="menu-header">
-          <h3>Opciones</h3>
-          <button class="btn-menu-close" @click="showMoreMenu = false">
-            <i class="fa-solid fa-xmark"></i>
-          </button>
+    <!-- Menú de Ajustes y Perfil Móvil (Estilo Apple iOS HIG) -->
+    <div class="mobile-settings-overlay" v-if="showMobileSettings" @click.self="showMobileSettings = false">
+      <div class="mobile-settings-sheet glass-card">
+        <div class="sheet-indicator"></div>
+        <div class="settings-sheet-header">
+          <h3>Menú</h3>
+          <button class="close-sheet-btn" @click="showMobileSettings = false">✕</button>
         </div>
-        <div class="menu-list">
-          <router-link to="/budgets" class="menu-item" @click="showMoreMenu = false">
-            <i class="fa-solid fa-chart-pie"></i>
+        
+        <div class="user-profile-summary">
+          <div class="profile-avatar">
+            {{ userInitials }}
+          </div>
+          <div class="profile-info">
+            <strong>{{ user.name }}</strong>
+            <span>{{ user.email }}</span>
+          </div>
+        </div>
+
+        <div class="settings-menu-list">
+          <router-link to="/budgets" class="settings-menu-item" @click="showMobileSettings = false">
+            <span class="item-icon budgets-color">
+              <i class="fa-solid fa-chart-pie"></i>
+            </span>
             <span>Presupuestos</span>
+            <i class="fa-solid fa-chevron-right arrow-icon"></i>
           </router-link>
-          
-          <router-link to="/loans" class="menu-item" @click="showMoreMenu = false">
-            <i class="fa-solid fa-hand-holding-dollar"></i>
+
+          <router-link to="/loans" class="settings-menu-item" @click="showMobileSettings = false">
+            <span class="item-icon loans-color">
+              <i class="fa-solid fa-hand-holding-dollar"></i>
+            </span>
             <span>Préstamos</span>
+            <i class="fa-solid fa-chevron-right arrow-icon"></i>
           </router-link>
-          
-          <router-link to="/settings" class="menu-item" @click="showMoreMenu = false">
-            <i class="fa-solid fa-gear"></i>
+
+          <router-link to="/settings" class="settings-menu-item" @click="showMobileSettings = false">
+            <span class="item-icon settings-color">
+              <i class="fa-solid fa-gear"></i>
+            </span>
             <span>Ajustes y Categorías</span>
+            <i class="fa-solid fa-chevron-right arrow-icon"></i>
           </router-link>
-          
-          <router-link v-if="isAdmin" to="/admin" class="menu-item" @click="showMoreMenu = false">
-            <i class="fa-solid fa-shield-halved"></i>
+
+          <router-link v-if="isAdmin" to="/admin" class="settings-menu-item" @click="showMobileSettings = false">
+            <span class="item-icon admin-color">
+              <i class="fa-solid fa-shield-halved"></i>
+            </span>
             <span>Administración</span>
+            <i class="fa-solid fa-chevron-right arrow-icon"></i>
           </router-link>
-          
-          <hr class="menu-divider" style="border:0; border-top:1px solid var(--card-border); margin:12px 0;" />
-          
-          <button class="menu-item logout-btn" @click="handleMobileLogout" style="background:none; border:none; color:#ff453a; width:100%; text-align:left; cursor:pointer;">
-            <i class="fa-solid fa-arrow-right-from-bracket"></i>
+
+          <hr class="menu-divider" />
+
+          <a href="#" @click.prevent="logoutAndClose" class="settings-menu-item logout-item">
+            <span class="item-icon logout-color">
+              <i class="fa-solid fa-arrow-right-from-bracket"></i>
+            </span>
             <span>Cerrar Sesión</span>
-          </button>
+            <i class="fa-solid fa-chevron-right arrow-icon"></i>
+          </a>
         </div>
       </div>
     </div>
@@ -219,17 +237,27 @@ export default {
     const isAuthenticated = ref(false)
     const isAdmin = ref(false)
     const currentTheme = ref(localStorage.getItem('theme') || 'dark')
+    const user = ref({ name: '', email: '' })
+    const userInitials = ref('')
     const router = useRouter()
     const route = useRoute()
 
     // Estados de navegación móvil
     const showQuickActions = ref(false)
-    const showMoreMenu = ref(false)
+    const showMobileSettings = ref(false)
 
     const checkAuth = () => {
       isAuthenticated.value = !!localStorage.getItem('token')
-      const user = JSON.parse(localStorage.getItem('user') || '{}')
-      isAdmin.value = user.role === 'admin'
+      const userData = JSON.parse(localStorage.getItem('user') || '{}')
+      user.value = userData
+      isAdmin.value = userData.role === 'admin'
+      
+      if (userData.name) {
+        const parts = userData.name.split(' ')
+        userInitials.value = parts.map(p => p[0]).join('').substring(0, 2).toUpperCase()
+      } else {
+        userInitials.value = 'U'
+      }
     }
 
     const logout = () => {
@@ -237,6 +265,11 @@ export default {
       localStorage.removeItem('user')
       checkAuth()
       router.push('/login')
+    }
+
+    const logoutAndClose = () => {
+      showMobileSettings.value = false
+      logout()
     }
 
     const toggleTheme = () => {
@@ -249,11 +282,6 @@ export default {
     const triggerQuickAction = (actionType) => {
       showQuickActions.value = false
       router.push({ path: '/', query: { action: actionType, t: Date.now() } })
-    }
-
-    const handleMobileLogout = () => {
-      showMoreMenu.value = false
-      logout()
     }
 
     onMounted(() => {
@@ -273,13 +301,15 @@ export default {
       isAuthenticated,
       isAdmin,
       currentTheme,
+      user,
+      userInitials,
       checkAuth,
       logout,
+      logoutAndClose,
       toggleTheme,
       showQuickActions,
-      showMoreMenu,
-      triggerQuickAction,
-      handleMobileLogout
+      showMobileSettings,
+      triggerQuickAction
     }
   }
 }
@@ -341,6 +371,189 @@ body.light-theme .sidebar-logo .logo-light {
   .sidebar-logo {
     display: flex;
   }
+}
+
+/* ==========================================================================
+   MENÚ AJUSTES MÓVIL ESTILO APPLE (iOS HIG)
+   ========================================================================== */
+.mobile-settings-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.4);
+  z-index: 2000;
+  display: flex;
+  justify-content: flex-end;
+  align-items: flex-end;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+.mobile-settings-sheet {
+  width: 100%;
+  max-height: 85vh;
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  border-bottom: none;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  animation: slideUpMobile 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+  overflow-y: auto;
+}
+
+.settings-sheet-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24px;
+}
+
+.settings-sheet-header h3 {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.close-sheet-btn {
+  background: rgba(255, 255, 255, 0.08);
+  border: none;
+  color: var(--text-secondary);
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+body.light-theme .close-sheet-btn {
+  background: rgba(0, 0, 0, 0.05);
+}
+
+/* Resumen del perfil */
+.user-profile-summary {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  background: rgba(255, 255, 255, 0.02);
+  padding: 16px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--card-border);
+  margin-bottom: 24px;
+}
+body.light-theme .user-profile-summary {
+  background: rgba(0, 0, 0, 0.01);
+}
+
+.profile-avatar {
+  width: 50px;
+  height: 50px;
+  border-radius: 50%;
+  background: var(--color-primary);
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.profile-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.profile-info strong {
+  font-size: 16px;
+  color: var(--text-primary);
+}
+
+.profile-info span {
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+/* Lista de items */
+.settings-menu-list {
+  display: flex;
+  flex-direction: column;
+  background: rgba(255, 255, 255, 0.02);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--card-border);
+  overflow: hidden;
+  margin-bottom: 20px;
+}
+body.light-theme .settings-menu-list {
+  background: rgba(0, 0, 0, 0.01);
+}
+
+.settings-menu-item {
+  display: flex;
+  align-items: center;
+  padding: 16px;
+  text-decoration: none;
+  color: var(--text-primary);
+  font-size: 15px;
+  font-weight: 500;
+  transition: var(--transition-smooth);
+  border-bottom: 1px solid var(--card-border);
+}
+
+.settings-menu-item:last-child {
+  border-bottom: none;
+}
+
+.settings-menu-item:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+body.light-theme .settings-menu-item:hover {
+  background: rgba(0, 0, 0, 0.02);
+}
+
+.item-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-size: 14px;
+  margin-right: 14px;
+}
+
+.budgets-color { background: #ff9f0a; }
+.loans-color { background: #30d158; }
+.settings-color { background: #8e8e93; }
+.admin-color { background: #0a84ff; }
+.logout-color { background: #ff453a; }
+
+body.light-theme .budgets-color { background: #ff9500; }
+body.light-theme .loans-color { background: #2fa84e; }
+body.light-theme .settings-color { background: #8e8e93; }
+body.light-theme .admin-color { background: #007aff; }
+body.light-theme .logout-color { background: #ff3b30; }
+
+.arrow-icon {
+  margin-left: auto;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.menu-divider {
+  border: 0;
+  border-top: 1px solid var(--card-border);
+  margin: 0;
+}
+
+.logout-item span {
+  color: var(--color-danger);
 }
 </style>
 

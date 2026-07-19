@@ -155,13 +155,29 @@ if ($method === 'GET') {
             "percentage" => $sumLimits > 0 ? round(($totalSpent / $sumLimits) * 100, 2) : 0
         ];
 
+        // Consultas de depuración
+        $stmtCount = $db->prepare("SELECT COUNT(*) as count FROM transactions WHERE user_id = ?");
+        $stmtCount->execute([$userId]);
+        $allCount = $stmtCount->fetch()['count'];
+
+        $stmtAll = $db->prepare("SELECT id, type, amount, date FROM transactions WHERE user_id = ?");
+        $stmtAll->execute([$userId]);
+        $allTxs = $stmtAll->fetchAll();
+
         echo json_encode([
             "totals" => $totals,
             "categories" => $categoriesData,
             "daily_trends" => $dailyTrends,
             "savings" => $savingsData,
             "global_budget" => $globalBudget,
-            "category_budgets" => $budgetsComparison
+            "category_budgets" => $budgetsComparison,
+            "debug" => [
+                "user_id" => $userId,
+                "server_month" => $month,
+                "server_year" => $year,
+                "total_count" => $allCount,
+                "all_txs" => $allTxs
+            ]
         ]);
 
     } catch (Exception $e) {

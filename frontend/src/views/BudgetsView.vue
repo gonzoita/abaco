@@ -346,7 +346,14 @@ export default {
           headers
         })
 
-        const data = await response.json()
+        const responseText = await response.text()
+        let data
+        try {
+          data = JSON.parse(responseText)
+        } catch (e) {
+          throw new Error('Servidor error (no JSON): ' + responseText.substring(0, 150))
+        }
+
         if (!response.ok) {
           throw new Error(data.error || 'Error al conectar con la IA.')
         }

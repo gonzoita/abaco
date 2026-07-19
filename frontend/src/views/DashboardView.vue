@@ -15,8 +15,8 @@
     <div class="balance-grid">
       <div class="glass-card balance-card total">
         <span class="card-label">Balance Total</span>
-        <h2 class="amount" :class="totals.neto >= 0 ? 'amount-positive' : 'amount-negative'">
-          {{ formatCurrency(totals.neto) }}
+        <h2 class="amount">
+          {{ formatCurrency(totalAccountsBalance) }}
         </h2>
         <p class="card-detail">Suma de todas tus cuentas</p>
       </div>
@@ -638,6 +638,16 @@ export default {
       return sectors
     })
 
+    const totalAccountsBalance = computed(() => {
+      return accounts.value.reduce((sum, acc) => {
+        const val = parseFloat(acc.balance) || 0
+        if (acc.type === 'tarjeta_credito' || acc.type === 'prestamo_pagar') {
+          return sum - val
+        }
+        return sum + val
+      }, 0)
+    })
+
     const budgetExceededWarning = computed(() => {
       if (modalType.value !== 'egreso' || !form.value.category_id || !form.value.amount) return null
       const matchedBudget = categoryBudgets.value.find(b => b.category_id === parseInt(form.value.category_id))
@@ -725,6 +735,7 @@ export default {
       filteredCategories,
       isCreditCardSelected,
       donutSectors,
+      totalAccountsBalance,
       budgetExceededWarning,
       openTransactionModal,
       closeModal,

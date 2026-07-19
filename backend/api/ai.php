@@ -34,7 +34,7 @@ if (empty($apiKeyToUse)) {
  * Función auxiliar para realizar peticiones HTTP a la API de Gemini
  */
 function callGemini($payload, $apiKey) {
-    $url = "https://generativelanguage.googleapis.com/v1/models/gemini-3.1-flash-lite:generateContent?key=" . $apiKey;
+    $url = "https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=" . $apiKey;
 
     $ch = curl_init($url);
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
