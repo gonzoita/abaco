@@ -80,7 +80,13 @@ export default {
           })
         })
 
-        const data = await response.json()
+        const responseText = await response.text()
+        let data
+        try {
+          data = JSON.parse(responseText)
+        } catch (e) {
+          throw new Error('Servidor error (no JSON): ' + responseText.substring(0, 150))
+        }
 
         if (!response.ok) {
           throw new Error(data.error || 'Error al iniciar sesión.')
@@ -115,7 +121,13 @@ export default {
           })
         })
 
-        const data = await res.json()
+        const responseText = await res.text()
+        let data
+        try {
+          data = JSON.parse(responseText)
+        } catch (e) {
+          throw new Error('Servidor error (no JSON): ' + responseText.substring(0, 150))
+        }
 
         if (!res.ok) {
           throw new Error(data.error || 'Error al autenticar con Google.')
