@@ -260,8 +260,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $loans = [];
 
         try {
-            $stmtAccounts = $db->prepare("SELECT name, type, balance, currency FROM accounts WHERE user_id = ?");
-            $stmtAccounts->execute([$userId]);
+            $stmtAccounts = $db->prepare("SELECT name, type, balance, currency FROM accounts WHERE user_id = ? AND (workspace IS NULL OR workspace = ?)");
+            $stmtAccounts->execute([$userId, $workspace]);
             $accounts = $stmtAccounts->fetchAll();
         } catch (Exception $e) {}
         
@@ -269,9 +269,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $stmtTx = $db->prepare("SELECT t.type, t.amount, t.description, t.date, c.name as category 
                                     FROM transactions t 
                                     LEFT JOIN categories c ON t.category_id = c.id 
-                                    WHERE t.user_id = ? 
+                                    WHERE t.user_id = ? AND (t.workspace IS NULL OR t.workspace = ?) 
                                     ORDER BY t.date DESC LIMIT 10");
-            $stmtTx->execute([$userId]);
+            $stmtTx->execute([$userId, $workspace]);
             $recentTransactions = $stmtTx->fetchAll();
         } catch (Exception $e) {}
 
@@ -279,8 +279,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $stmtLoans = $db->prepare("SELECT l.amount, l.type, c.name as person_name 
                                        FROM loans l 
                                        LEFT JOIN loan_clients c ON l.client_id = c.id 
-                                       WHERE l.user_id = ? AND l.status != 'finalizado'");
-            $stmtLoans->execute([$userId]);
+                                       WHERE l.user_id = ? AND (l.workspace IS NULL OR l.workspace = ?) AND l.status != 'finalizado'");
+            $stmtLoans->execute([$userId, $workspace]);
             $loans = $stmtLoans->fetchAll();
         } catch (Exception $e) {}
 

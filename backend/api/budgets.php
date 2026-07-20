@@ -16,21 +16,22 @@ if (!$input) {
     $input = $_POST;
 }
 
+$workspace = get_active_workspace();
+
 if ($method === 'GET') {
     try {
         $month = isset($_GET['month']) ? intval($_GET['month']) : intval(date('m'));
         $year = isset($_GET['year']) ? intval($_GET['year']) : intval(date('Y'));
 
-        // Obtener presupuestos del usuario para el mes y año dados
-        // Traemos también el nombre de la categoría (será NULL para el global)
+        // Obtener presupuestos del usuario para el mes, año y workspace dados
         $stmt = $db->prepare("
             SELECT b.*, c.name as category_name, c.color as category_color, c.icon as category_icon
             FROM budgets b
             LEFT JOIN categories c ON b.category_id = c.id
-            WHERE b.user_id = ? AND b.month = ? AND b.year = ?
+            WHERE b.user_id = ? AND (b.workspace IS NULL OR b.workspace = ?) AND b.month = ? AND b.year = ?
             ORDER BY b.category_id IS NULL DESC, c.name ASC
         ");
-        $stmt->execute([$userId, $month, $year]);
+        $stmt->execute([$userId, $workspace, $month, $year]);
         $budgets = $stmt->fetchAll();
 
         // Convertir montos a float

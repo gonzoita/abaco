@@ -10,6 +10,8 @@ $db = Database::getConnection();
 
 $method = $_SERVER['REQUEST_METHOD'];
 
+$workspace = get_active_workspace();
+
 if ($method === 'GET') {
     try {
         $month = isset($_GET['month']) ? intval($_GET['month']) : intval(date('m'));
@@ -17,23 +19,23 @@ if ($method === 'GET') {
         $startDate = isset($_GET['start_date']) ? trim($_GET['start_date']) : null;
         $endDate = isset($_GET['end_date']) ? trim($_GET['end_date']) : null;
 
-        // 1. Resumen mensual total de ingresos y egresos
+        // 1. Resumen mensual total de ingresos y egresos por workspace
         if ($startDate && $endDate) {
             $stmtSummary = $db->prepare("
                 SELECT type, SUM(amount) as total 
                 FROM transactions 
-                WHERE user_id = ? AND date >= ? AND date <= ?
+                WHERE user_id = ? AND (workspace IS NULL OR workspace = ?) AND date >= ? AND date <= ?
                 GROUP BY type
             ");
-            $stmtSummary->execute([$userId, $startDate, $endDate]);
+            $stmtSummary->execute([$userId, $workspace, $startDate, $endDate]);
         } else {
             $stmtSummary = $db->prepare("
                 SELECT type, SUM(amount) as total 
                 FROM transactions 
-                WHERE user_id = ? AND MONTH(date) = ? AND YEAR(date) = ?
+                WHERE user_id = ? AND (workspace IS NULL OR workspace = ?) AND MONTH(date) = ? AND YEAR(date) = ?
                 GROUP BY type
             ");
-            $stmtSummary->execute([$userId, $month, $year]);
+            $stmtSummary->execute([$userId, $workspace, $month, $year]);
         }
         $summaryRaw = $stmtSummary->fetchAll();
 
@@ -56,11 +58,11 @@ if ($method === 'GET') {
                        SUM(t.amount) as total 
                 FROM transactions t
                 LEFT JOIN categories c ON t.category_id = c.id
-                WHERE t.user_id = ? AND t.type = 'egreso' AND t.date >= ? AND t.date <= ?
+                WHERE t.user_id = ? AND (t.workspace IS NULL OR t.workspace = ?) AND t.type = 'egreso' AND t.date >= ? AND t.date <= ?
                 GROUP BY c.id, c.name, c.color, c.icon
                 ORDER BY total DESC
             ");
-            $stmtCategories->execute([$userId, $startDate, $endDate]);
+            $stmtCategories->execute([$userId, $workspace, $startDate, $endDate]);
         } else {
             $stmtCategories = $db->prepare("
                 SELECT COALESCE(c.name, 'Sin Categoría') as name, 
@@ -69,11 +71,11 @@ if ($method === 'GET') {
                        SUM(t.amount) as total 
                 FROM transactions t
                 LEFT JOIN categories c ON t.category_id = c.id
-                WHERE t.user_id = ? AND t.type = 'egreso' AND MONTH(t.date) = ? AND YEAR(t.date) = ?
+                WHERE t.user_id = ? AND (t.workspace IS NULL OR t.workspace = ?) AND t.type = 'egreso' AND MONTH(t.date) = ? AND YEAR(t.date) = ?
                 GROUP BY c.id, c.name, c.color, c.icon
                 ORDER BY total DESC
             ");
-            $stmtCategories->execute([$userId, $month, $year]);
+            $stmtCategories->execute([$userId, $workspace, $month, $year]);
         }
         $categoriesData = $stmtCategories->fetchAll();
 
@@ -86,11 +88,11 @@ if ($method === 'GET') {
         $stmtDaily = $db->prepare("
             SELECT date, type, SUM(amount) as total 
             FROM transactions 
-            WHERE user_id = ? AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
+            WHERE user_id = ? AND (workspace IS NULL OR workspace = ?) AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
             GROUP BY date, type
             ORDER BY date ASC
         ");
-        $stmtDaily->execute([$userId]);
+        $stmtDaily->execute([$userId, $workspace]);
         $dailyRaw = $stmtDaily->fetchAll();
 
         $dailyTrends = [];
@@ -108,14 +110,14 @@ if ($method === 'GET') {
         // Aplanar a un array ordenado
         $dailyTrends = array_values($dailyTrends);
 
-        // 4. Progreso de objetivos de ahorro
+        // 4. Progreso de objetivos de ahorro por workspace
         $stmtSavings = $db->prepare("
             SELECT name, target_amount, current_amount, target_date 
             FROM savings_goals 
-            WHERE user_id = ? 
+            WHERE user_id = ? AND (workspace IS NULL OR workspace = ?)
             ORDER BY created_at DESC LIMIT 5
         ");
-        $stmtSavings->execute([$userId]);
+        $stmtSavings->execute([$userId, $workspace]);
         $savingsData = $stmtSavings->fetchAll();
 
         foreach ($savingsData as &$sav) {
@@ -124,35 +126,35 @@ if ($method === 'GET') {
             $sav['percentage'] = $sav['target_amount'] > 0 ? round(($sav['current_amount'] / $sav['target_amount']) * 100, 2) : 0;
         }
 
-        // 5. Comparativa de Presupuestos vs Gastos Reales
+        // 5. Comparativa de Presupuestos vs Gastos Reales por workspace
         $stmtBudgets = $db->prepare("
              SELECT b.id, b.category_id, b.amount, c.name as category_name, c.color as category_color, c.icon as category_icon
              FROM budgets b
              LEFT JOIN categories c ON b.category_id = c.id
-             WHERE b.user_id = ? AND b.month = ? AND b.year = ?
+             WHERE b.user_id = ? AND (b.workspace IS NULL OR b.workspace = ?) AND b.month = ? AND b.year = ?
         ");
         $bMonth = $startDate ? intval(date('m', strtotime($startDate))) : $month;
         $bYear = $startDate ? intval(date('Y', strtotime($startDate))) : $year;
 
-        $stmtBudgets->execute([$userId, $bMonth, $bYear]);
+        $stmtBudgets->execute([$userId, $workspace, $bMonth, $bYear]);
         $budgetsRaw = $stmtBudgets->fetchAll();
 
         if ($startDate && $endDate) {
             $stmtSpent = $db->prepare("
                 SELECT category_id, SUM(amount) as spent 
                 FROM transactions 
-                WHERE user_id = ? AND type = 'egreso' AND date >= ? AND date <= ?
+                WHERE user_id = ? AND (workspace IS NULL OR workspace = ?) AND type = 'egreso' AND date >= ? AND date <= ?
                 GROUP BY category_id
             ");
-            $stmtSpent->execute([$userId, $startDate, $endDate]);
+            $stmtSpent->execute([$userId, $workspace, $startDate, $endDate]);
         } else {
             $stmtSpent = $db->prepare("
                 SELECT category_id, SUM(amount) as spent 
                 FROM transactions 
-                WHERE user_id = ? AND type = 'egreso' AND MONTH(date) = ? AND YEAR(date) = ?
+                WHERE user_id = ? AND (workspace IS NULL OR workspace = ?) AND type = 'egreso' AND MONTH(date) = ? AND YEAR(date) = ?
                 GROUP BY category_id
             ");
-            $stmtSpent->execute([$userId, $month, $year]);
+            $stmtSpent->execute([$userId, $workspace, $month, $year]);
         }
         $spentRaw = $stmtSpent->fetchAll();
 
