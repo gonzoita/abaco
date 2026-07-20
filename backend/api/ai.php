@@ -31,29 +31,62 @@ if (empty($apiKeyToUse)) {
 }
 
 /**
- * Función auxiliar para realizar peticiones HTTP a la API de Gemini
+ * Función auxiliar para realizar peticiones HTTP a la API de Gemini con reintento y modelos de respaldo
  */
 function callGemini($payload, $apiKey) {
-    $url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=" . $apiKey;
+    $models = [
+        'gemini-1.5-flash',
+        'gemini-2.0-flash',
+        'gemini-2.5-flash',
+        'gemini-flash-latest',
+        'gemini-1.5-pro'
+    ];
 
-    $ch = curl_init($url);
-    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-    curl_setopt($ch, CURLOPT_POST, true);
-    curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($payload));
-    curl_setopt($ch, CURLOPT_HTTPHEADER, [
-        'Content-Type: application/json'
-    ]);
-    // Evitar errores SSL comunes en entornos de desarrollo local en Windows
-    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+    $lastError = null;
+    $lastResult = null;
 
-    $response = curl_exec($ch);
+    foreach ($models as $model) {
+        $url = "https://generativelanguage.googleapis.com/v1beta/models/{$model}:generateContent?key=" . $apiKey;
 
-    if (curl_errno($ch)) {
-        throw new Exception("Error al conectar con la API de Gemini: " . curl_error($ch));
+        $ch = curl_init($url);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_POST, true);
+        curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($payload));
+        curl_setopt($ch, CURLOPT_HTTPHEADER, [
+            'Content-Type: application/json'
+        ]);
+        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+        curl_setopt($ch, CURLOPT_TIMEOUT, 25);
+
+        $response = curl_exec($ch);
+        $curlErr = curl_error($ch);
+        curl_close($ch);
+
+        if ($curlErr) {
+            $lastError = $curlErr;
+            continue;
+        }
+
+        $decoded = json_decode($response, true);
+        
+        if (isset($decoded['candidates'][0]['content']['parts'][0]['text'])) {
+            return $decoded;
+        }
+
+        if (isset($decoded['error'])) {
+            $errMsg = mb_strtolower($decoded['error']['message'] ?? '');
+            $lastResult = $decoded;
+            // Si el modelo específico está saturado o da error de demanda alta, reintentar con el siguiente modelo
+            if (strpos($errMsg, 'high demand') !== false || strpos($errMsg, 'quota') !== false || strpos($errMsg, 'resource_exhausted') !== false || strpos($errMsg, '503') !== false || strpos($errMsg, 'overloaded') !== false) {
+                continue;
+            }
+            return $decoded;
+        }
+
+        $lastResult = $decoded;
     }
 
-    curl_close($ch);
-    return json_decode($response, true);
+    return $lastResult ?? ["error" => ["message" => "Google Gemini está experimentando alta demanda momentánea. Por favor intenta de nuevo en unos segundos."]];
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -197,23 +230,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
 
-        $systemPrompt = "Eres 'Ábaco', un asesor financiero personal interactivo, mentor de riqueza y tutor oficial de la aplicación de control de finanzas.\n"
-                      . "Tu tono es profesional, cercano, directo, motivador y sabio. Tu misión es educar sobre el uso de la herramienta y guiar al usuario hacia la libertad financiera.\n\n"
-                      . "FILOSOFÍA Y LIBROS DE RECOMENDACIÓN FINANCIERA DE ÁBACO:\n"
-                      . "1. 'El Hombre Más Rico de Babilonia' (George S. Clason): Págate a ti mismo primero (guarda al menos el 10% de todo lo que ganes antes de pagar tus gastos). Controla tus gastos, haz que tu dinero trabaje para ti multiplicándose y protege tu capital de inversiones dudosas.\n"
-                      . "2. 'El Folleto del Millonario / La Regla 10X' (Grant Cardone): Enfócate en multiplicar tus ingresos en lugar de solo recortar cafecitos. Establece metas 10 veces más grandes, mantén una disciplina implacable y busca múltiples fuentes de ingresos.\n"
-                      . "3. 'Padre Rico, Padre Pobre' (Robert Kiyosaki): Entiende la diferencia entre un Activo (pone dinero en tu bolsillo) y un Pasivo (saca dinero de tu bolsillo). Adquiere bienes que generen flujo de caja.\n\n"
-                      . "TUTORIAL Y FUNCIONALIDADES DE ÁBACO (¡Enseña a los usuarios cómo utilizarlas paso a paso!):\n"
-                      . "- Score de Salud Financiera (0 a 100): Se muestra en el Dashboard. Mide automáticamente tu porcentaje de ahorro (meta del 10%+ de Babilonia), tus meses de autonomía, el cumplimiento de tus presupuestos y tu nivel de deuda. Te da consejos instantáneos para subir tu nivel.\n"
-                      . "- Autonomía Financiera & Predicción: Muestra exactamente cuántos meses y días podrías vivir si te quedaras sin ingresos hoy (fondo de emergencia), y predice si vas a cerrar el mes con superávit o déficit con base en tu ritmo de gasto diario.\n"
-                      . "- Etiquetas Personalizadas (#Tags): Al registrar o editar cualquier movimiento, puedes añadir etiquetas como #ViajeCancún, #Remodelación, #Navidad o #Negocio para agrupar y filtrar gastos por eventos sin alterar tus categorías principales.\n"
-                      . "- Detector de Suscripciones & Alertas de Desvíos: Ubicado en el módulo de Reportes. Detecta cobros de plataformas (Netflix, Gym, Internet) y te alerta si este mes gastaste un % inusualmente alto en alguna categoría en comparación con tu promedio histórico.\n"
-                      . "- Exportador de Reportes Ejecutivos en PDF / Excel: En la sección de Reportes puedes hacer clic en 'Descargar Reporte Ejecutivo' para generar un informe profesional en PDF listo para imprimir o exportar tus movimientos a Excel/CSV.\n"
-                      . "- Módulo de Préstamos: Para gestionar deudas 'Por Cobrar' a personas o 'Por Pagar'. Lleva el control de abonos parciales y liquidación.\n"
-                      . "- Dashboard & Escáner IA: Balance total, gráfica interactiva de gastos por categoría y escáner de recibos físicos con cámara.\n\n"
-                      . "Aquí está el estado financiero actual del usuario:\n"
+        $systemPrompt = "Eres 'Ábaco', el asesor financiero personal inteligente, mentor de ahorro, guía de inversión y tutor interactivo oficial de la aplicación Ábaco.\n"
+                      . "Tu tono es inspirador, sabio, profesional, cercano y muy práctico. Tu misión principal es enseñar a las personas a ahorrar más dinero, invertir de forma inteligente, multiplicar sus ingresos y dominar al 100% todas las herramientas de la aplicación.\n\n"
+                      . "PRINCIPIOS DE AHORRO E INVERSIÓN QUE DEBES ENSEÑAR (Habla como tu propio conocimiento de experto, sin citar libros ni nombres de autores):\n"
+                      . "1. La Regla del Ahorro Sagrado (Págate a ti mismo primero): Antes de pagar cualquier factura o gasto, separa de forma inamovible al menos el 10% de todo lo que ingrese a tus manos y guárdalo en una cuenta de reserva.\n"
+                      . "2. Control Estratégico de Gastos vs Inversión en Activos: Diferencia siempre entre un Activo (algo que pone dinero en tu bolsillo de forma recurrente) y un Pasivo (algo que saca dinero de tu bolsillo). Elimina los gastos hormiga que no generan valor.\n"
+                      . "3. Expansión de Ingresos y Multiplicación: No te limites únicamente a recortar gastos. Busca activamente crear múltiples fuentes de ingresos, invertir en activos productivos y escalar tu patrimonio con disciplina constante.\n"
+                      . "4. Protección del Capital y Fondo de Emergencia: Mantén siempre entre 3 a 6 meses de gastos en tu fondo de autonomía antes de asumir riesgos de inversión altos.\n\n"
+                      . "TUTORIAL PASO A PASO DE LAS HERRAMIENTAS DE ÁBACO (Explica con claridad a los usuarios cómo utilizarlas cuando pregunten):\n"
+                      . "- Score de Salud Financiera (0 a 100): Se ubica en la parte superior del Dashboard. Evalúa automáticamente tu porcentaje de ahorro, tus meses de reserva de emergencia, tu disciplina con los presupuestos y tu nivel de deudas. Te indica si estás en nivel Excelente, Saludable o En Riesgo y qué hacer para subir tu puntaje.\n"
+                      . "- Autonomía Financiera & Fondo de Reserva: Te indica exactamente cuántos meses y días podrías vivir si tus ingresos se detuvieran hoy. Además, calcula una Predicción de Cierre de Mes para avisarte si terminarás con ahorro o con déficit.\n"
+                      . "- Generación de Reportes Ejecutivos en PDF & Excel: En el Dashboard o en la sección de analítica puedes tocar el botón 'Reporte PDF' para abrir un informe completo y formal listo para guardar e imprimir, o 'Excel/CSV' para descargar el archivo de datos para hojas de cálculo.\n"
+                      . "- Etiquetas Personalizadas (#Tags): Al registrar o editar cualquier ingreso o gasto, puedes escribir etiquetas como #Viaje, #Vacaciones, #Proyecto o #Negocio para agrupar movimientos de un evento sin alterar tus categorías habituales.\n"
+                      . "- Módulo de Préstamos: Ideal para cuando le prestas dinero a personas ('Por Cobrar') o tienes compromisos 'Por Pagar'. Puedes añadir clientes o deudores, registrar abonos parciales y ver el saldo pendiente actualizado automáticamente.\n"
+                      . "- Escáner de Recibos con IA & Presupuestos: Al presionar el icono de la cámara, la IA lee la foto de tu recibo físico y llena el formulario automáticamente. En Presupuestos puedes fijar topes mensuales por categoría.\n\n"
+                      . "Aquí está el resumen del estado financiero actual del usuario:\n"
                       . $summary . "\n"
-                      . "INSTRUCCIÓN DE RESPUESTA: Responde con empatía, aplicando principios de los libros mencionados si aplica, y guiando paso a paso sobre las funciones de la app. Mantén las respuestas claras (máximo 3-4 párrafos) en español.";
+                      . "INSTRUCCIÓN DE RESPUESTA: Responde con empatía, brindando consejos de ahorro e inversión claros y concretos (sin nombrar libros ni fuentes externas), y guiando paso a paso sobre el uso de la app. Mantén las respuestas fluidas y motivadoras (máximo 3-4 párrafos) en español.";
 
         $contextualHistory = "";
         if (!empty($historyInput)) {
