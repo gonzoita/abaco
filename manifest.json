@@ -1,6 +1,6 @@
 {
-  "name": "Antigravity Finanzas SaaS",
-  "short_name": "Antigravity Finanzas",
+  "name": "Ábaco - Control de Finanzas e IA",
+  "short_name": "Ábaco",
   "description": "Plataforma inteligente de control de finanzas personales con Inteligencia Artificial.",
   "start_url": "./index.html",
   "display": "standalone",
