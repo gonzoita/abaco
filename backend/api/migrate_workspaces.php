@@ -8,18 +8,25 @@ header('Content-Type: application/json; charset=utf-8');
 try {
     $db = Database::getConnection();
     
-    $tables = ['transactions', 'accounts', 'categories', 'loans', 'category_budgets'];
+    $tables = ['transactions', 'accounts', 'categories', 'loans', 'category_budgets', 'budgets'];
     $migrated = [];
 
     foreach ($tables as $table) {
-        // Verificar si existe la columna 'workspace'
-        $stmt = $db->prepare("SHOW COLUMNS FROM {$table} LIKE 'workspace'");
-        $stmt->execute();
-        $columnExists = $stmt->fetch();
+        // Verificar si la tabla existe antes de alterar
+        $stmtTable = $db->query("SHOW TABLES LIKE '{$table}'");
+        if ($stmtTable->fetch()) {
+            // Verificar si existe la columna 'workspace'
+            $stmt = $db->prepare("SHOW COLUMNS FROM {$table} LIKE 'workspace'");
+            $stmt->execute();
+            $columnExists = $stmt->fetch();
 
-        if (!$columnExists) {
-            $db->exec("ALTER TABLE {$table} ADD COLUMN workspace VARCHAR(20) NOT NULL DEFAULT 'personal'");
-            $migrated[] = $table;
+            if (!$columnExists) {
+                $db->exec("ALTER TABLE {$table} ADD COLUMN workspace VARCHAR(20) NOT NULL DEFAULT 'personal'");
+                $migrated[] = $table;
+            }
+
+            // Normalizar registros nulos o vacíos a 'personal'
+            $db->exec("UPDATE {$table} SET workspace = 'personal' WHERE workspace IS NULL OR workspace = ''");
         }
     }
 
@@ -29,6 +36,14 @@ try {
     if (!$stmtUser->fetch()) {
         $db->exec("ALTER TABLE users ADD COLUMN business_name VARCHAR(100) NULL DEFAULT 'Mi Negocio'");
         $migrated[] = 'users (business_name)';
+    }
+
+    // Verificar si existe la columna reminder_days_before en users
+    $stmtRem = $db->prepare("SHOW COLUMNS FROM users LIKE 'reminder_days_before'");
+    $stmtRem->execute();
+    if (!$stmtRem->fetch()) {
+        $db->exec("ALTER TABLE users ADD COLUMN reminder_days_before INT NOT NULL DEFAULT 5");
+        $migrated[] = 'users (reminder_days_before)';
     }
 
     echo json_encode([

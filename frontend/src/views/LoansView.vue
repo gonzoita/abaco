@@ -639,18 +639,18 @@
         <div class="sheet-body">
           <form @submit.prevent="submitClient" class="client-form">
             <div class="form-group">
-              <label>Nombre Completo</label>
+              <label>Nombre Completo *</label>
               <input type="text" v-model="clientForm.name" placeholder="Ej. Juan Carlos Ramos" required />
             </div>
 
             <div class="form-group">
-              <label>Cédula / NIT / Documento</label>
-              <input type="text" v-model="clientForm.document" placeholder="Ej. 1.020.333.444" required />
+              <label>Teléfono Móvil *</label>
+              <input type="tel" v-model="clientForm.phone" placeholder="Ej. 312 456 7890" required />
             </div>
 
             <div class="form-group">
-              <label>Teléfono Móvil</label>
-              <input type="tel" v-model="clientForm.phone" placeholder="Ej. 312 456 7890" required />
+              <label>Cédula / NIT / Documento (Opcional)</label>
+              <input type="text" v-model="clientForm.document" placeholder="Ej. 1.020.333.444 (Opcional)" />
             </div>
 
             <div class="form-group">

@@ -245,7 +245,7 @@
 </template>
 
 <script>
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, onUnmounted, computed } from 'vue'
 import { API_BASE } from '../config.js'
 
 export default {
@@ -520,9 +520,19 @@ export default {
       return matched ? matched.name : 'Categoría'
     }
 
+    const handleWorkspaceChanged = () => {
+      fetchCategories()
+      fetchReports()
+    }
+
     onMounted(() => {
       fetchCategories()
       fetchReports()
+      window.addEventListener('workspace-changed', handleWorkspaceChanged)
+    })
+
+    onUnmounted(() => {
+      window.removeEventListener('workspace-changed', handleWorkspaceChanged)
     })
 
     return {

@@ -102,37 +102,11 @@
             </div>
           </div>
         </div>
-
-        <!-- Respaldo y Herramientas -->
-        <div class="glass-card tools-card">
-          <h3 class="card-title text-gradient-green">
-            <i class="fa-solid fa-screwdriver-wrench"></i> Herramientas y Datos
-          </h3>
-          <p class="card-subtitle">Administra tus bases de datos, exporta respaldos para análisis de IA o restablece el sistema</p>
-
-          <div class="tools-buttons" style="margin-top: 15px; display: flex; flex-direction: column; gap: 16px;">
-            <div class="tool-action-group">
-              <h4 style="font-size: 14.5px; font-weight: 500; margin-bottom: 4px;">Copia de Seguridad (SaaS Backup)</h4>
-              <p style="font-size: 12px; color: var(--text-secondary); margin-bottom: 8px;">Descarga toda tu información financiera (transacciones, presupuestos, cuentas) en formato JSON estructurado.</p>
-              <button class="btn-primary btn-tool" @click="exportData" style="width: 100%;">
-                <i class="fa-solid fa-download"></i> Exportar Respaldo JSON
-              </button>
-            </div>
-
-            <div class="tool-action-group danger-zone" style="border-top: 1px solid var(--card-border); padding-top: 12px;">
-              <h4 style="font-size: 14.5px; font-weight: 500; margin-bottom: 4px; color: var(--color-danger);">Zona de Peligro</h4>
-              <p style="font-size: 12px; color: var(--text-secondary); margin-bottom: 8px;">Borra de forma permanente todas tus transacciones, presupuestos y cuentas personalizadas. Esto reiniciará tus saldos a cero.</p>
-              <button class="btn-danger btn-tool" @click="resetDatabase" style="width: 100%;">
-                <i class="fa-solid fa-trash-can"></i> Restablecer Aplicación
-              </button>
-            </div>
-          </div>
-        </div>
       </div>
     </div>
 
     <!-- Segunda fila: Gestión de Categorías con Modal -->
-    <div class="glass-card category-manager-panel">
+    <div class="glass-card category-manager-panel" style="margin-bottom:24px;">
       <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px; margin-bottom:16px;">
         <div>
           <h3 class="card-title text-gradient-purple" style="margin:0;">
@@ -166,6 +140,32 @@
               <i class="fa-solid fa-trash-can"></i>
             </button>
           </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tercera Fila (Al Final): Respaldo y Zona de Peligro -->
+    <div class="glass-card tools-card" style="margin-bottom:24px;">
+      <h3 class="card-title text-gradient-green">
+        <i class="fa-solid fa-screwdriver-wrench"></i> Herramientas y Datos
+      </h3>
+      <p class="card-subtitle">Administra tus bases de datos, exporta respaldos para análisis de IA o restablece el sistema</p>
+
+      <div class="tools-buttons" style="margin-top: 15px; display: flex; flex-direction: column; gap: 16px;">
+        <div class="tool-action-group">
+          <h4 style="font-size: 14.5px; font-weight: 500; margin-bottom: 4px;">Copia de Seguridad (SaaS Backup)</h4>
+          <p style="font-size: 12px; color: var(--text-secondary); margin-bottom: 8px;">Descarga toda tu información financiera (transacciones, presupuestos, cuentas) en formato JSON estructurado.</p>
+          <button class="btn-primary btn-tool" @click="exportData" style="width: 100%;">
+            <i class="fa-solid fa-download"></i> Exportar Respaldo JSON
+          </button>
+        </div>
+
+        <div class="tool-action-group danger-zone" style="border-top: 1px solid var(--card-border); padding-top: 12px;">
+          <h4 style="font-size: 14.5px; font-weight: 500; margin-bottom: 4px; color: var(--color-danger);">Zona de Peligro</h4>
+          <p style="font-size: 12px; color: var(--text-secondary); margin-bottom: 8px;">Borra de forma permanente todas tus transacciones, presupuestos y cuentas personalizadas. Esto reiniciará tus saldos a cero.</p>
+          <button class="btn-danger btn-tool" @click="resetDatabase" style="width: 100%;">
+            <i class="fa-solid fa-trash-can"></i> Restablecer Aplicación
+          </button>
         </div>
       </div>
     </div>

@@ -316,7 +316,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                           . "- Módulo de Clientes y Cobros: Para registrar créditos o fiados a clientes del negocio con recordatorios de pago.\n\n"
                           . "Aquí está el resumen del estado financiero actual de este NEGOCIO:\n"
                           . $summary . "\n"
-                          . "INSTRUCCIÓN DE RESPUESTA: Responde con visión estratégica empresarial, brindando consejos de flujo de caja, márgenes y ventas claros (sin nombrar libros ni fuentes externas). Mantén un tono motivador y ejecutivo en español (máximo 3-4 párrafos).";
+                          . "INSTRUCCIÓN DE RESPUESTA (OBLIGATORIA): Responde de forma CONCRETA, DIRECTA Y CORTA (máximo 2 párrafos breves o 3 viñetas concisas). Sé ejecutivo, ve al grano sin rodeos y sin textos largos.";
         } else {
             $systemPrompt = "Eres 'Ábaco', el asesor financiero personal inteligente, mentor de ahorro, guía de inversión y tutor interactivo oficial de la aplicación Ábaco.\n"
                           . "Tu tono es inspirador, sabio, profesional, cercano y muy práctico. Tu misión principal es enseñar a las personas a ahorrar más dinero, invertir de forma inteligente, multiplicar sus ingresos y dominar al 100% todas las herramientas de la aplicación.\n\n"
@@ -334,7 +334,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                           . "- Escáner de Recibos con IA & Presupuestos: Al presionar el icono de la cámara, la IA lee la foto de tu recibo físico y llena el formulario automáticamente. En Presupuestos puedes fijar topes mensuales por categoría.\n\n"
                           . "Aquí está el resumen del estado financiero actual del usuario:\n"
                           . $summary . "\n"
-                          . "INSTRUCCIÓN DE RESPUESTA: Responde con empatía, brindando consejos de ahorro e inversión claros y concretos (sin nombrar libros ni fuentes externas), y guiando paso a paso sobre el uso de la app. Mantén las respuestas fluidas y motivadoras (máximo 3-4 párrafos) en español.";
+                          . "INSTRUCCIÓN DE RESPUESTA (OBLIGATORIA): Responde de forma CONCRETA, DIRECTA Y CORTA (máximo 2 párrafos breves o 3 viñetas concisas). Sé conversacional, ve al grano sin rodeos y sin textos extensos.";
         }
 
         $contextualHistory = "";

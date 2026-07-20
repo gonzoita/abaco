@@ -60,13 +60,13 @@ if ($method === 'POST') {
     }
 
     try {
-        // Verificar si ya existe un registro de presupuesto para ese período y categoría
+        // Verificar si ya existe un registro de presupuesto para ese período, workspace y categoría
         if ($categoryId === null) {
-            $stmtCheck = $db->prepare("SELECT id FROM budgets WHERE user_id = ? AND category_id IS NULL AND month = ? AND year = ?");
-            $stmtCheck->execute([$userId, $month, $year]);
+            $stmtCheck = $db->prepare("SELECT id FROM budgets WHERE user_id = ? AND (workspace IS NULL OR workspace = ?) AND category_id IS NULL AND month = ? AND year = ?");
+            $stmtCheck->execute([$userId, $workspace, $month, $year]);
         } else {
-            $stmtCheck = $db->prepare("SELECT id FROM budgets WHERE user_id = ? AND category_id = ? AND month = ? AND year = ?");
-            $stmtCheck->execute([$userId, $categoryId, $month, $year]);
+            $stmtCheck = $db->prepare("SELECT id FROM budgets WHERE user_id = ? AND (workspace IS NULL OR workspace = ?) AND category_id = ? AND month = ? AND year = ?");
+            $stmtCheck->execute([$userId, $workspace, $categoryId, $month, $year]);
         }
 
         $existing = $stmtCheck->fetch();
@@ -78,9 +78,9 @@ if ($method === 'POST') {
             $budgetId = $existing['id'];
             $message = "Presupuesto actualizado con éxito.";
         } else {
-            // Crear nuevo
-            $stmtInsert = $db->prepare("INSERT INTO budgets (user_id, category_id, amount, month, year) VALUES (?, ?, ?, ?, ?)");
-            $stmtInsert->execute([$userId, $categoryId, $amount, $month, $year]);
+            // Crear nuevo con workspace
+            $stmtInsert = $db->prepare("INSERT INTO budgets (user_id, category_id, amount, month, year, workspace) VALUES (?, ?, ?, ?, ?, ?)");
+            $stmtInsert->execute([$userId, $categoryId, $amount, $month, $year, $workspace]);
             $budgetId = $db->lastInsertId();
             $message = "Presupuesto creado con éxito.";
         }

@@ -19,9 +19,9 @@ if (!$input) {
 $workspace = get_active_workspace();
 
 if ($method === 'GET') {
-    // Obtener categorías: globales o del usuario para el workspace activo
-    $stmt = $db->prepare("SELECT * FROM categories WHERE (user_id IS NULL OR user_id = ?) AND (workspace IS NULL OR workspace = ?) ORDER BY user_id ASC, name ASC");
-    $stmt->execute([$userId, $workspace]);
+    // Obtener categorías: globales (user_id IS NULL) o del usuario para el workspace activo
+    $stmt = $db->prepare("SELECT * FROM categories WHERE (user_id IS NULL OR user_id = ?) AND (workspace IS NULL OR workspace = '' OR workspace = ?) ORDER BY user_id ASC, name ASC");
+    $stmt->execute([$userId, $workspace, $workspace]);
     $categories = $stmt->fetchAll();
     echo json_encode($categories);
     exit();
