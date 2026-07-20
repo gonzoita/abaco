@@ -31,58 +31,67 @@ if (empty($apiKeyToUse)) {
 }
 
 /**
- * Función auxiliar para realizar peticiones HTTP a la API de Gemini con reintento y modelos de respaldo
+ * Función auxiliar para realizar peticiones HTTP a la API de Gemini con reintentos para picos de demanda
  */
 function callGemini($payload, $apiKey) {
-    $endpoints = [
-        "https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=" . $apiKey,
-        "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=" . $apiKey,
-        "https://generativelanguage.googleapis.com/v1/models/gemini-2.5-flash:generateContent?key=" . $apiKey,
-        "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=" . $apiKey,
-        "https://generativelanguage.googleapis.com/v1/models/gemini-1.5-pro:generateContent?key=" . $apiKey,
-        "https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=" . $apiKey
+    $models = [
+        'gemini-flash-latest',
+        'gemini-2.5-flash'
     ];
 
-    $lastResult = null;
+    $lastDecoded = null;
 
-    foreach ($endpoints as $url) {
-        $ch = curl_init($url);
-        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-        curl_setopt($ch, CURLOPT_POST, true);
-        curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($payload));
-        curl_setopt($ch, CURLOPT_HTTPHEADER, [
-            'Content-Type: application/json'
-        ]);
-        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
-        curl_setopt($ch, CURLOPT_TIMEOUT, 15);
+    foreach ($models as $model) {
+        $url = "https://generativelanguage.googleapis.com/v1beta/models/{$model}:generateContent?key=" . $apiKey;
 
-        $response = curl_exec($ch);
-        $curlErr = curl_error($ch);
-        curl_close($ch);
+        // Intentar hasta 3 veces por modelo para superar picos de 503 (alta demanda)
+        for ($attempt = 1; $attempt <= 3; $attempt++) {
+            $ch = curl_init($url);
+            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+            curl_setopt($ch, CURLOPT_POST, true);
+            curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($payload));
+            curl_setopt($ch, CURLOPT_HTTPHEADER, [
+                'Content-Type: application/json'
+            ]);
+            curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+            curl_setopt($ch, CURLOPT_TIMEOUT, 20);
 
-        if ($curlErr) {
-            continue;
-        }
+            $response = curl_exec($ch);
+            $curlErr = curl_error($ch);
+            curl_close($ch);
 
-        $decoded = json_decode($response, true);
-        
-        // Si el modelo devolvió texto en candidates, es una respuesta exitosa
-        if (isset($decoded['candidates'][0]['content']['parts'][0]['text'])) {
-            return $decoded;
-        }
+            if ($curlErr) {
+                usleep(300000); // 300ms
+                continue;
+            }
 
-        $lastResult = $decoded;
+            $decoded = json_decode($response, true);
+            $lastDecoded = $decoded;
 
-        // Si la clave de API es inválida, retornar el error inmediatamente
-        if (isset($decoded['error']['message'])) {
-            $errMsg = mb_strtolower($decoded['error']['message']);
-            if (strpos($errMsg, 'api_key_invalid') !== false || strpos($errMsg, 'invalid api key') !== false) {
+            // Éxito: devolvió texto válido
+            if (isset($decoded['candidates'][0]['content']['parts'][0]['text'])) {
                 return $decoded;
             }
+
+            // Si es un error de API key inválida, salir de inmediato
+            if (isset($decoded['error']['message'])) {
+                $errMsg = mb_strtolower($decoded['error']['message']);
+                if (strpos($errMsg, 'api_key_invalid') !== false || strpos($errMsg, 'invalid api key') !== false) {
+                    return $decoded;
+                }
+                // Si el modelo está en alta demanda (503 / high demand / overloaded), pausar y reintentar
+                if (strpos($errMsg, 'high demand') !== false || strpos($errMsg, 'overloaded') !== false || strpos($errMsg, '503') !== false || strpos($errMsg, 'resource_exhausted') !== false) {
+                    usleep(500000); // 500ms
+                    continue;
+                }
+            }
+
+            // Si no fue error de alta demanda, romper el bucle de reintentos e intentar con el siguiente modelo
+            break;
         }
     }
 
-    return $lastResult ?? ["error" => ["message" => "No se pudo obtener respuesta de los servidores de IA. Verifica tu clave de API en Ajustes."]];
+    return $lastDecoded ?? ["error" => ["message" => "El servicio de Google Gemini está experimentando alta demanda. Por favor reintenta tu pregunta en unos segundos."]];
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
