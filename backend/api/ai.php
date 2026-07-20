@@ -34,19 +34,18 @@ if (empty($apiKeyToUse)) {
  * Función auxiliar para realizar peticiones HTTP a la API de Gemini con reintento y modelos de respaldo
  */
 function callGemini($payload, $apiKey) {
-    $models = [
-        'gemini-flash-latest',
-        'gemini-1.5-flash-latest',
-        'gemini-2.0-flash-exp',
-        'gemini-1.5-pro-latest',
-        'gemini-pro'
+    $endpoints = [
+        "https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=" . $apiKey,
+        "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=" . $apiKey,
+        "https://generativelanguage.googleapis.com/v1/models/gemini-2.5-flash:generateContent?key=" . $apiKey,
+        "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=" . $apiKey,
+        "https://generativelanguage.googleapis.com/v1/models/gemini-1.5-pro:generateContent?key=" . $apiKey,
+        "https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=" . $apiKey
     ];
 
     $lastResult = null;
 
-    foreach ($models as $model) {
-        $url = "https://generativelanguage.googleapis.com/v1beta/models/{$model}:generateContent?key=" . $apiKey;
-
+    foreach ($endpoints as $url) {
         $ch = curl_init($url);
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
         curl_setopt($ch, CURLOPT_POST, true);
@@ -55,7 +54,7 @@ function callGemini($payload, $apiKey) {
             'Content-Type: application/json'
         ]);
         curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
-        curl_setopt($ch, CURLOPT_TIMEOUT, 20);
+        curl_setopt($ch, CURLOPT_TIMEOUT, 15);
 
         $response = curl_exec($ch);
         $curlErr = curl_error($ch);
@@ -83,7 +82,7 @@ function callGemini($payload, $apiKey) {
         }
     }
 
-    return $lastResult ?? ["error" => ["message" => "No se pudo obtener respuesta de los servidores de IA. Intenta de nuevo en unos segundos."]];
+    return $lastResult ?? ["error" => ["message" => "No se pudo obtener respuesta de los servidores de IA. Verifica tu clave de API en Ajustes."]];
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
