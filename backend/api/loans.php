@@ -149,6 +149,8 @@ function calculateAmortizationPHP($principal, $interestRate, $rateType, $install
     return $schedule;
 }
 
+$workspace = get_active_workspace();
+
 // Ejecutar solicitudes
 if ($method === 'GET') {
     
@@ -172,10 +174,10 @@ if ($method === 'GET') {
                 SELECT l.*, c.name as client_name, c.document as client_document 
                 FROM loans l 
                 JOIN loan_clients c ON l.client_id = c.id 
-                WHERE l.user_id = ? 
+                WHERE l.user_id = ? AND (l.workspace IS NULL OR l.workspace = ?)
                 ORDER BY l.created_at DESC
             ");
-            $stmt->execute([$userId]);
+            $stmt->execute([$userId, $workspace]);
             $loans = $stmt->fetchAll();
             
             // Para cada préstamo, adjuntar el resumen del plan (cuotas pagadas, saldo pendiente)
@@ -310,8 +312,8 @@ if ($method === 'POST') {
             $db->beginTransaction();
             
             // Insertar préstamo
-            $stmt = $db->prepare("INSERT INTO loans (user_id, client_id, principal, interest_rate, rate_type, installments_count, frequency, method, start_date) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
-            $stmt->execute([$userId, $clientId, $principal, $interestRate, $rateType, $installmentsCount, $frequency, $methodLoan, $startDate]);
+            $stmt = $db->prepare("INSERT INTO loans (user_id, client_id, principal, interest_rate, rate_type, installments_count, frequency, method, start_date, workspace) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+            $stmt->execute([$userId, $clientId, $principal, $interestRate, $rateType, $installmentsCount, $frequency, $methodLoan, $startDate, $workspace]);
             $loanId = $db->lastInsertId();
             
             // Calcular cuotas

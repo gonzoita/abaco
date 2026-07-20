@@ -17,11 +17,13 @@ if (!$input) {
     $input = $_POST;
 }
 
+$workspace = get_active_workspace();
+
 if ($method === 'GET') {
     if ($id) {
         // Obtener una cuenta específica
-        $stmt = $db->prepare("SELECT * FROM accounts WHERE id = ? AND user_id = ?");
-        $stmt->execute([$id, $userId]);
+        $stmt = $db->prepare("SELECT * FROM accounts WHERE id = ? AND user_id = ? AND (workspace IS NULL OR workspace = ?)");
+        $stmt->execute([$id, $userId, $workspace]);
         $account = $stmt->fetch();
         
         if (!$account) {
@@ -31,9 +33,9 @@ if ($method === 'GET') {
         }
         echo json_encode($account);
     } else {
-        // Obtener todas las cuentas del usuario
-        $stmt = $db->prepare("SELECT * FROM accounts WHERE user_id = ? ORDER BY id DESC");
-        $stmt->execute([$userId]);
+        // Obtener todas las cuentas del usuario para el workspace activo
+        $stmt = $db->prepare("SELECT * FROM accounts WHERE user_id = ? AND (workspace IS NULL OR workspace = ?) ORDER BY id DESC");
+        $stmt->execute([$userId, $workspace]);
         $accounts = $stmt->fetchAll();
         echo json_encode($accounts);
     }
@@ -72,8 +74,8 @@ if ($method === 'POST') {
     }
 
     try {
-        $stmt = $db->prepare("INSERT INTO accounts (user_id, name, type, balance, currency, credit_limit, billing_day, due_day, bank_name, account_number, tax_exempt, interest_rate, term_months, payment_conditions) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
-        $stmt->execute([$userId, $name, $type, $balance, $currency, $creditLimit, $billingDay, $dueDay, $bankName, $accountNumber, $taxExempt, $interestRate, $termMonths, $paymentConditions]);
+        $stmt = $db->prepare("INSERT INTO accounts (user_id, name, type, balance, currency, credit_limit, billing_day, due_day, bank_name, account_number, tax_exempt, interest_rate, term_months, payment_conditions, workspace) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+        $stmt->execute([$userId, $name, $type, $balance, $currency, $creditLimit, $billingDay, $dueDay, $bankName, $accountNumber, $taxExempt, $interestRate, $termMonths, $paymentConditions, $workspace]);
         
         $newId = $db->lastInsertId();
         echo json_encode([

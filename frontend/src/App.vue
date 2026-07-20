@@ -2,9 +2,16 @@
   <div class="app-container">
     <!-- Cabecera Móvil (Solo visible en pantallas móviles) -->
     <div v-if="isAuthenticated" class="mobile-header">
-      <div class="mobile-logo-container">
+      <div class="mobile-logo-container" style="display:flex; align-items:center; gap:8px;">
         <img src="./assets/logo-white.png" class="logo-img logo-dark" alt="Ábaco" style="max-height: 28px;" />
         <img src="./assets/logo-black.png" class="logo-img logo-light" alt="Ábaco" style="max-height: 28px;" />
+        
+        <!-- Conmutador de Espacio (Personal ⇄ Mi Negocio) Móvil -->
+        <button type="button" @click="toggleWorkspace" class="workspace-pill-btn" style="display:inline-flex; align-items:center; gap:5px; padding:4px 10px; border-radius:16px; background:rgba(255,255,255,0.08); border:1px solid var(--card-border); cursor:pointer; font-size:11px; font-weight:700; color:var(--text-primary); transition:all 0.2s ease;">
+          <i :class="activeWorkspace === 'business' ? 'fa-solid fa-store' : 'fa-solid fa-user'" :style="{ color: activeWorkspace === 'business' ? '#38bdf8' : '#a855f7' }"></i>
+          <span>{{ activeWorkspace === 'business' ? 'Mi Negocio' : 'Personal' }}</span>
+          <i class="fa-solid fa-arrows-rotate" style="font-size:9px; color:var(--text-muted);"></i>
+        </button>
       </div>
       <div class="mobile-header-actions" style="display: flex; align-items: center;">
         <button class="theme-toggle-btn-mobile" @click="toggleTheme" title="Cambiar tema" style="background:none; border:none; color:var(--text-primary); font-size:18px; cursor:pointer;">
@@ -27,6 +34,20 @@
       <div class="sidebar-logo">
         <img src="./assets/logo-white.png" class="logo-img logo-dark" alt="Ábaco" />
         <img src="./assets/logo-black.png" class="logo-img logo-light" alt="Ábaco" />
+      </div>
+
+      <!-- Selector de Espacio (Personal ⇄ Mi Negocio) Desktop -->
+      <div class="sidebar-workspace-card" @click="toggleWorkspace" style="margin:10px 14px 16px 14px; padding:10px 12px; border-radius:12px; background:rgba(255,255,255,0.04); border:1px solid var(--card-border); display:flex; justify-content:space-between; align-items:center; cursor:pointer; transition:all 0.2s ease;">
+        <div style="display:flex; align-items:center; gap:10px;">
+          <div :style="{ background: activeWorkspace === 'business' ? 'rgba(56,189,248,0.15)' : 'rgba(168,85,247,0.15)', padding:'8px', borderRadius:'8px', color: activeWorkspace === 'business' ? '#38bdf8' : '#a855f7' }">
+            <i :class="activeWorkspace === 'business' ? 'fa-solid fa-store' : 'fa-solid fa-user'" style="font-size:15px;"></i>
+          </div>
+          <div style="display:flex; flex-direction:column; text-align:left;">
+            <span style="font-size:9px; text-transform:uppercase; font-weight:700; color:var(--text-muted); letter-spacing:0.5px;">Espacio Activo</span>
+            <span style="font-size:13px; font-weight:700; color:var(--text-primary);">{{ activeWorkspace === 'business' ? 'Mi Negocio' : 'Personal' }}</span>
+          </div>
+        </div>
+        <i class="fa-solid fa-arrows-rotate" style="font-size:12px; color:var(--text-secondary);"></i>
       </div>
 
       <!-- Dashboard -->
@@ -280,6 +301,34 @@ export default {
       router.push({ path: '/', query: { action: actionType, t: Date.now() } })
     }
 
+    // Interceptor global de fetch para inyectar automáticamente la cabecera X-Workspace
+    if (!window._fetchPatched) {
+      const originalFetch = window.fetch
+      window.fetch = function(url, options = {}) {
+        options = options || {}
+        options.headers = options.headers || {}
+        const ws = localStorage.getItem('active_workspace') || 'personal'
+        if (options.headers instanceof Headers) {
+          options.headers.set('X-Workspace', ws)
+        } else if (Array.isArray(options.headers)) {
+          options.headers.push(['X-Workspace', ws])
+        } else {
+          options.headers['X-Workspace'] = ws
+        }
+        return originalFetch(url, options)
+      }
+      window._fetchPatched = true
+    }
+
+    const activeWorkspace = ref(localStorage.getItem('active_workspace') || 'personal')
+
+    const toggleWorkspace = () => {
+      const next = activeWorkspace.value === 'personal' ? 'business' : 'personal'
+      activeWorkspace.value = next
+      localStorage.setItem('active_workspace', next)
+      window.dispatchEvent(new CustomEvent('workspace-changed', { detail: { workspace: next } }))
+    }
+
     onMounted(() => {
       checkAuth()
       // Cargar e inicializar tema
@@ -294,6 +343,8 @@ export default {
     })
 
     return {
+      activeWorkspace,
+      toggleWorkspace,
       isAuthenticated,
       isAdmin,
       currentTheme,

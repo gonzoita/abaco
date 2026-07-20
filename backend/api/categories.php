@@ -16,10 +16,12 @@ if (!$input) {
     $input = $_POST;
 }
 
+$workspace = get_active_workspace();
+
 if ($method === 'GET') {
-    // Obtener categorías: globales (user_id IS NULL) + personalizadas (user_id = ?)
-    $stmt = $db->prepare("SELECT * FROM categories WHERE user_id IS NULL OR user_id = ? ORDER BY user_id ASC, name ASC");
-    $stmt->execute([$userId]);
+    // Obtener categorías: globales o del usuario para el workspace activo
+    $stmt = $db->prepare("SELECT * FROM categories WHERE (user_id IS NULL OR user_id = ?) AND (workspace IS NULL OR workspace = ?) ORDER BY user_id ASC, name ASC");
+    $stmt->execute([$userId, $workspace]);
     $categories = $stmt->fetchAll();
     echo json_encode($categories);
     exit();
@@ -44,8 +46,8 @@ if ($method === 'POST') {
     }
 
     try {
-        $stmt = $db->prepare("INSERT INTO categories (user_id, name, icon, color, type) VALUES (?, ?, ?, ?, ?)");
-        $stmt->execute([$userId, $name, $icon, $color, $type]);
+        $stmt = $db->prepare("INSERT INTO categories (user_id, name, icon, color, type, workspace) VALUES (?, ?, ?, ?, ?, ?)");
+        $stmt->execute([$userId, $name, $icon, $color, $type, $workspace]);
         
         $newId = $db->lastInsertId();
         echo json_encode([

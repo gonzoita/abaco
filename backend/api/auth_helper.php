@@ -58,3 +58,24 @@ function authenticate() {
 
     return $decoded; // Contiene user_id, email, name, etc.
 }
+
+/**
+ * Obtiene el espacio de trabajo activo ('personal' o 'business') enviado en la cabecera X-Workspace o por parámetro GET.
+ */
+function get_active_workspace() {
+    $headers = getallheaders();
+    $ws = '';
+
+    if (isset($headers['X-Workspace'])) {
+        $ws = trim($headers['X-Workspace']);
+    } elseif (isset($headers['x-workspace'])) {
+        $ws = trim($headers['x-workspace']);
+    } elseif (isset($_SERVER['HTTP_X_WORKSPACE'])) {
+        $ws = trim($_SERVER['HTTP_X_WORKSPACE']);
+    } elseif (isset($_GET['workspace'])) {
+        $ws = trim($_GET['workspace']);
+    }
+
+    $ws = strtolower($ws);
+    return in_array($ws, ['personal', 'business']) ? $ws : 'personal';
+}

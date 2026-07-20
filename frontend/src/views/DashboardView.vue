@@ -571,7 +571,7 @@
 </template>
 
 <script>
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { API_BASE } from '../config.js'
 
@@ -1224,13 +1224,22 @@ export default {
       handleUrlAction()
     })
 
+    const handleWorkspaceChanged = () => {
+      fetchData()
+    }
+
     onMounted(() => {
       checkUser()
       fetchData()
+      window.addEventListener('workspace-changed', handleWorkspaceChanged)
       // Ejecutar acción de URL si existe después de cargar
       setTimeout(() => {
         handleUrlAction()
       }, 300)
+    })
+
+    onUnmounted(() => {
+      window.removeEventListener('workspace-changed', handleWorkspaceChanged)
     })
 
     const toggleCategoryFilter = (catName) => {

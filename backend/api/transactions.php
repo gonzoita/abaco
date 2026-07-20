@@ -16,14 +16,16 @@ if (!$input) {
     $input = $_POST;
 }
 
+$workspace = get_active_workspace();
+
 if ($method === 'GET') {
     if ($id) {
         $stmt = $db->prepare("SELECT t.*, a.name as account_name, c.name as category_name, c.color as category_color 
                               FROM transactions t 
                               JOIN accounts a ON t.account_id = a.id 
                               LEFT JOIN categories c ON t.category_id = c.id 
-                              WHERE t.id = ? AND t.user_id = ?");
-        $stmt->execute([$id, $userId]);
+                              WHERE t.id = ? AND t.user_id = ? AND (t.workspace IS NULL OR t.workspace = ?)");
+        $stmt->execute([$id, $userId, $workspace]);
         $transaction = $stmt->fetch();
         if (!$transaction) {
             http_response_code(404);
@@ -44,9 +46,9 @@ if ($method === 'GET') {
                 FROM transactions t 
                 JOIN accounts a ON t.account_id = a.id 
                 LEFT JOIN categories c ON t.category_id = c.id 
-                WHERE t.user_id = :user_id";
+                WHERE t.user_id = :user_id AND (t.workspace IS NULL OR t.workspace = :workspace)";
         
-        $params = [':user_id' => $userId];
+        $params = [':user_id' => $userId, ':workspace' => $workspace];
 
         if ($accountId) {
             $sql .= " AND t.account_id = :account_id";
@@ -74,6 +76,7 @@ if ($method === 'GET') {
         $stmt = $db->prepare($sql);
         // Bind integer parameter limit manually to avoid prepared statement issues
         $stmt->bindValue(':user_id', $userId, PDO::PARAM_INT);
+        $stmt->bindValue(':workspace', $workspace, PDO::PARAM_STR);
         if ($accountId) $stmt->bindValue(':account_id', $accountId, PDO::PARAM_INT);
         if ($categoryId) $stmt->bindValue(':category_id', $categoryId, PDO::PARAM_INT);
         if ($type) $stmt->bindValue(':type', $type, PDO::PARAM_STR);
@@ -138,13 +141,13 @@ if ($method === 'POST') {
             }
         }
 
-        // Insertar la transacción (incluyendo tags si la columna existe)
+        // Insertar la transacción (incluyendo tags y workspace si las columnas existen)
         try {
-            $stmtInsert = $db->prepare("INSERT INTO transactions (user_id, account_id, category_id, type, amount, description, tags, date, receipt_url, installments_total, installments_current, transfer_to_account_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)");
-            $stmtInsert->execute([$userId, $accountId, $categoryId, $type, $amount, $description, $tags ?: null, $date, $receiptUrl ?: null, $installmentsTotal, $transferToAccountId]);
+            $stmtInsert = $db->prepare("INSERT INTO transactions (user_id, account_id, category_id, type, amount, description, tags, date, receipt_url, installments_total, installments_current, transfer_to_account_id, workspace) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)");
+            $stmtInsert->execute([$userId, $accountId, $categoryId, $type, $amount, $description, $tags ?: null, $date, $receiptUrl ?: null, $installmentsTotal, $transferToAccountId, $workspace]);
         } catch (Exception $e) {
-            $stmtInsert = $db->prepare("INSERT INTO transactions (user_id, account_id, category_id, type, amount, description, date, receipt_url, installments_total, installments_current, transfer_to_account_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)");
-            $stmtInsert->execute([$userId, $accountId, $categoryId, $type, $amount, $description, $date, $receiptUrl ?: null, $installmentsTotal, $transferToAccountId]);
+            $stmtInsert = $db->prepare("INSERT INTO transactions (user_id, account_id, category_id, type, amount, description, date, receipt_url, installments_total, installments_current, transfer_to_account_id, workspace) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)");
+            $stmtInsert->execute([$userId, $accountId, $categoryId, $type, $amount, $description, $date, $receiptUrl ?: null, $installmentsTotal, $transferToAccountId, $workspace]);
         }
         $newTransactionId = $db->lastInsertId();
 
