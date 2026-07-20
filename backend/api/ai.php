@@ -34,18 +34,18 @@ if (empty($apiKeyToUse)) {
  * Función auxiliar para realizar peticiones HTTP a la API de Gemini con reintentos para picos de demanda
  */
 function callGemini($payload, $apiKey) {
-    $models = [
-        'gemini-flash-latest',
-        'gemini-2.5-flash'
+    $urls = [
+        "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=" . $apiKey,
+        "https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=" . $apiKey,
+        "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:generateContent?key=" . $apiKey,
+        "https://generativelanguage.googleapis.com/v1/models/gemini-1.5-pro:generateContent?key=" . $apiKey,
+        "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=" . $apiKey
     ];
 
     $lastDecoded = null;
 
-    foreach ($models as $model) {
-        $url = "https://generativelanguage.googleapis.com/v1beta/models/{$model}:generateContent?key=" . $apiKey;
-
-        // Intentar hasta 3 veces por modelo para superar picos de 503 (alta demanda)
-        for ($attempt = 1; $attempt <= 3; $attempt++) {
+    foreach ($urls as $url) {
+        for ($attempt = 1; $attempt <= 2; $attempt++) {
             $ch = curl_init($url);
             curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
             curl_setopt($ch, CURLOPT_POST, true);
@@ -54,14 +54,14 @@ function callGemini($payload, $apiKey) {
                 'Content-Type: application/json'
             ]);
             curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
-            curl_setopt($ch, CURLOPT_TIMEOUT, 20);
+            curl_setopt($ch, CURLOPT_TIMEOUT, 15);
 
             $response = curl_exec($ch);
             $curlErr = curl_error($ch);
             curl_close($ch);
 
             if ($curlErr) {
-                usleep(300000); // 300ms
+                usleep(200000);
                 continue;
             }
 
@@ -79,19 +79,19 @@ function callGemini($payload, $apiKey) {
                 if (strpos($errMsg, 'api_key_invalid') !== false || strpos($errMsg, 'invalid api key') !== false) {
                     return $decoded;
                 }
-                // Si el modelo está en alta demanda (503 / high demand / overloaded), pausar y reintentar
+                // Si la causa es saturación o demanda alta, reintentar la llamada
                 if (strpos($errMsg, 'high demand') !== false || strpos($errMsg, 'overloaded') !== false || strpos($errMsg, '503') !== false || strpos($errMsg, 'resource_exhausted') !== false) {
-                    usleep(500000); // 500ms
+                    usleep(400000);
                     continue;
                 }
             }
 
-            // Si no fue error de alta demanda, romper el bucle de reintentos e intentar con el siguiente modelo
+            // Si fue un error de modelo desactualizado en esta URL, saltar a la siguiente URL del arreglo
             break;
         }
     }
 
-    return $lastDecoded ?? ["error" => ["message" => "El servicio de Google Gemini está experimentando alta demanda. Por favor reintenta tu pregunta en unos segundos."]];
+    return $lastDecoded ?? ["error" => ["message" => "No se pudo conectar con el servicio de IA de Google. Verifica tu clave de API en Ajustes."]];
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
