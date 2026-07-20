@@ -1,4 +1,4 @@
-const CACHE_NAME = 'antigravity-finanzas-v2';
+const CACHE_NAME = 'abaco-finanzas-v3';
 const ASSETS = [
   './',
   './index.html',
@@ -14,7 +14,7 @@ self.addEventListener('install', (event) => {
   );
 });
 
-// Activar SW y limpiar cachés antiguas
+// Activar SW y limpiar cachés antiguas (incluyendo antigravity-finanzas)
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((keys) => {
@@ -29,7 +29,7 @@ self.addEventListener('activate', (event) => {
   );
 });
 
-// Estrategia de Fetch: Network-First para index.html/navegaciones, Cache-First para recursos estáticos pesados, Network-Only para API
+// Estrategia de Fetch: Network-First para index.html, manifest.json y navegaciones
 self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
 
@@ -39,8 +39,8 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Estrategia Network-First para index.html y navegación base para evitar que se atranquen las actualizaciones
-  if (event.request.mode === 'navigate' || url.pathname === '/' || url.pathname.endsWith('index.html')) {
+  // Estrategia Network-First para index.html, manifest.json y navegaciones base para garantizar actualización inmediata
+  if (event.request.mode === 'navigate' || url.pathname === '/' || url.pathname.endsWith('index.html') || url.pathname.endsWith('manifest.json') || url.pathname.endsWith('sw.js')) {
     event.respondWith(
       fetch(event.request)
         .then((networkResponse) => {
