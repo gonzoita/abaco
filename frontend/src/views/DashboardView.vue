@@ -44,25 +44,15 @@
       </div>
     </div>
 
-    <!-- Botones de Acción Rápida -->
+    <!-- Botones de Acción Rápida (Orden: 1º Dictar por Voz, 2º Escanear Recibo, 3º Ingreso, 4º Gasto) -->
     <div class="actions-container">
-      <button class="btn-primary" @click="openTransactionModal('egreso')">
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="btn-icon">
-          <line x1="12" y1="5" x2="12" y2="19"></line>
-          <line x1="5" y1="12" x2="19" y2="12"></line>
-        </svg>
-        Registrar Gasto
+      <!-- 1º: Dictar por Voz con IA (Botón Principal Destacado) -->
+      <button class="btn-primary" @click="startVoiceDictation" style="background:linear-gradient(135deg, #a855f7, #7c3aed); border:none; display:flex; align-items:center; justify-content:center; gap:8px; box-shadow: 0 4px 16px rgba(168,85,247,0.4); font-weight:700;">
+        <i class="fa-solid fa-microphone" style="font-size:16px;"></i>
+        <span>Dictar por Voz (IA)</span>
       </button>
 
-      <button class="btn-success" @click="openTransactionModal('ingreso')">
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="btn-icon">
-          <line x1="12" y1="5" x2="12" y2="19"></line>
-          <line x1="5" y1="12" x2="19" y2="12"></line>
-        </svg>
-        Registrar Ingreso
-      </button>
-
-      <!-- Botón de Escáner de Recibos con IA -->
+      <!-- 2º: Escanear Recibo con IA -->
       <label class="btn-ai-scan glass-card">
         <input ref="receiptInput" type="file" accept="image/*" capture="environment" class="hidden-input" @change="handleReceiptScan" :disabled="aiLoading" />
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="btn-icon" v-if="!aiLoading">
@@ -73,10 +63,22 @@
         <span>{{ aiLoading ? 'Procesando Recibo IA...' : 'Escanear Recibo (IA)' }}</span>
       </label>
 
-      <!-- Botón Dictado por Voz con IA -->
-      <button class="btn-primary" @click="startVoiceDictation" style="background:linear-gradient(135deg, #a855f7, #7c3aed); border:none; display:flex; align-items:center; gap:8px; box-shadow: 0 4px 14px rgba(168,85,247,0.35);">
-        <i class="fa-solid fa-microphone" style="font-size:15px;"></i>
-        <span>Dictar por Voz (IA)</span>
+      <!-- 3º: Registrar Ingreso -->
+      <button class="btn-success" @click="openTransactionModal('ingreso')">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="btn-icon">
+          <line x1="12" y1="5" x2="12" y2="19"></line>
+          <line x1="5" y1="12" x2="19" y2="12"></line>
+        </svg>
+        Registrar Ingreso
+      </button>
+
+      <!-- 4º: Registrar Gasto -->
+      <button class="btn-primary" @click="openTransactionModal('egreso')">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="btn-icon">
+          <line x1="12" y1="5" x2="12" y2="19"></line>
+          <line x1="5" y1="12" x2="19" y2="12"></line>
+        </svg>
+        Registrar Gasto
       </button>
     </div>
 
@@ -1205,14 +1207,16 @@ export default {
 
     const handleUrlAction = () => {
       const action = route.query.action
-      if (action === 'expense') {
-        openTransactionModal('egreso')
-      } else if (action === 'income') {
-        openTransactionModal('ingreso')
+      if (action === 'voice') {
+        startVoiceDictation()
       } else if (action === 'scan') {
         if (receiptInput.value) {
           receiptInput.value.click()
         }
+      } else if (action === 'income') {
+        openTransactionModal('ingreso')
+      } else if (action === 'expense') {
+        openTransactionModal('egreso')
       }
     }
 

@@ -119,19 +119,28 @@
         <div class="sheet-indicator"></div>
         <h3 class="sheet-title">Nueva Transacción</h3>
         <div class="sheet-options">
-          <button class="sheet-btn expense" @click="triggerQuickAction('expense')">
-            <div class="btn-icon-circle"><i class="fa-solid fa-minus"></i></div>
-            <span>Gasto</span>
+          <!-- 1º: Dictar por Voz con IA -->
+          <button class="sheet-btn voice" @click="triggerQuickAction('voice')" style="background:rgba(168,85,247,0.15); border:1px solid rgba(168,85,247,0.4); color:#a855f7;">
+            <div class="btn-icon-circle" style="background:#a855f7; color:#ffffff;"><i class="fa-solid fa-microphone"></i></div>
+            <span style="font-weight:700;">Dictar por Voz (IA)</span>
           </button>
-          
+
+          <!-- 2º: Escanear Recibo -->
+          <button class="sheet-btn scan" @click="triggerQuickAction('scan')">
+            <div class="btn-icon-circle"><i class="fa-solid fa-camera"></i></div>
+            <span>Escanear Recibo (IA)</span>
+          </button>
+
+          <!-- 3º: Ingreso -->
           <button class="sheet-btn income" @click="triggerQuickAction('income')">
             <div class="btn-icon-circle"><i class="fa-solid fa-plus"></i></div>
             <span>Ingreso</span>
           </button>
-          
-          <button class="sheet-btn scan" @click="triggerQuickAction('scan')">
-            <div class="btn-icon-circle"><i class="fa-solid fa-sparkles"></i></div>
-            <span>Escanear Recibo</span>
+
+          <!-- 4º: Gasto -->
+          <button class="sheet-btn expense" @click="triggerQuickAction('expense')">
+            <div class="btn-icon-circle"><i class="fa-solid fa-minus"></i></div>
+            <span>Gasto</span>
           </button>
         </div>
         <button class="btn-sheet-close" @click="showQuickActions = false">Cancelar</button>
