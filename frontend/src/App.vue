@@ -6,10 +6,10 @@
         <img src="./assets/logo-white.png" class="logo-img logo-dark" alt="Ábaco" style="max-height: 28px;" />
         <img src="./assets/logo-black.png" class="logo-img logo-light" alt="Ábaco" style="max-height: 28px;" />
         
-        <!-- Conmutador de Espacio (Personal ⇄ Mi Negocio) Móvil -->
+        <!-- Conmutador de Espacio (Personal ⇄ Mi Negocio) Móvil (Único lugar arriba en móviles) -->
         <button type="button" @click="toggleWorkspace" class="workspace-pill-btn" style="display:inline-flex; align-items:center; gap:5px; padding:4px 10px; border-radius:16px; background:rgba(255,255,255,0.08); border:1px solid var(--card-border); cursor:pointer; font-size:11px; font-weight:700; color:var(--text-primary); transition:all 0.2s ease;">
           <i :class="activeWorkspace === 'business' ? 'fa-solid fa-store' : 'fa-solid fa-user'" :style="{ color: activeWorkspace === 'business' ? '#38bdf8' : '#a855f7' }"></i>
-          <span>{{ activeWorkspace === 'business' ? 'Mi Negocio' : 'Personal' }}</span>
+          <span>{{ activeWorkspace === 'business' ? (businessName || 'Mi Negocio') : 'Personal' }}</span>
           <i class="fa-solid fa-arrows-rotate" style="font-size:9px; color:var(--text-muted);"></i>
         </button>
       </div>
@@ -36,15 +36,15 @@
         <img src="./assets/logo-black.png" class="logo-img logo-light" alt="Ábaco" />
       </div>
 
-      <!-- Selector de Espacio (Personal ⇄ Mi Negocio) Desktop -->
-      <div class="sidebar-workspace-card" @click="toggleWorkspace" style="margin:10px 14px 16px 14px; padding:10px 12px; border-radius:12px; background:rgba(255,255,255,0.04); border:1px solid var(--card-border); display:flex; justify-content:space-between; align-items:center; cursor:pointer; transition:all 0.2s ease;">
+      <!-- Selector de Espacio (Personal ⇄ Mi Negocio) Exclusivo para Desktop Sidebar -->
+      <div class="sidebar-workspace-card desktop-only-workspace" @click="toggleWorkspace" style="margin:10px 14px 16px 14px; padding:10px 12px; border-radius:12px; background:rgba(255,255,255,0.04); border:1px solid var(--card-border); display:flex; justify-content:space-between; align-items:center; cursor:pointer; transition:all 0.2s ease;">
         <div style="display:flex; align-items:center; gap:10px;">
           <div :style="{ background: activeWorkspace === 'business' ? 'rgba(56,189,248,0.15)' : 'rgba(168,85,247,0.15)', padding:'8px', borderRadius:'8px', color: activeWorkspace === 'business' ? '#38bdf8' : '#a855f7' }">
             <i :class="activeWorkspace === 'business' ? 'fa-solid fa-store' : 'fa-solid fa-user'" style="font-size:15px;"></i>
           </div>
           <div style="display:flex; flex-direction:column; text-align:left;">
             <span style="font-size:9px; text-transform:uppercase; font-weight:700; color:var(--text-muted); letter-spacing:0.5px;">Espacio Activo</span>
-            <span style="font-size:13px; font-weight:700; color:var(--text-primary);">{{ activeWorkspace === 'business' ? 'Mi Negocio' : 'Personal' }}</span>
+            <span style="font-size:13px; font-weight:700; color:var(--text-primary);">{{ activeWorkspace === 'business' ? (businessName || 'Mi Negocio') : 'Personal' }}</span>
           </div>
         </div>
         <i class="fa-solid fa-arrows-rotate" style="font-size:12px; color:var(--text-secondary);"></i>
@@ -321,6 +321,20 @@ export default {
     }
 
     const activeWorkspace = ref(localStorage.getItem('active_workspace') || 'personal')
+    const businessName = ref('')
+
+    const updateBusinessNameFromStorage = () => {
+      try {
+        const u = JSON.parse(localStorage.getItem('user') || '{}')
+        businessName.value = u.business_name || 'Mi Negocio'
+      } catch (e) {
+        businessName.value = 'Mi Negocio'
+      }
+    }
+
+    watch(() => activeWorkspace.value, (newWs) => {
+      document.body.classList.toggle('business-workspace-mode', newWs === 'business')
+    }, { immediate: true })
 
     const toggleWorkspace = () => {
       const next = activeWorkspace.value === 'personal' ? 'business' : 'personal'
@@ -331,6 +345,9 @@ export default {
 
     onMounted(() => {
       checkAuth()
+      updateBusinessNameFromStorage()
+      window.addEventListener('user-updated', updateBusinessNameFromStorage)
+
       // Cargar e inicializar tema
       const savedTheme = localStorage.getItem('theme') || 'dark'
       currentTheme.value = savedTheme
@@ -340,10 +357,12 @@ export default {
     // Monitorear cambios en las rutas para validar autenticación
     watch(() => route.path, () => {
       checkAuth()
+      updateBusinessNameFromStorage()
     })
 
     return {
       activeWorkspace,
+      businessName,
       toggleWorkspace,
       isAuthenticated,
       isAdmin,
@@ -644,6 +663,12 @@ body.light-theme .header-menu-pill:hover, body.light-theme .header-menu-pill:act
 .menu-icon-bar {
   font-size: 13px;
   color: var(--text-secondary);
+}
+
+@media (max-width: 768px) {
+  .desktop-only-workspace {
+    display: none !important;
+  }
 }
 </style>
 

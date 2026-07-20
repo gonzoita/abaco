@@ -23,6 +23,14 @@ try {
         }
     }
 
+    // Verificar si existe la columna business_name en users
+    $stmtUser = $db->prepare("SHOW COLUMNS FROM users LIKE 'business_name'");
+    $stmtUser->execute();
+    if (!$stmtUser->fetch()) {
+        $db->exec("ALTER TABLE users ADD COLUMN business_name VARCHAR(100) NULL DEFAULT 'Mi Negocio'");
+        $migrated[] = 'users (business_name)';
+    }
+
     echo json_encode([
         "success" => true,
         "message" => "Migración de espacios de trabajo (workspaces) completada con éxito.",

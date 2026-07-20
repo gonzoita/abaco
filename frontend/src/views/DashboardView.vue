@@ -3,8 +3,13 @@
     <!-- Encabezado de bienvenida -->
     <div class="view-header dashboard-header">
       <div>
-        <h1 class="view-title">Hola, {{ user.name }}</h1>
-        <p class="view-subtitle">Resumen de tus finanzas para este mes</p>
+        <div v-if="activeWorkspace === 'business'" style="display:inline-flex; align-items:center; gap:6px; padding:4px 10px; border-radius:20px; background:rgba(56,189,248,0.15); border:1px solid rgba(56,189,248,0.3); color:#38bdf8; font-size:12px; font-weight:700; margin-bottom:6px;">
+          <i class="fa-solid fa-store"></i> Panel de {{ businessName || 'Mi Negocio' }}
+        </div>
+        <h1 class="view-title">{{ activeWorkspace === 'business' ? (businessName || 'Mi Negocio') : 'Hola, ' + user.name }}</h1>
+        <p class="view-subtitle">
+          {{ activeWorkspace === 'business' ? 'Caja chica, ventas del día y estado financiero del negocio' : 'Resumen de tus finanzas para este mes' }}
+        </p>
       </div>
       <div v-if="user.subscription_status === 'trial'" class="trial-badge glass-card">
         <span>Prueba Gratuita (SaaS)</span>
@@ -12,13 +17,13 @@
     </div>
 
     <!-- Grid de Balances Principales -->
-    <div class="balance-grid">
-      <div class="glass-card balance-card total">
-        <span class="card-label">Balance Total</span>
+    <div class="balance-grid" :class="{ 'business-grid': activeWorkspace === 'business' }">
+      <div class="glass-card balance-card total" :style="activeWorkspace === 'business' ? { borderTop: '3px solid #38bdf8' } : {}">
+        <span class="card-label">{{ activeWorkspace === 'business' ? 'Caja & Liquidez del Negocio' : 'Balance Total' }}</span>
         <h2 class="amount">
           {{ formatCurrency(totalAccountsBalance) }}
         </h2>
-        <p class="card-detail">Suma de todas tus cuentas</p>
+        <p class="card-detail">{{ activeWorkspace === 'business' ? 'Disponible en caja chica y cuentas empresa' : 'Suma de todas tus cuentas' }}</p>
       </div>
 
       <div class="glass-card balance-card income">
@@ -28,7 +33,7 @@
             <polyline points="5 12 12 5 19 12"></polyline>
           </svg>
         </div>
-        <span class="card-label">Ingresos del Mes</span>
+        <span class="card-label">{{ activeWorkspace === 'business' ? 'Ventas del Mes' : 'Ingresos del Mes' }}</span>
         <h3 class="amount amount-positive">{{ formatCurrency(totals.ingresos) }}</h3>
       </div>
 
@@ -39,8 +44,22 @@
             <polyline points="19 12 12 19 5 12"></polyline>
           </svg>
         </div>
-        <span class="card-label">Gastos del Mes</span>
+        <span class="card-label">{{ activeWorkspace === 'business' ? 'Costos & Gastos Negocio' : 'Gastos del Mes' }}</span>
         <h3 class="amount amount-negative">{{ formatCurrency(totals.egresos) }}</h3>
+      </div>
+
+      <!-- Tarjeta de Utilidad Neta (Exclusiva de Modo Negocio) -->
+      <div v-if="activeWorkspace === 'business'" class="glass-card balance-card" style="border-top: 3px solid #10b981; background: rgba(16, 185, 129, 0.08);">
+        <div class="card-header-icon" style="color: #10b981;">
+          <i class="fa-solid fa-chart-line" style="font-size:18px;"></i>
+        </div>
+        <span class="card-label" style="color:#10b981; font-weight:700;">Ganancia Neta (Utilidad)</span>
+        <h3 class="amount" :style="{ color: (totals.ingresos - totals.egresos) >= 0 ? '#10b981' : '#ef4444' }">
+          {{ formatCurrency(totals.ingresos - totals.egresos) }}
+        </h3>
+        <p class="card-detail" style="font-size:11px; margin-top:2px;">
+          Margen: {{ totals.ingresos > 0 ? Math.round(((totals.ingresos - totals.egresos) / totals.ingresos) * 100) : 0 }}% sobre ventas
+        </p>
       </div>
     </div>
 
@@ -581,6 +600,18 @@ export default {
     const route = useRoute()
     const receiptInput = ref(null)
     const user = ref({})
+    const activeWorkspace = ref(localStorage.getItem('active_workspace') || 'personal')
+    const businessName = ref('')
+
+    const updateWorkspaceInfo = () => {
+      activeWorkspace.value = localStorage.getItem('active_workspace') || 'personal'
+      try {
+        const u = JSON.parse(localStorage.getItem('user') || '{}')
+        businessName.value = u.business_name || 'Mi Negocio'
+      } catch (e) {
+        businessName.value = 'Mi Negocio'
+      }
+    }
     const accounts = ref([])
     const categories = ref([])
     const transactions = ref([])
@@ -1225,13 +1256,16 @@ export default {
     })
 
     const handleWorkspaceChanged = () => {
+      updateWorkspaceInfo()
       fetchData()
     }
 
     onMounted(() => {
       checkUser()
+      updateWorkspaceInfo()
       fetchData()
       window.addEventListener('workspace-changed', handleWorkspaceChanged)
+      window.addEventListener('user-updated', updateWorkspaceInfo)
       // Ejecutar acción de URL si existe después de cargar
       setTimeout(() => {
         handleUrlAction()
@@ -1240,6 +1274,7 @@ export default {
 
     onUnmounted(() => {
       window.removeEventListener('workspace-changed', handleWorkspaceChanged)
+      window.removeEventListener('user-updated', updateWorkspaceInfo)
     })
 
     const toggleCategoryFilter = (catName) => {
@@ -1281,6 +1316,8 @@ export default {
     })
 
     return {
+      activeWorkspace,
+      businessName,
       showVoiceModal,
       isRecording,
       voiceTranscript,

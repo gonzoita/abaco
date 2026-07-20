@@ -24,6 +24,13 @@
             <input type="email" id="set-email" :value="form.email" disabled class="input-disabled" />
           </div>
 
+          <div class="form-group" style="margin-top: 12px; margin-bottom: 12px;">
+            <label for="set-bizname" style="color:#38bdf8; font-weight:700; display:flex; align-items:center; gap:6px;">
+              <i class="fa-solid fa-store"></i> Nombre de tu Negocio / Emprendimiento
+            </label>
+            <input type="text" id="set-bizname" v-model="form.business_name" placeholder="Ej: Mi Tienda, Calzado Express, Restaurante..." style="border-color: rgba(56,189,248,0.4);" />
+          </div>
+
           <div class="form-row">
             <div class="form-group">
               <label for="set-currency">Moneda Predeterminada</label>
@@ -253,7 +260,8 @@ export default {
       name: '',
       email: '',
       currency: 'COP',
-      reminder_days_before: 5
+      reminder_days_before: 5,
+      business_name: 'Mi Negocio'
     })
 
     const categories = ref([])
@@ -374,10 +382,12 @@ export default {
           throw new Error(data.error || 'Error al guardar los ajustes.')
         }
 
-        const userStored = JSON.parse(localStorage.getItem('user'))
+        const userStored = JSON.parse(localStorage.getItem('user') || '{}')
         userStored.name = form.value.name
         userStored.currency = form.value.currency
+        userStored.business_name = form.value.business_name
         localStorage.setItem('user', JSON.stringify(userStored))
+        window.dispatchEvent(new Event('user-updated'))
 
         successMsg.value = 'Configuración guardada exitosamente.'
       } catch (err) {

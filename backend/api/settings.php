@@ -66,7 +66,7 @@ if ($method === 'GET') {
     }
 
     try {
-        $stmt = $db->prepare("SELECT id, name, email, currency, reminder_days_before, subscription_status, subscription_expires_at FROM users WHERE id = ?");
+        $stmt = $db->prepare("SELECT id, name, email, currency, reminder_days_before, business_name, subscription_status, subscription_expires_at FROM users WHERE id = ?");
         $stmt->execute([$userId]);
         $user = $stmt->fetch();
 
@@ -74,6 +74,10 @@ if ($method === 'GET') {
             http_response_code(404);
             echo json_encode(["error" => "Usuario no encontrado."]);
             exit();
+        }
+
+        if (empty($user['business_name'])) {
+            $user['business_name'] = 'Mi Negocio';
         }
 
         echo json_encode($user);
@@ -88,6 +92,7 @@ if ($method === 'PUT') {
     $name = trim($input['name'] ?? '');
     $currency = trim($input['currency'] ?? 'COP');
     $reminderDaysBefore = isset($input['reminder_days_before']) ? intval($input['reminder_days_before']) : 5;
+    $businessName = isset($input['business_name']) ? trim($input['business_name']) : 'Mi Negocio';
 
     if (empty($name)) {
         http_response_code(400);
@@ -102,15 +107,16 @@ if ($method === 'PUT') {
     }
 
     try {
-        $stmt = $db->prepare("UPDATE users SET name = ?, currency = ?, reminder_days_before = ? WHERE id = ?");
-        $stmt->execute([$name, $currency, $reminderDaysBefore, $userId]);
+        $stmt = $db->prepare("UPDATE users SET name = ?, currency = ?, reminder_days_before = ?, business_name = ? WHERE id = ?");
+        $stmt->execute([$name, $currency, $reminderDaysBefore, $businessName, $userId]);
 
         echo json_encode([
             "message" => "Configuración actualizada con éxito.",
             "user" => [
                 "name" => $name,
                 "currency" => $currency,
-                "reminder_days_before" => $reminderDaysBefore
+                "reminder_days_before" => $reminderDaysBefore,
+                "business_name" => $businessName
             ]
         ]);
     } catch (Exception $e) {
