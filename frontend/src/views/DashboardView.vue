@@ -141,6 +141,92 @@
       </div>
     </div>
 
+    <!-- SECCIÓN DE INTELIGENCIA FINANCIERA (Health Score + Autonomía + Exportación) -->
+    <div v-if="insightsData" class="insights-container" style="margin-bottom: 20px;">
+      <div class="insights-grid-row" style="display:grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap:16px;">
+        <!-- Tarjeta 1: Score de Salud Financiera -->
+        <div class="glass-card insight-card" style="padding:18px; display:flex; flex-direction:column; justify-content:space-between; position:relative; overflow:hidden;">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+            <div>
+              <h4 style="margin:0; font-size:13px; text-transform:uppercase; letter-spacing:0.5px; color:var(--text-secondary); font-weight:700;">
+                <i class="fa-solid fa-heart-pulse" style="color:var(--color-danger); margin-right:6px;"></i> Salud Financiera
+              </h4>
+              <span style="font-size:11px; color:var(--text-muted);">Índice de bienestar económico</span>
+            </div>
+            <div class="health-badge" :style="{ backgroundColor: insightsData.health_color + '20', color: insightsData.health_color, border: '1px solid ' + insightsData.health_color }" style="padding:4px 12px; border-radius:20px; font-weight:700; font-size:12px;">
+              {{ insightsData.health_status }}
+            </div>
+          </div>
+
+          <div style="display:flex; align-items:baseline; gap:8px; margin-bottom:10px;">
+            <div style="font-size:38px; font-weight:800; line-height:1;" :style="{ color: insightsData.health_color }">
+              {{ insightsData.health_score }}
+            </div>
+            <div style="font-size:14px; color:var(--text-muted); font-weight:600;">/ 100 pts</div>
+          </div>
+
+          <div style="background:rgba(255,255,255,0.04); padding:10px 12px; border-radius:10px; border:1px solid var(--card-border); font-size:12px; line-height:1.4; color:var(--text-primary);">
+            <i class="fa-solid fa-lightbulb" style="color:var(--color-warning); margin-right:6px;"></i>
+            {{ insightsData.recommendation }}
+          </div>
+        </div>
+
+        <!-- Tarjeta 2: Autonomía Financiera & Fondo de Emergencia -->
+        <div class="glass-card insight-card" style="padding:18px; display:flex; flex-direction:column; justify-content:space-between;">
+          <div>
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+              <h4 style="margin:0; font-size:13px; text-transform:uppercase; letter-spacing:0.5px; color:var(--text-secondary); font-weight:700;">
+                <i class="fa-solid fa-shield-halved" style="color:var(--color-primary); margin-right:6px;"></i> Autonomía Financiera
+              </h4>
+              <span style="font-size:11px; font-weight:600; background:rgba(10,132,255,0.15); color:var(--color-primary); padding:3px 8px; border-radius:6px;">
+                Reserva
+              </span>
+            </div>
+
+            <div style="font-size:24px; font-weight:800; color:var(--text-primary); margin-bottom:4px;">
+              {{ insightsData.runway.months }} Meses
+              <span style="font-size:13px; font-weight:500; color:var(--text-secondary);">({{ insightsData.runway.days }} días cubiertos)</span>
+            </div>
+
+            <p style="font-size:11.5px; color:var(--text-muted); margin-bottom:10px;">
+              Tus saldos líquidos ({{ formatCurrency(insightsData.runway.liquid_balance) }}) sostienen tus gastos promedio ({{ formatCurrency(insightsData.runway.avg_monthly_expense) }}/mes).
+            </p>
+          </div>
+
+          <div style="display:flex; justify-content:space-between; align-items:center; background:rgba(255,255,255,0.04); padding:8px 12px; border-radius:8px; border:1px solid var(--card-border); font-size:12px;">
+            <span>Predicción Fin de Mes:</span>
+            <strong :style="{ color: insightsData.forecast.projected_savings >= 0 ? 'var(--color-success)' : 'var(--color-danger)' }">
+              {{ insightsData.forecast.projected_savings >= 0 ? '+' : '' }}{{ formatCurrency(insightsData.forecast.projected_savings) }}
+            </strong>
+          </div>
+        </div>
+
+        <!-- Tarjeta 3: Suscripciones & Exportación de Reportes -->
+        <div class="glass-card insight-card" style="padding:18px; display:flex; flex-direction:column; justify-content:space-between;">
+          <div>
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+              <h4 style="margin:0; font-size:13px; text-transform:uppercase; letter-spacing:0.5px; color:var(--text-secondary); font-weight:700;">
+                <i class="fa-solid fa-file-invoice-dollar" style="color:var(--color-accent); margin-right:6px;"></i> Reporte & Suscripciones
+              </h4>
+            </div>
+
+            <div style="font-size:13px; color:var(--text-primary); margin-bottom:12px;">
+              Suscripciones activas: <strong>{{ insightsData.subscriptions.items.length }}</strong> ({{ formatCurrency(insightsData.subscriptions.monthly_total) }}/mes)
+            </div>
+          </div>
+
+          <div style="display:flex; gap:8px;">
+            <button @click="downloadReport('html')" class="btn-primary" style="flex:1; height:36px; font-size:12px; border-radius:8px; display:flex; align-items:center; justify-content:center; gap:6px;">
+              <i class="fa-solid fa-file-pdf"></i> Reporte PDF
+            </button>
+            <button @click="downloadReport('csv')" class="btn-secondary" style="flex:1; height:36px; font-size:12px; border-radius:8px; display:flex; align-items:center; justify-content:center; gap:6px;">
+              <i class="fa-solid fa-file-excel"></i> Excel / CSV
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- Recordatorios de Pago -->
     <div class="glass-card reminders-panel" v-if="reminders.length > 0">
       <h3 class="reminders-title">
@@ -262,7 +348,12 @@
                 <i :class="['fa-solid', tx.category_icon || 'fa-tag']" style="font-size:14px;"></i>
               </div>
               <div>
-                <h4 class="tx-title">{{ tx.description || tx.category_name }}</h4>
+                <h4 class="tx-title">
+                  {{ tx.description || tx.category_name }}
+                  <span v-if="tx.tags" style="font-size:10px; background:rgba(139,92,246,0.15); color:var(--color-accent); padding:2px 6px; border-radius:4px; margin-left:6px; font-weight:600;">
+                    {{ tx.tags }}
+                  </span>
+                </h4>
                 <p class="tx-meta">{{ tx.account_name }} | {{ formatDate(tx.date) }}</p>
               </div>
             </div>
@@ -313,6 +404,11 @@
           <div class="form-group">
             <label for="description">Descripción</label>
             <input type="text" id="description" v-model="form.description" placeholder="Ej: Supermercado, Almuerzo, Salario" required />
+          </div>
+
+          <div class="form-group">
+            <label for="tags">Etiquetas (#Tags por evento o proyecto)</label>
+            <input type="text" id="tags" v-model="form.tags" placeholder="Ej: #ViajeCancún, #Vacaciones, #Negocio" />
           </div>
 
           <div class="form-row">
@@ -407,16 +503,24 @@ export default {
     const filterEndDate = ref(new Date().toISOString().split('T')[0])
     
     const selectedCategoryFilter = ref(null)
+    const insightsData = ref(null)
 
     // Formulario de Transacción
     const form = ref({
       amount: '',
       date: new Date().toISOString().split('T')[0],
       description: '',
+      tags: '',
       account_id: '',
       category_id: null,
       installments_total: 1
     })
+
+    const downloadReport = (format) => {
+      const token = localStorage.getItem('token')
+      const url = `${API_BASE}/export_report.php?format=${format}&month=${filterMonth.value}&year=${filterYear.value}&token=${token}`
+      window.open(url, '_blank')
+    }
 
     const checkUser = () => {
       const stored = localStorage.getItem('user')
@@ -484,6 +588,12 @@ export default {
         const resRem = await fetch(`${API_BASE}/reminders.php`, { headers })
         reminders.value = await resRem.json()
 
+        // 6. Cargar Analítica Financiera (Insights)
+        const resIns = await fetch(`${API_BASE}/insights.php`, { headers })
+        if (resIns.ok) {
+          insightsData.value = await resIns.json()
+        }
+
       } catch (err) {
         console.error('Error al cargar datos del dashboard:', err)
       } finally {
@@ -540,6 +650,7 @@ export default {
         amount: '',
         date: new Date().toISOString().split('T')[0],
         description: '',
+        tags: '',
         account_id: accounts.value[0]?.id || '',
         category_id: null,
         installments_total: 1
@@ -560,6 +671,7 @@ export default {
         amount: Math.abs(tx.amount), // en positivo para el input
         date: tx.date,
         description: tx.description,
+        tags: tx.tags || '',
         account_id: tx.account_id,
         category_id: tx.category_id,
         installments_total: tx.installments_total || 1
@@ -880,6 +992,8 @@ export default {
     })
 
     return {
+      insightsData,
+      downloadReport,
       receiptInput,
       user,
       accounts,

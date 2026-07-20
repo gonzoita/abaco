@@ -96,6 +96,12 @@ if ($method === 'POST') {
     $description = trim($input['description'] ?? '');
     $date = trim($input['date'] ?? date('Y-m-d'));
     $receiptUrl = trim($input['receipt_url'] ?? '');
+    $tags = trim($input['tags'] ?? '');
+    if (empty($tags) && !empty($description)) {
+        if (preg_match_all('/#[\wñáéíóúÁÉÍÓÚ]+/u', $description, $matches)) {
+            $tags = implode(', ', $matches[0]);
+        }
+    }
     
     // Específico para transferencias
     $transferToAccountId = isset($input['transfer_to_account_id']) ? intval($input['transfer_to_account_id']) : null;
@@ -132,9 +138,14 @@ if ($method === 'POST') {
             }
         }
 
-        // Insertar la transacción
-        $stmtInsert = $db->prepare("INSERT INTO transactions (user_id, account_id, category_id, type, amount, description, date, receipt_url, installments_total, installments_current, transfer_to_account_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)");
-        $stmtInsert->execute([$userId, $accountId, $categoryId, $type, $amount, $description, $date, $receiptUrl ?: null, $installmentsTotal, $transferToAccountId]);
+        // Insertar la transacción (incluyendo tags si la columna existe)
+        try {
+            $stmtInsert = $db->prepare("INSERT INTO transactions (user_id, account_id, category_id, type, amount, description, tags, date, receipt_url, installments_total, installments_current, transfer_to_account_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)");
+            $stmtInsert->execute([$userId, $accountId, $categoryId, $type, $amount, $description, $tags ?: null, $date, $receiptUrl ?: null, $installmentsTotal, $transferToAccountId]);
+        } catch (Exception $e) {
+            $stmtInsert = $db->prepare("INSERT INTO transactions (user_id, account_id, category_id, type, amount, description, date, receipt_url, installments_total, installments_current, transfer_to_account_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)");
+            $stmtInsert->execute([$userId, $accountId, $categoryId, $type, $amount, $description, $date, $receiptUrl ?: null, $installmentsTotal, $transferToAccountId]);
+        }
         $newTransactionId = $db->lastInsertId();
 
         // Actualizar los saldos de las cuentas involucradas
