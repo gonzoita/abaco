@@ -72,6 +72,12 @@
         <div class="spinner" v-else></div>
         <span>{{ aiLoading ? 'Procesando Recibo IA...' : 'Escanear Recibo (IA)' }}</span>
       </label>
+
+      <!-- Botón Dictado por Voz con IA -->
+      <button class="btn-primary" @click="startVoiceDictation" style="background:linear-gradient(135deg, #a855f7, #7c3aed); border:none; display:flex; align-items:center; gap:8px; box-shadow: 0 4px 14px rgba(168,85,247,0.35);">
+        <i class="fa-solid fa-microphone" style="font-size:15px;"></i>
+        <span>Dictar por Voz (IA)</span>
+      </button>
     </div>
 
     <!-- Filtros de Período (Barra compacta desplegable abajo de las acciones) -->
@@ -422,14 +428,72 @@
               </select>
             </div>
 
-            <div class="form-group">
-              <label for="category">Categoría</label>
-              <select id="category" v-model="form.category_id">
-                <option :value="null">Sin Categoría</option>
-                <option v-for="cat in filteredCategories" :key="cat.id" :value="cat.id">
-                  {{ cat.name }}
-                </option>
-              </select>
+            <div class="form-group" style="grid-column: 1 / -1;">
+              <label style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+                <span>Categoría</span>
+                <span v-if="form.category_id" style="font-size:11px; font-weight:700; color:var(--color-primary);">
+                  Seleccionada: {{ getCategoryNameById(form.category_id) }}
+                </span>
+              </label>
+              
+              <!-- Buscador en tiempo real de Categorías -->
+              <div class="category-search-wrapper" style="position:relative; margin-bottom:8px;">
+                <i class="fa-solid fa-magnifying-glass" style="position:absolute; left:12px; top:50%; transform:translateY(-50%); color:var(--text-muted); font-size:13px;"></i>
+                <input 
+                  type="text" 
+                  v-model="categorySearchQuery" 
+                  placeholder="Buscar o escribir nueva categoría..." 
+                  style="width:100%; height:36px; padding-left:34px; padding-right:30px; border-radius:8px; border:1px solid var(--card-border); background:rgba(255,255,255,0.05); color:var(--text-primary); font-size:13px; outline:none;" 
+                />
+                <button 
+                  v-if="categorySearchQuery" 
+                  type="button" 
+                  @click="categorySearchQuery = ''" 
+                  style="position:absolute; right:10px; top:50%; transform:translateY(-50%); background:none; border:none; color:var(--text-muted); font-size:16px; cursor:pointer;"
+                >
+                  &times;
+                </button>
+              </div>
+
+              <!-- Rejilla Visual de Categorías con Iconos -->
+              <div class="category-chips-grid" style="display:flex; flex-wrap:wrap; gap:6px; max-height:140px; overflow-y:auto; padding:6px; border:1px solid var(--card-border); border-radius:8px; background:rgba(0,0,0,0.15);">
+                <button 
+                  type="button" 
+                  class="cat-chip-btn" 
+                  :class="{ selected: form.category_id === null }"
+                  @click="form.category_id = null"
+                  style="display:inline-flex; align-items:center; gap:6px; padding:6px 10px; border-radius:6px; border:1px solid var(--card-border); background:rgba(255,255,255,0.04); color:var(--text-secondary); font-size:12px; font-weight:500; cursor:pointer; transition:all 0.2s ease;"
+                >
+                  <i class="fa-solid fa-tag"></i>
+                  <span>Sin Categoría</span>
+                </button>
+
+                <button 
+                  v-for="cat in searchedCategories" 
+                  :key="cat.id" 
+                  type="button" 
+                  class="cat-chip-btn"
+                  :class="{ selected: form.category_id === cat.id }"
+                  :style="form.category_id === cat.id ? { backgroundColor: (cat.color || '#8b5cf6') + '35', borderColor: cat.color || '#8b5cf6', color: 'var(--text-primary)', fontWeight: '700' } : {}"
+                  @click="form.category_id = cat.id"
+                  style="display:inline-flex; align-items:center; gap:6px; padding:6px 10px; border-radius:6px; border:1px solid var(--card-border); background:rgba(255,255,255,0.04); color:var(--text-secondary); font-size:12px; font-weight:500; cursor:pointer; transition:all 0.2s ease;"
+                >
+                  <i :class="['fa-solid', cat.icon || 'fa-tag']" :style="{ color: cat.color || '#8b5cf6' }"></i>
+                  <span>{{ cat.name }}</span>
+                </button>
+
+                <!-- Opción para crear categoría al vuelo si no existe -->
+                <button 
+                  v-if="categorySearchQuery.trim() && !searchedCategories.some(c => c.name.toLowerCase() === categorySearchQuery.trim().toLowerCase())" 
+                  type="button" 
+                  class="cat-chip-btn create-new-chip" 
+                  @click="createCategoryOnTheFly(categorySearchQuery)"
+                  style="display:inline-flex; align-items:center; gap:6px; padding:6px 10px; border-radius:6px; border:1px dashed var(--color-primary); background:rgba(10,132,255,0.15); color:var(--color-primary); font-size:12px; font-weight:600; cursor:pointer;"
+                >
+                  <i class="fa-solid fa-plus"></i>
+                  <span>Crear "{{ categorySearchQuery.trim() }}"</span>
+                </button>
+              </div>
             </div>
           </div>
 
@@ -456,6 +520,49 @@
             {{ formLoading ? 'Guardando...' : 'Guardar Transacción' }}
           </button>
         </form>
+      </div>
+    </div>
+
+    <!-- MODAL DE DICTADO POR VOZ CON IA -->
+    <div v-if="showVoiceModal" class="modal-overlay" @click.self="closeVoiceModal">
+      <div class="glass-card modal-content" style="max-width:440px; text-align:center; padding:28px;">
+        <div style="margin-bottom:16px;">
+          <div :style="{ animation: isRecording ? 'pulseGlow 1.2s infinite' : 'none' }" style="width:70px; height:70px; margin:0 auto; background:rgba(168,85,247,0.15); border:2px solid #a855f7; border-radius:50%; display:flex; align-items:center; justify-content:center; color:#a855f7; font-size:28px;">
+            <i class="fa-solid fa-microphone"></i>
+          </div>
+        </div>
+
+        <h3 style="margin:0 0 6px 0; font-size:20px; font-weight:700;">Dictar Movimiento con IA</h3>
+        <p style="font-size:13px; color:var(--text-secondary); margin-bottom:14px;">
+          {{ isRecording ? 'Te escuchamos... Habla de forma natural:' : 'Presiona el botón e inicia el dictado por micrófono:' }}
+        </p>
+
+        <div style="background:rgba(255,255,255,0.04); border:1px solid var(--card-border); padding:10px; border-radius:8px; font-size:12px; color:var(--text-muted); margin-bottom:16px; font-style:italic;">
+          "Me gasté 45.000 en el cine con Tarjeta Crédito" <br/>
+          "Pagué 120.000 de gasolina con Bancolombia #Viaje"
+        </div>
+
+        <!-- Transcripción en tiempo real -->
+        <div v-if="voiceTranscript || isRecording" style="min-height:54px; background:rgba(0,0,0,0.25); border:1px solid var(--card-border); border-radius:8px; padding:12px; font-size:14px; font-weight:600; color:var(--text-primary); margin-bottom:18px; word-break:break-word;">
+          {{ voiceTranscript || 'Escuchando tu voz...' }}
+        </div>
+
+        <div v-if="voiceProcessing" style="display:flex; flex-direction:column; align-items:center; gap:8px; margin-bottom:16px; color:#a855f7;">
+          <div class="spinner"></div>
+          <span style="font-size:13px; font-weight:600;">La IA está estructurando tu gasto y seleccionando la categoría...</span>
+        </div>
+
+        <div style="display:flex; gap:10px; justify-content:center; flex-wrap:wrap;">
+          <button v-if="!isRecording && !voiceProcessing" class="btn-primary" @click="startListening" style="background:#a855f7; border:none; padding:10px 20px;">
+            <i class="fa-solid fa-microphone"></i> Iniciar Dictado
+          </button>
+
+          <button v-if="isRecording" class="btn-success" @click="stopListeningAndProcess" style="padding:10px 20px;">
+            <i class="fa-solid fa-wand-magic-sparkles"></i> Procesar con IA
+          </button>
+
+          <button class="btn-secondary" @click="closeVoiceModal" style="padding:10px 20px;">Cancelar</button>
+        </div>
       </div>
     </div>
   </div>
@@ -491,6 +598,175 @@ export default {
     const formLoading = ref(false)
     const modalError = ref('')
     const aiLoading = ref(false)
+
+    // Estados para Dictado por Voz con IA
+    const showVoiceModal = ref(false)
+    const isRecording = ref(false)
+    const voiceTranscript = ref('')
+    const voiceProcessing = ref(false)
+    let recognition = null
+
+    // Estados para Buscador Visual de Categorías
+    const categorySearchQuery = ref('')
+
+    const searchedCategories = computed(() => {
+      const list = filteredCategories.value
+      if (!categorySearchQuery.value.trim()) return list
+      const q = categorySearchQuery.value.toLowerCase().trim()
+      return list.filter(c => c.name.toLowerCase().includes(q))
+    })
+
+    const getCategoryNameById = (id) => {
+      if (id === null) return 'Sin Categoría'
+      const matched = categories.value.find(c => c.id === id)
+      return matched ? matched.name : 'Sin Categoría'
+    }
+
+    const createCategoryOnTheFly = async (catName) => {
+      if (!catName || !catName.trim()) return
+      const token = localStorage.getItem('token')
+      const headers = {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      }
+      const payload = {
+        name: catName.trim(),
+        icon: 'fa-tag',
+        color: '#8b5cf6',
+        type: modalType.value
+      }
+      try {
+        const res = await fetch(`${API_BASE}/categories.php`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify(payload)
+        })
+        const data = await res.json()
+        if (data.category) {
+          categories.value.push(data.category)
+          form.value.category_id = data.category.id
+          categorySearchQuery.value = ''
+        }
+      } catch (err) {
+        console.error(err)
+      }
+    }
+
+    const startVoiceDictation = () => {
+      voiceTranscript.value = ''
+      showVoiceModal.value = true
+      startListening()
+    }
+
+    const startListening = () => {
+      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition
+      if (!SpeechRecognition) {
+        alert('Tu navegador o dispositivo no soporta entrada por voz en vivo. Te recomendamos usar Chrome en Android o Escritorio.')
+        return
+      }
+
+      recognition = new SpeechRecognition()
+      recognition.lang = 'es-ES'
+      recognition.continuous = true
+      recognition.interimResults = true
+
+      recognition.onstart = () => {
+        isRecording.value = true
+      }
+
+      recognition.onresult = (event) => {
+        let current = ''
+        for (let i = event.resultIndex; i < event.results.length; i++) {
+          current += event.results[i][0].transcript
+        }
+        voiceTranscript.value = current
+      }
+
+      recognition.onerror = (event) => {
+        console.error('Speech recognition error:', event.error)
+        isRecording.value = false
+      }
+
+      recognition.onend = () => {
+        isRecording.value = false
+      }
+
+      recognition.start()
+    }
+
+    const stopListeningAndProcess = async () => {
+      if (recognition) {
+        try { recognition.stop() } catch (e) {}
+      }
+      isRecording.value = false
+
+      if (!voiceTranscript.value.trim()) {
+        alert('No escuchamos ninguna palabra. Por favor vuelve a pulsar Iniciar Dictado e intenta hablar de nuevo.')
+        return
+      }
+
+      voiceProcessing.value = true
+      const token = localStorage.getItem('token')
+      const customApiKey = localStorage.getItem('gemini_api_key') || ''
+      const headers = {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      }
+      if (customApiKey) {
+        headers['X-Gemini-API-Key'] = customApiKey
+      }
+
+      try {
+        const res = await fetch(`${API_BASE}/ai.php?action=voice_transaction`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({ transcript: voiceTranscript.value })
+        })
+
+        const data = await res.json()
+        if (!res.ok || data.error) {
+          throw new Error(data.error || 'Error al procesar voz con IA')
+        }
+
+        // Llenar formulario automáticamente con lo interpretado por la IA
+        modalType.value = data.type || 'egreso'
+        form.value.amount = data.amount || 0
+        form.value.description = data.description || 'Gasto registrado por voz'
+        form.value.tags = data.tags || ''
+        form.value.date = new Date().toISOString().split('T')[0]
+
+        if (data.category_id) {
+          form.value.category_id = data.category_id
+        } else if (data.category_name) {
+          const matched = categories.value.find(c => c.name.toLowerCase() === data.category_name.toLowerCase())
+          if (matched) {
+            form.value.category_id = matched.id
+          } else {
+            await createCategoryOnTheFly(data.category_name)
+          }
+        }
+
+        if (data.account_id) {
+          form.value.account_id = data.account_id
+        }
+
+        editingTransaction.value = null
+        showVoiceModal.value = false
+        showModal.value = true
+      } catch (err) {
+        alert('Error IA: ' + err.message)
+      } finally {
+        voiceProcessing.value = false
+      }
+    }
+
+    const closeVoiceModal = () => {
+      if (recognition) {
+        try { recognition.stop() } catch (e) {}
+      }
+      isRecording.value = false
+      showVoiceModal.value = false
+    }
 
     // Nuevos Estados para Filtrado
     const showFilterDrawer = ref(false)
@@ -992,6 +1268,18 @@ export default {
     })
 
     return {
+      showVoiceModal,
+      isRecording,
+      voiceTranscript,
+      voiceProcessing,
+      startVoiceDictation,
+      startListening,
+      stopListeningAndProcess,
+      closeVoiceModal,
+      categorySearchQuery,
+      searchedCategories,
+      createCategoryOnTheFly,
+      getCategoryNameById,
       insightsData,
       downloadReport,
       receiptInput,

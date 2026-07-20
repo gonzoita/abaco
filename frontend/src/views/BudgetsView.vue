@@ -171,13 +171,60 @@
 
         <form @submit.prevent="saveBudget" class="modal-form">
           <div class="form-group">
-            <label for="bud-cat">Categoría de Gasto</label>
-            <select id="bud-cat" v-model="form.category_id" required>
-              <option value="" disabled>Seleccione una categoría...</option>
-              <option v-for="cat in expenseCategories" :key="cat.id" :value="cat.id">
-                {{ cat.name }}
-              </option>
-            </select>
+            <label for="bud-cat" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+              <span>Categoría de Gasto</span>
+              <span v-if="form.category_id" style="font-size:11px; font-weight:700; color:var(--color-primary);">
+                Seleccionada: {{ getCategoryNameById(form.category_id) }}
+              </span>
+            </label>
+
+            <!-- Buscador en tiempo real de Categorías -->
+            <div class="category-search-wrapper" style="position:relative; margin-bottom:8px;">
+              <i class="fa-solid fa-magnifying-glass" style="position:absolute; left:12px; top:50%; transform:translateY(-50%); color:var(--text-muted); font-size:13px;"></i>
+              <input 
+                type="text" 
+                v-model="budgetCatSearch" 
+                placeholder="Buscar o crear categoría..." 
+                style="width:100%; height:36px; padding-left:34px; padding-right:30px; border-radius:8px; border:1px solid var(--card-border); background:rgba(255,255,255,0.05); color:var(--text-primary); font-size:13px; outline:none;" 
+              />
+              <button 
+                v-if="budgetCatSearch" 
+                type="button" 
+                @click="budgetCatSearch = ''" 
+                style="position:absolute; right:10px; top:50%; transform:translateY(-50%); background:none; border:none; color:var(--text-muted); font-size:16px; cursor:pointer;"
+              >
+                &times;
+              </button>
+            </div>
+
+            <!-- Rejilla Visual de Categorías -->
+            <div class="category-chips-grid" style="display:flex; flex-wrap:wrap; gap:6px; max-height:140px; overflow-y:auto; padding:6px; border:1px solid var(--card-border); border-radius:8px; background:rgba(0,0,0,0.15);">
+              <button 
+                v-for="cat in searchedExpenseCategories" 
+                :key="cat.id" 
+                type="button" 
+                class="cat-chip-btn"
+                :class="{ selected: form.category_id === cat.id }"
+                :style="form.category_id === cat.id ? { backgroundColor: (cat.color || '#8b5cf6') + '35', borderColor: cat.color || '#8b5cf6', color: 'var(--text-primary)', fontWeight: '700' } : {}"
+                @click="form.category_id = cat.id"
+                style="display:inline-flex; align-items:center; gap:6px; padding:6px 10px; border-radius:6px; border:1px solid var(--card-border); background:rgba(255,255,255,0.04); color:var(--text-secondary); font-size:12px; font-weight:500; cursor:pointer; transition:all 0.2s ease;"
+              >
+                <i :class="['fa-solid', cat.icon || 'fa-tag']" :style="{ color: cat.color || '#8b5cf6' }"></i>
+                <span>{{ cat.name }}</span>
+              </button>
+
+              <!-- Opción para crear categoría al vuelo si no existe -->
+              <button 
+                v-if="budgetCatSearch.trim() && !searchedExpenseCategories.some(c => c.name.toLowerCase() === budgetCatSearch.trim().toLowerCase())" 
+                type="button" 
+                class="cat-chip-btn create-new-chip" 
+                @click="createBudgetCategoryOnTheFly(budgetCatSearch)"
+                style="display:inline-flex; align-items:center; gap:6px; padding:6px 10px; border-radius:6px; border:1px dashed var(--color-primary); background:rgba(10,132,255,0.15); color:var(--color-primary); font-size:12px; font-weight:600; cursor:pointer;"
+              >
+                <i class="fa-solid fa-plus"></i>
+                <span>Crear "{{ budgetCatSearch.trim() }}"</span>
+              </button>
+            </div>
           </div>
 
           <div class="form-group">
@@ -398,10 +445,49 @@ export default {
       }
     }
 
-    // Computeds
+    // Computeds & Búsqueda
+    const budgetCatSearch = ref('')
+
     const expenseCategories = computed(() => {
       return categories.value.filter(c => c.type === 'egreso')
     })
+
+    const searchedExpenseCategories = computed(() => {
+      const list = expenseCategories.value
+      if (!budgetCatSearch.value.trim()) return list
+      const q = budgetCatSearch.value.toLowerCase().trim()
+      return list.filter(c => c.name.toLowerCase().includes(q))
+    })
+
+    const createBudgetCategoryOnTheFly = async (catName) => {
+      if (!catName || !catName.trim()) return
+      const token = localStorage.getItem('token')
+      const headers = {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      }
+      const payload = {
+        name: catName.trim(),
+        icon: 'fa-tag',
+        color: '#8b5cf6',
+        type: 'egreso'
+      }
+      try {
+        const res = await fetch(`${API_BASE}/categories.php`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify(payload)
+        })
+        const data = await res.json()
+        if (data.category) {
+          categories.value.push(data.category)
+          form.value.category_id = data.category.id
+          budgetCatSearch.value = ''
+        }
+      } catch (err) {
+        console.error(err)
+      }
+    }
 
     // Helpers
     const formatCurrency = (val) => {
@@ -440,6 +526,9 @@ export default {
     })
 
     return {
+      budgetCatSearch,
+      searchedExpenseCategories,
+      createBudgetCategoryOnTheFly,
       categories,
       globalBudget,
       categoryBudgets,

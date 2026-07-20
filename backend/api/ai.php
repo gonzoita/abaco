@@ -168,6 +168,79 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         exit();
     }
 
+    // 2. DICTADO POR VOZ (Convertir voz del usuario a objeto de transacción)
+    if ($action === 'voice_transaction') {
+        $input = json_decode(file_get_contents('php://input'), true);
+        $transcript = trim($input['transcript'] ?? '');
+
+        if (empty($transcript)) {
+            http_response_code(400);
+            echo json_encode(["error" => "No se recibió ninguna transcripción de voz."]);
+            exit();
+        }
+
+        // Obtener categorías y cuentas del usuario para mapear inteligentemente
+        $categoriesList = [];
+        $accountsList = [];
+        try {
+            $stmtC = $db->prepare("SELECT id, name, type FROM categories WHERE user_id = ? OR is_default = 1");
+            $stmtC->execute([$userId]);
+            $categoriesList = $stmtC->fetchAll(PDO::FETCH_ASSOC);
+
+            $stmtA = $db->prepare("SELECT id, name, type FROM accounts WHERE user_id = ?");
+            $stmtA->execute([$userId]);
+            $accountsList = $stmtA->fetchAll(PDO::FETCH_ASSOC);
+        } catch (Exception $e) {}
+
+        $categoriesJson = json_encode($categoriesList, JSON_UNESCAPED_UNICODE);
+        $accountsJson = json_encode($accountsList, JSON_UNESCAPED_UNICODE);
+
+        $prompt = "Eres el motor de análisis de voz de la aplicación Ábaco. "
+                . "El usuario acaba de dictar por micrófono: \"{$transcript}\".\n"
+                . "Analiza la frase y devuelve estrictamente un objeto JSON con los siguientes campos:\n"
+                . "- 'type': 'egreso' (si es gasto, pago, compra) o 'ingreso' (si es cobra, venta, abono, sueldo).\n"
+                . "- 'amount': número entero positivo con el valor monetario mencionado (ej: 50 mil -> 50000, 120000 -> 120000). Si no hay monto pon 0.\n"
+                . "- 'description': título o concepto del gasto (ej: 'Cine', 'Gasolina', 'Almuerzo'). Capitaliza la primera letra.\n"
+                . "- 'category_name': el nombre de la categoría más adecuada (ej: Alimentación, Transporte, Entretenimiento, Salud, Servicios Públicos, Vivienda, Educación, Compras, Salario).\n"
+                . "- 'category_id': ID entero de la categoría si coincide en este listado: {$categoriesJson}, o null si no existe.\n"
+                . "- 'account_id': ID entero de la cuenta mencionada en este listado: {$accountsJson}, o el ID de la primera cuenta por defecto.\n"
+                . "- 'tags': hashtags relevantes si aplica (ej: '#Cine', '#Gasolina').\n"
+                . "No incluyas markdown, formato ni texto adicional. Devuelve solo el JSON puro.";
+
+        $payload = [
+            "contents" => [
+                [
+                    "parts" => [
+                        ["text" => $prompt]
+                    ]
+                ]
+            ],
+            "generationConfig" => [
+                "temperature" => 0.1,
+                "responseMimeType" => "application/json"
+            ]
+        ];
+
+        try {
+            $result = callGemini($payload, $apiKeyToUse);
+            if (isset($result['error'])) {
+                http_response_code(500);
+                echo json_encode(["error" => $result['error']['message'] ?? 'Error al procesar voz con IA']);
+                exit();
+            }
+
+            $rawText = $result['candidates'][0]['content']['parts'][0]['text'] ?? '{}';
+            $jsonText = preg_replace('/^```json\s*/', '', trim($rawText));
+            $jsonText = preg_replace('/```$/', '', trim($jsonText));
+
+            echo $jsonText;
+        } catch (Exception $e) {
+            http_response_code(500);
+            echo json_encode(["error" => "Error al interpretar dictado: " . $e->getMessage()]);
+        }
+        exit();
+    }
+
     // 2. CONSEJOS DE IA (Asistente de Chat)
     if ($action === 'get_advice') {
         $input = json_decode(file_get_contents('php://input'), true);
