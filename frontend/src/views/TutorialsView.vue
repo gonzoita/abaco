@@ -1,15 +1,12 @@
 <template>
   <div class="tutorials-container">
-    <div class="view-header" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px;">
+    <div class="view-header">
       <div>
         <h1 class="view-title" style="display:flex; align-items:center; gap:10px;">
           <i class="fa-solid fa-film" style="color:#a855f7;"></i> Tutoriales en Video
         </h1>
-        <p class="view-subtitle">Aprende a dominar todas las funciones de Ábaco y escalar tus finanzas</p>
+        <p class="view-subtitle">Aprende a dominar todas las funciones de Ábaco y escalar tus finanzas paso a paso</p>
       </div>
-      <button v-if="isAdmin" class="btn-primary" @click="showAddModal = true" style="display:flex; align-items:center; gap:8px;">
-        <i class="fa-solid fa-plus"></i> Agregar Video Tutorial
-      </button>
     </div>
 
     <!-- Filtro de Categorías -->
@@ -88,47 +85,6 @@
         </p>
       </div>
     </div>
-
-    <!-- Modal Agregar Video Tutorial -->
-    <div class="modal-overlay" :class="{ active: showAddModal }" @click.self="showAddModal = false">
-      <div class="glass-card modal-content" style="max-width:480px; width:92%; padding:24px; border-radius:16px;">
-        <h3 style="font-size:18px; font-weight:700; color:var(--text-primary); margin-bottom:16px;">
-          <i class="fa-solid fa-video" style="color:#a855f7;"></i> Nuevo Video Tutorial
-        </h3>
-        
-        <form @submit.prevent="saveNewVideo" style="display:flex; flex-direction:column; gap:14px;">
-          <div class="form-group">
-            <label>Título del Video *</label>
-            <input type="text" v-model="newVideo.title" placeholder="Ej: Cómo usar el Dictado por Voz" required />
-          </div>
-
-          <div class="form-group">
-            <label>Categoría</label>
-            <select v-model="newVideo.category">
-              <option value="General">General</option>
-              <option value="Modo Negocio">Modo Negocio</option>
-              <option value="IA y Voz">IA y Voz</option>
-              <option value="Préstamos y Cobros">Préstamos y Cobros</option>
-            </select>
-          </div>
-
-          <div class="form-group">
-            <label>Enlace del Video (YouTube o URL .mp4) *</label>
-            <input type="url" v-model="newVideo.url" placeholder="Ej: https://www.youtube.com/watch?v=..." required />
-          </div>
-
-          <div class="form-group">
-            <label>Descripción Breve</label>
-            <textarea v-model="newVideo.description" rows="3" placeholder="Explica en 1 o 2 frases lo que enseñará este video..."></textarea>
-          </div>
-
-          <div style="display:flex; gap:10px; margin-top:10px;">
-            <button type="button" class="btn-secondary" @click="showAddModal = false" style="flex:1;">Cancelar</button>
-            <button type="submit" class="btn-primary" style="flex:1;">Guardar Tutorial</button>
-          </div>
-        </form>
-      </div>
-    </div>
   </div>
 </template>
 
@@ -138,14 +94,9 @@ import { ref, computed, onMounted } from 'vue'
 export default {
   name: 'TutorialsView',
   setup() {
-    const userStr = localStorage.getItem('user') || '{}'
-    const user = ref(JSON.parse(userStr))
-    const isAdmin = computed(() => user.value && user.value.role === 'admin')
-
     const categories = ['Todos', 'General', 'Modo Negocio', 'IA y Voz', 'Préstamos y Cobros']
     const selectedCategory = ref('Todos')
     const activeVideo = ref(null)
-    const showAddModal = ref(false)
 
     const defaultVideos = [
       {
@@ -211,40 +162,6 @@ export default {
       activeVideo.value = { ...video, embedUrl: embed }
     }
 
-    const newVideo = ref({
-      title: '',
-      category: 'General',
-      url: '',
-      description: ''
-    })
-
-    const saveNewVideo = () => {
-      if (!newVideo.value.title || !newVideo.value.url) return
-      let embed = ''
-      if (newVideo.value.url.includes('youtube.com/watch?v=')) {
-        const id = newVideo.value.url.split('v=')[1]?.split('&')[0]
-        embed = `https://www.youtube.com/embed/${id}`
-      } else if (newVideo.value.url.includes('youtu.be/')) {
-        const id = newVideo.value.url.split('youtu.be/')[1]?.split('?')[0]
-        embed = `https://www.youtube.com/embed/${id}`
-      }
-
-      const item = {
-        id: Date.now(),
-        title: newVideo.value.title,
-        category: newVideo.value.category,
-        duration: 'Tutorial',
-        description: newVideo.value.description || 'Video tutorial explicativo de Ábaco.',
-        url: newVideo.value.url,
-        embedUrl: embed
-      }
-
-      videos.value.unshift(item)
-      localStorage.setItem('abaco_tutorials', JSON.stringify(videos.value))
-      showAddModal.value = false
-      newVideo.value = { title: '', category: 'General', url: '', description: '' }
-    }
-
     onMounted(() => {
       loadVideos()
     })
@@ -254,11 +171,7 @@ export default {
       selectedCategory,
       filteredVideos,
       activeVideo,
-      playVideo,
-      showAddModal,
-      newVideo,
-      saveNewVideo,
-      isAdmin
+      playVideo
     }
   }
 }
