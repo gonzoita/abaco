@@ -7,7 +7,7 @@
         </h1>
         <p class="view-subtitle">Aprende a dominar todas las funciones de Ábaco y escalar tus finanzas</p>
       </div>
-      <button class="btn-primary" @click="showAddModal = true" style="display:flex; align-items:center; gap:8px;">
+      <button v-if="isAdmin" class="btn-primary" @click="showAddModal = true" style="display:flex; align-items:center; gap:8px;">
         <i class="fa-solid fa-plus"></i> Agregar Video Tutorial
       </button>
     </div>
@@ -138,6 +138,10 @@ import { ref, computed, onMounted } from 'vue'
 export default {
   name: 'TutorialsView',
   setup() {
+    const userStr = localStorage.getItem('user') || '{}'
+    const user = ref(JSON.parse(userStr))
+    const isAdmin = computed(() => user.value && user.value.role === 'admin')
+
     const categories = ['Todos', 'General', 'Modo Negocio', 'IA y Voz', 'Préstamos y Cobros']
     const selectedCategory = ref('Todos')
     const activeVideo = ref(null)
@@ -253,7 +257,8 @@ export default {
       playVideo,
       showAddModal,
       newVideo,
-      saveNewVideo
+      saveNewVideo,
+      isAdmin
     }
   }
 }

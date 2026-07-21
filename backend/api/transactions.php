@@ -21,9 +21,9 @@ $workspace = get_active_workspace();
 if ($method === 'GET') {
     $tWsCond = get_workspace_sql_clause('t.workspace');
     if ($id) {
-        $stmt = $db->prepare("SELECT t.*, a.name as account_name, c.name as category_name, c.color as category_color 
+        $stmt = $db->prepare("SELECT t.*, COALESCE(a.name, 'Cuenta') as account_name, c.name as category_name, c.color as category_color 
                               FROM transactions t 
-                              JOIN accounts a ON t.account_id = a.id 
+                              LEFT JOIN accounts a ON t.account_id = a.id 
                               LEFT JOIN categories c ON t.category_id = c.id 
                               WHERE t.id = ? AND t.user_id = ? AND {$tWsCond}");
         $stmt->execute([$id, $userId]);
@@ -43,9 +43,9 @@ if ($method === 'GET') {
         $endDate = isset($_GET['end_date']) ? trim($_GET['end_date']) : null;
         $limit = isset($_GET['limit']) ? intval($_GET['limit']) : 50;
 
-        $sql = "SELECT t.*, a.name as account_name, c.name as category_name, c.color as category_color, c.icon as category_icon
+        $sql = "SELECT t.*, COALESCE(a.name, 'Cuenta') as account_name, c.name as category_name, c.color as category_color, c.icon as category_icon
                 FROM transactions t 
-                JOIN accounts a ON t.account_id = a.id 
+                LEFT JOIN accounts a ON t.account_id = a.id 
                 LEFT JOIN categories c ON t.category_id = c.id 
                 WHERE t.user_id = :user_id AND {$tWsCond}";
         
