@@ -35,9 +35,10 @@ if ($method === 'GET') {
         $stmt->execute([$userId, $month, $year]);
         $budgets = $stmt->fetchAll();
 
-        // Convertir montos a float
+        // Convertir montos a float y decodificar items_json
         foreach ($budgets as &$b) {
             $b['amount'] = floatval($b['amount']);
+            $b['items'] = !empty($b['items_json']) ? json_decode($b['items_json'], true) : [];
         }
 
         echo json_encode($budgets);
@@ -53,6 +54,20 @@ if ($method === 'POST') {
     $amount = floatval($input['amount'] ?? 0.00);
     $month = isset($input['month']) ? intval($input['month']) : intval(date('m'));
     $year = isset($input['year']) ? intval($input['year']) : intval(date('Y'));
+
+    $items = isset($input['items']) && is_array($input['items']) ? $input['items'] : [];
+    $itemsJson = !empty($items) ? json_encode($items, JSON_UNESCAPED_UNICODE) : null;
+
+    // Si hay ítems definidos, el monto total puede calcularse automáticamente
+    if (!empty($items)) {
+        $sumItems = 0;
+        foreach ($items as $item) {
+            $sumItems += floatval($item['amount'] ?? 0);
+        }
+        if ($sumItems > 0) {
+            $amount = $sumItems;
+        }
+    }
 
     if ($amount <= 0) {
         http_response_code(400);
@@ -74,14 +89,14 @@ if ($method === 'POST') {
 
         if ($existing) {
             // Actualizar existente
-            $stmtUpdate = $db->prepare("UPDATE budgets SET amount = ? WHERE id = ?");
-            $stmtUpdate->execute([$amount, $existing['id']]);
+            $stmtUpdate = $db->prepare("UPDATE budgets SET amount = ?, items_json = ? WHERE id = ?");
+            $stmtUpdate->execute([$amount, $itemsJson, $existing['id']]);
             $budgetId = $existing['id'];
             $message = "Presupuesto actualizado con éxito.";
         } else {
             // Crear nuevo con workspace
-            $stmtInsert = $db->prepare("INSERT INTO budgets (user_id, category_id, amount, month, year, workspace) VALUES (?, ?, ?, ?, ?, ?)");
-            $stmtInsert->execute([$userId, $categoryId, $amount, $month, $year, $workspace]);
+            $stmtInsert = $db->prepare("INSERT INTO budgets (user_id, category_id, amount, month, year, workspace, items_json) VALUES (?, ?, ?, ?, ?, ?, ?)");
+            $stmtInsert->execute([$userId, $categoryId, $amount, $month, $year, $workspace, $itemsJson]);
             $budgetId = $db->lastInsertId();
             $message = "Presupuesto creado con éxito.";
         }
@@ -92,6 +107,7 @@ if ($method === 'POST') {
                 "id" => $budgetId,
                 "category_id" => $categoryId,
                 "amount" => $amount,
+                "items" => $items,
                 "month" => $month,
                 "year" => $year
             ]

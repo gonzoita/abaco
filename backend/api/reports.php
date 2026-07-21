@@ -114,7 +114,7 @@ if ($method === 'GET') {
 
         // 5. Comparativa de Presupuestos vs Gastos Reales por workspace
         $stmtBudgets = $db->prepare("
-             SELECT b.id, b.category_id, b.amount, c.name as category_name, c.color as category_color, c.icon as category_icon
+             SELECT b.id, b.category_id, b.amount, b.items_json, c.name as category_name, c.color as category_color, c.icon as category_icon
              FROM budgets b
              LEFT JOIN categories c ON b.category_id = c.id
              WHERE b.user_id = ? AND {$bWsCond} AND b.month = ? AND b.year = ?
@@ -162,6 +162,8 @@ if ($method === 'GET') {
                 
                 $catId = intval($b['category_id']);
                 $spent = isset($spentMap[$catId]) ? $spentMap[$catId] : 0.00;
+                $items = !empty($b['items_json']) ? json_decode($b['items_json'], true) : [];
+
                 $budgetsComparison[] = [
                     "id" => $b['id'],
                     "category_id" => $catId,
@@ -170,7 +172,8 @@ if ($method === 'GET') {
                     "category_icon" => $b['category_icon'],
                     "limit" => $limit,
                     "spent" => $spent,
-                    "percentage" => $limit > 0 ? round(($spent / $limit) * 100, 2) : 0
+                    "percentage" => $limit > 0 ? round(($spent / $limit) * 100, 2) : 0,
+                    "items" => $items
                 ];
             }
         }

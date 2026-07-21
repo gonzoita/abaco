@@ -46,6 +46,14 @@ try {
         $migrated[] = 'users (reminder_days_before)';
     }
 
+    // Verificar si existe la columna items_json en budgets
+    $stmtItems = $db->prepare("SHOW COLUMNS FROM budgets LIKE 'items_json'");
+    $stmtItems->execute();
+    if (!$stmtItems->fetch()) {
+        $db->exec("ALTER TABLE budgets ADD COLUMN items_json TEXT NULL");
+        $migrated[] = 'budgets (items_json)';
+    }
+
     echo json_encode([
         "success" => true,
         "message" => "Migración de espacios de trabajo (workspaces) completada con éxito.",

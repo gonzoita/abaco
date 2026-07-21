@@ -86,6 +86,20 @@
             <div class="progress-bar-fill" :class="getBarClass(b.percentage)" :style="{ width: Math.min(b.percentage, 100) + '%' }"></div>
           </div>
 
+          <!-- Desglose de Ítems Presupuestados si existen -->
+          <div v-if="b.items && b.items.length > 0" class="budget-subitems-box" style="margin-top:10px; padding:10px 12px; background:rgba(0,0,0,0.25); border-radius:8px; border:1px solid var(--card-border);">
+            <div style="font-size:11px; font-weight:700; color:var(--text-muted); margin-bottom:6px; text-transform:uppercase; display:flex; align-items:center; justify-content:space-between;">
+              <span><i class="fa-solid fa-list-check" style="color:var(--color-primary); margin-right:6px;"></i> Ítems Presupuestados ({{ b.items.length }}):</span>
+              <span style="color:var(--color-primary); font-weight:700;">Total: {{ formatCurrency(b.limit) }}</span>
+            </div>
+            <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(180px, 1fr)); gap:6px;">
+              <div v-for="(item, idx) in b.items" :key="idx" style="display:flex; justify-content:space-between; align-items:center; font-size:12px; padding:4px 8px; background:rgba(255,255,255,0.03); border-radius:6px; border:1px solid rgba(255,255,255,0.05);">
+                <span style="color:var(--text-secondary); font-weight:500;">• {{ item.name }}</span>
+                <strong style="color:var(--text-primary);">{{ formatCurrency(item.amount) }}</strong>
+              </div>
+            </div>
+          </div>
+
           <div class="budget-item-footer">
             <span :class="{ 'text-danger': b.percentage >= 100 }">{{ b.percentage }}% consumido</span>
             <!-- Alertas de categoría -->
@@ -96,7 +110,7 @@
               <i class="fa-solid fa-triangle-exclamation"></i> Cerca
             </span>
             <div style="display: flex; gap: 8px; align-items: center;">
-              <button class="btn-delete-budget" @click="openBudgetModal(b.category_id, b.limit)" title="Editar presupuesto">
+              <button class="btn-delete-budget" @click="openBudgetModal(b.category_id, b.limit, b.items)" title="Editar presupuesto">
                 <i class="fa-solid fa-pen"></i>
               </button>
               <button class="btn-delete-budget" @click="deleteBudget(b.id)" title="Eliminar presupuesto">
@@ -227,8 +241,64 @@
             </div>
           </div>
 
+          <!-- Sección de Desglose de Ítems / Conceptos del Presupuesto -->
+          <div class="form-group" style="margin-top:16px; border-top:1px solid var(--card-border); padding-top:14px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+              <label style="font-weight:600; color:var(--text-primary); margin:0; font-size:13.5px;">
+                <i class="fa-solid fa-list-check" style="color:var(--color-primary); margin-right:6px;"></i>
+                Desglose de Ítems / Conceptos (Opcional)
+              </label>
+              <button 
+                type="button" 
+                @click="addBudgetItem" 
+                style="background:rgba(168,85,247,0.15); border:1px solid rgba(168,85,247,0.3); color:#a855f7; font-size:12px; font-weight:600; padding:4px 10px; border-radius:6px; cursor:pointer; display:inline-flex; align-items:center; gap:4px;"
+              >
+                <i class="fa-solid fa-plus"></i> Agregar Ítem
+              </button>
+            </div>
+            <p style="font-size:12px; color:var(--text-muted); margin:0 0 10px 0;">
+              Agrega ítems específicos (ej: <em>"Onces Gabriela"</em>, <em>"Pensión Gabriela"</em>) y sus montos se sumarán automáticamente a esta categoría.
+            </p>
+
+            <div v-if="form.items && form.items.length > 0" style="display:flex; flex-direction:column; gap:8px; max-height:180px; overflow-y:auto; padding-right:4px; margin-bottom:12px;">
+              <div 
+                v-for="(item, index) in form.items" 
+                :key="index" 
+                style="display:flex; gap:8px; align-items:center; background:rgba(255,255,255,0.03); padding:6px 8px; border-radius:8px; border:1px solid var(--card-border);"
+              >
+                <input 
+                  type="text" 
+                  v-model="item.name" 
+                  placeholder="Ej: Pensión Gabriela" 
+                  style="flex:2; height:34px; border-radius:6px; border:1px solid var(--card-border); background:rgba(0,0,0,0.2); color:var(--text-primary); font-size:12.5px; padding:0 10px; outline:none;" 
+                />
+                <input 
+                  type="number" 
+                  v-model.number="item.amount" 
+                  @input="updateTotalFromItems" 
+                  placeholder="Monto" 
+                  style="flex:1; height:34px; border-radius:6px; border:1px solid var(--card-border); background:rgba(0,0,0,0.2); color:var(--text-primary); font-size:12.5px; padding:0 10px; outline:none;" 
+                  min="0"
+                />
+                <button 
+                  type="button" 
+                  @click="removeBudgetItem(index)" 
+                  style="background:none; border:none; color:#ef4444; font-size:14px; cursor:pointer; padding:4px;" 
+                  title="Quitar ítem"
+                >
+                  <i class="fa-solid fa-trash-can"></i>
+                </button>
+              </div>
+            </div>
+          </div>
+
           <div class="form-group">
-            <label for="bud-amount">Monto del Presupuesto (COP)</label>
+            <label for="bud-amount" style="display:flex; justify-space-between; align-items:center;">
+              <span>Monto Total del Presupuesto (COP)</span>
+              <span v-if="form.items && form.items.length > 0" style="font-size:11px; font-weight:700; color:#10b981;">
+                Sumado de {{ form.items.length }} ítems
+              </span>
+            </label>
             <input type="number" id="bud-amount" v-model.number="form.amount" placeholder="0" required min="1" />
           </div>
 
@@ -257,7 +327,8 @@ export default {
 
     const form = ref({
       category_id: '',
-      amount: ''
+      amount: '',
+      items: []
     })
 
     // UI Estados
@@ -269,6 +340,27 @@ export default {
     const aiLoading = ref(false)
     const aiReport = ref(null)
     const aiApplying = ref(false)
+
+    const addBudgetItem = () => {
+      if (!form.value.items) form.value.items = []
+      form.value.items.push({ name: '', amount: '' })
+    }
+
+    const removeBudgetItem = (index) => {
+      if (form.value.items && form.value.items.length > index) {
+        form.value.items.splice(index, 1)
+        updateTotalFromItems()
+      }
+    }
+
+    const updateTotalFromItems = () => {
+      if (form.value.items && form.value.items.length > 0) {
+        const sum = form.value.items.reduce((acc, item) => acc + (parseFloat(item.amount) || 0), 0)
+        if (sum > 0) {
+          form.value.amount = sum
+        }
+      }
+    }
 
     const fetchCategories = async () => {
       const token = localStorage.getItem('token')
@@ -305,6 +397,10 @@ export default {
 
       const token = localStorage.getItem('token')
       
+      const cleanItems = (form.value.items || [])
+        .filter(item => item.name && item.name.trim() !== '' && (parseFloat(item.amount) || 0) > 0)
+        .map(item => ({ name: item.name.trim(), amount: parseFloat(item.amount) || 0 }))
+
       try {
         const response = await fetch(`${API_BASE}/budgets.php`, {
           method: 'POST',
@@ -314,7 +410,8 @@ export default {
           },
           body: JSON.stringify({
             category_id: form.value.category_id === '' ? null : form.value.category_id,
-            amount: form.value.amount
+            amount: form.value.amount,
+            items: cleanItems
           })
         })
 
@@ -325,6 +422,7 @@ export default {
 
         successMsg.value = 'Presupuesto guardado exitosamente.'
         form.value.amount = ''
+        form.value.items = []
         
         await fetchReports()
         
@@ -361,9 +459,10 @@ export default {
       }
     }
 
-    const openBudgetModal = (catId, currentLimit) => {
+    const openBudgetModal = (catId, currentLimit, currentItems = []) => {
       form.value.category_id = catId === null ? '' : catId
       form.value.amount = currentLimit || ''
+      form.value.items = currentItems && Array.isArray(currentItems) ? JSON.parse(JSON.stringify(currentItems)) : []
       successMsg.value = ''
       errorMsg.value = ''
       showBudgetModal.value = true
@@ -538,6 +637,9 @@ export default {
     return {
       budgetCatSearch,
       searchedExpenseCategories,
+      addBudgetItem,
+      removeBudgetItem,
+      updateTotalFromItems,
       createBudgetCategoryOnTheFly,
       categories,
       globalBudget,
