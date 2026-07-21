@@ -16,14 +16,17 @@ if (!$input) {
     $input = $_POST;
 }
 
+$workspace = get_active_workspace();
+
 if ($method === 'GET') {
     try {
+        $gWsCond = get_workspace_sql_clause('g.workspace');
         // Obtener metas de ahorro con el nombre de la cuenta vinculada
         $stmt = $db->prepare("
             SELECT g.*, a.name as account_name, a.bank_name
             FROM savings_goals g
             LEFT JOIN accounts a ON g.account_id = a.id
-            WHERE g.user_id = ? 
+            WHERE g.user_id = ? AND {$gWsCond}
             ORDER BY g.id DESC
         ");
         $stmt->execute([$userId]);
@@ -57,8 +60,8 @@ if ($method === 'POST') {
     }
 
     try {
-        $stmt = $db->prepare("INSERT INTO savings_goals (user_id, name, target_amount, current_amount, target_date, account_id) VALUES (?, ?, ?, ?, ?, ?)");
-        $stmt->execute([$userId, $name, $targetAmount, $currentAmount, $targetDate, $accountId]);
+        $stmt = $db->prepare("INSERT INTO savings_goals (user_id, name, target_amount, current_amount, target_date, account_id, workspace) VALUES (?, ?, ?, ?, ?, ?, ?)");
+        $stmt->execute([$userId, $name, $targetAmount, $currentAmount, $targetDate, $accountId, $workspace]);
         
         $newId = $db->lastInsertId();
         echo json_encode([

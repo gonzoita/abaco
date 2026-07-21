@@ -23,24 +23,21 @@ if ($method === 'GET') {
         $tWsCond = get_workspace_sql_clause('t.workspace');
         $bWsCond = get_workspace_sql_clause('b.workspace');
 
-        // 1. Resumen mensual total de ingresos y egresos por workspace
-        if ($startDate && $endDate) {
-            $stmtSummary = $db->prepare("
-                SELECT type, SUM(amount) as total 
-                FROM transactions 
-                WHERE user_id = ? AND {$wsCond} AND date >= ? AND date <= ?
-                GROUP BY type
-            ");
-            $stmtSummary->execute([$userId, $startDate, $endDate]);
-        } else {
-            $stmtSummary = $db->prepare("
-                SELECT type, SUM(amount) as total 
-                FROM transactions 
-                WHERE user_id = ? AND {$wsCond} AND MONTH(date) = ? AND YEAR(date) = ?
-                GROUP BY type
-            ");
-            $stmtSummary->execute([$userId, $month, $year]);
+        if (!$startDate || !$endDate) {
+            $formattedMonth = sprintf('%02d', $month);
+            $startDate = "{$year}-{$formattedMonth}-01";
+            $lastDay = date('t', strtotime($startDate));
+            $endDate = "{$year}-{$formattedMonth}-{$lastDay}";
         }
+
+        // 1. Resumen mensual total de ingresos y egresos por workspace
+        $stmtSummary = $db->prepare("
+            SELECT type, SUM(amount) as total 
+            FROM transactions 
+            WHERE user_id = ? AND {$wsCond} AND date >= ? AND date <= ?
+            GROUP BY type
+        ");
+        $stmtSummary->execute([$userId, $startDate, $endDate]);
         $summaryRaw = $stmtSummary->fetchAll();
 
         $totals = ['ingresos' => 0.00, 'egresos' => 0.00, 'neto' => 0.00];
@@ -54,33 +51,18 @@ if ($method === 'GET') {
         $totals['neto'] = $totals['ingresos'] - $totals['egresos'];
 
         // 2. Gastos agrupados por Categoría (para gráficos circulares)
-        if ($startDate && $endDate) {
-            $stmtCategories = $db->prepare("
-                SELECT COALESCE(c.name, 'Sin Categoría') as name, 
-                       COALESCE(c.color, '#64748b') as color, 
-                       COALESCE(c.icon, 'fa-tag') as icon, 
-                       SUM(t.amount) as total 
-                FROM transactions t
-                LEFT JOIN categories c ON t.category_id = c.id
-                WHERE t.user_id = ? AND {$tWsCond} AND t.type = 'egreso' AND t.date >= ? AND t.date <= ?
-                GROUP BY c.id, c.name, c.color, c.icon
-                ORDER BY total DESC
-            ");
-            $stmtCategories->execute([$userId, $startDate, $endDate]);
-        } else {
-            $stmtCategories = $db->prepare("
-                SELECT COALESCE(c.name, 'Sin Categoría') as name, 
-                       COALESCE(c.color, '#64748b') as color, 
-                       COALESCE(c.icon, 'fa-tag') as icon, 
-                       SUM(t.amount) as total 
-                FROM transactions t
-                LEFT JOIN categories c ON t.category_id = c.id
-                WHERE t.user_id = ? AND {$tWsCond} AND t.type = 'egreso' AND MONTH(t.date) = ? AND YEAR(t.date) = ?
-                GROUP BY c.id, c.name, c.color, c.icon
-                ORDER BY total DESC
-            ");
-            $stmtCategories->execute([$userId, $month, $year]);
-        }
+        $stmtCategories = $db->prepare("
+            SELECT COALESCE(c.name, 'Sin Categoría') as name, 
+                   COALESCE(c.color, '#64748b') as color, 
+                   COALESCE(c.icon, 'fa-tag') as icon, 
+                   SUM(t.amount) as total 
+            FROM transactions t
+            LEFT JOIN categories c ON t.category_id = c.id
+            WHERE t.user_id = ? AND {$tWsCond} AND t.type = 'egreso' AND t.date >= ? AND t.date <= ?
+            GROUP BY c.id, c.name, c.color, c.icon
+            ORDER BY total DESC
+        ");
+        $stmtCategories->execute([$userId, $startDate, $endDate]);
         $categoriesData = $stmtCategories->fetchAll();
 
         // Convertir montos a float

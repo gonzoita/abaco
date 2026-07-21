@@ -88,8 +88,8 @@ function get_active_workspace() {
 function get_workspace_sql_clause($columnName = 'workspace') {
     $ws = get_active_workspace();
     if ($ws === 'business') {
-        return "{$columnName} = 'business'";
+        return "(LOWER(COALESCE({$columnName}, 'personal')) = 'business')";
     } else {
-        return "({$columnName} IS NULL OR {$columnName} = '' OR {$columnName} = 'personal')";
+        return "(LOWER(COALESCE({$columnName}, 'personal')) = 'personal' OR {$columnName} IS NULL OR {$columnName} = '')";
     }
 }
