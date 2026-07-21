@@ -22,16 +22,17 @@ if ($method === 'GET') {
     try {
         $month = isset($_GET['month']) ? intval($_GET['month']) : intval(date('m'));
         $year = isset($_GET['year']) ? intval($_GET['year']) : intval(date('Y'));
+        $bWsCond = get_workspace_sql_clause('b.workspace');
 
         // Obtener presupuestos del usuario para el mes, año y workspace dados
         $stmt = $db->prepare("
             SELECT b.*, c.name as category_name, c.color as category_color, c.icon as category_icon
             FROM budgets b
             LEFT JOIN categories c ON b.category_id = c.id
-            WHERE b.user_id = ? AND (b.workspace IS NULL OR b.workspace = ?) AND b.month = ? AND b.year = ?
+            WHERE b.user_id = ? AND {$bWsCond} AND b.month = ? AND b.year = ?
             ORDER BY b.category_id IS NULL DESC, c.name ASC
         ");
-        $stmt->execute([$userId, $workspace, $month, $year]);
+        $stmt->execute([$userId, $month, $year]);
         $budgets = $stmt->fetchAll();
 
         // Convertir montos a float

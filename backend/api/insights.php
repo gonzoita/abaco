@@ -12,9 +12,12 @@ $workspace = get_active_workspace();
 
 if ($_SERVER['REQUEST_METHOD'] === 'GET') {
     try {
+        $wsCond = get_workspace_sql_clause('workspace');
+        $tWsCond = get_workspace_sql_clause('t.workspace');
+
         // 1. Obtener Cuentas y Saldo Líquido Total por workspace
-        $stmtAccounts = $db->prepare("SELECT SUM(balance) as total_liquid FROM accounts WHERE user_id = ? AND (workspace IS NULL OR workspace = ?) AND type IN ('efectivo', 'banco', 'ahorro')");
-        $stmtAccounts->execute([$userId, $workspace]);
+        $stmtAccounts = $db->prepare("SELECT SUM(balance) as total_liquid FROM accounts WHERE user_id = ? AND {$wsCond} AND type IN ('efectivo', 'banco', 'ahorro')");
+        $stmtAccounts->execute([$userId]);
         $liquidData = $stmtAccounts->fetch();
         $totalLiquidBalance = floatval($liquidData['total_liquid'] ?? 0);
 
@@ -22,9 +25,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
         $stmt3Months = $db->prepare("
             SELECT type, amount, category_id, description, date 
             FROM transactions 
-            WHERE user_id = ? AND (workspace IS NULL OR workspace = ?) AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 90 DAY)
+            WHERE user_id = ? AND {$wsCond} AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 90 DAY)
         ");
-        $stmt3Months->execute([$userId, $workspace]);
+        $stmt3Months->execute([$userId]);
         $txs90Days = $stmt3Months->fetchAll();
 
         // 3. Transacciones del Mes Actual por workspace
@@ -32,9 +35,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
             SELECT t.type, t.amount, t.category_id, t.description, t.date, c.name as category_name
             FROM transactions t
             LEFT JOIN categories c ON t.category_id = c.id
-            WHERE t.user_id = ? AND (t.workspace IS NULL OR t.workspace = ?) AND MONTH(t.date) = MONTH(CURRENT_DATE()) AND YEAR(t.date) = YEAR(CURRENT_DATE())
+            WHERE t.user_id = ? AND {$tWsCond} AND MONTH(t.date) = MONTH(CURRENT_DATE()) AND YEAR(t.date) = YEAR(CURRENT_DATE())
         ");
-        $stmtCurrentMonth->execute([$userId, $workspace]);
+        $stmtCurrentMonth->execute([$userId]);
         $txsCurrentMonth = $stmtCurrentMonth->fetchAll();
 
         // Calcular Totales del Mes Actual

@@ -79,3 +79,17 @@ function get_active_workspace() {
     $ws = strtolower($ws);
     return in_array($ws, ['personal', 'business']) ? $ws : 'personal';
 }
+
+/**
+ * Retorna la cláusula SQL de filtrado para el workspace activo.
+ * Si es 'business', exige workspace = 'business'.
+ * Si es 'personal', incluye personal, NULL y vacíos.
+ */
+function get_workspace_sql_clause($columnName = 'workspace') {
+    $ws = get_active_workspace();
+    if ($ws === 'business') {
+        return "{$columnName} = 'business'";
+    } else {
+        return "({$columnName} IS NULL OR {$columnName} = '' OR {$columnName} = 'personal')";
+    }
+}

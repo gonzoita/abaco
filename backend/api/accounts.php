@@ -20,10 +20,10 @@ if (!$input) {
 $workspace = get_active_workspace();
 
 if ($method === 'GET') {
+    $wsCond = get_workspace_sql_clause('workspace');
     if ($id) {
-        // Obtener una cuenta específica
-        $stmt = $db->prepare("SELECT * FROM accounts WHERE id = ? AND user_id = ? AND (workspace IS NULL OR workspace = ?)");
-        $stmt->execute([$id, $userId, $workspace]);
+        $stmt = $db->prepare("SELECT * FROM accounts WHERE id = ? AND user_id = ? AND {$wsCond}");
+        $stmt->execute([$id, $userId]);
         $account = $stmt->fetch();
         
         if (!$account) {
@@ -33,9 +33,8 @@ if ($method === 'GET') {
         }
         echo json_encode($account);
     } else {
-        // Obtener todas las cuentas del usuario para el workspace activo
-        $stmt = $db->prepare("SELECT * FROM accounts WHERE user_id = ? AND (workspace IS NULL OR workspace = ?) ORDER BY id DESC");
-        $stmt->execute([$userId, $workspace]);
+        $stmt = $db->prepare("SELECT * FROM accounts WHERE user_id = ? AND {$wsCond} ORDER BY id DESC");
+        $stmt->execute([$userId]);
         $accounts = $stmt->fetchAll();
         echo json_encode($accounts);
     }

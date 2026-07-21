@@ -19,13 +19,14 @@ if (!$input) {
 $workspace = get_active_workspace();
 
 if ($method === 'GET') {
+    $tWsCond = get_workspace_sql_clause('t.workspace');
     if ($id) {
         $stmt = $db->prepare("SELECT t.*, a.name as account_name, c.name as category_name, c.color as category_color 
                               FROM transactions t 
                               JOIN accounts a ON t.account_id = a.id 
                               LEFT JOIN categories c ON t.category_id = c.id 
-                              WHERE t.id = ? AND t.user_id = ? AND (t.workspace IS NULL OR t.workspace = ?)");
-        $stmt->execute([$id, $userId, $workspace]);
+                              WHERE t.id = ? AND t.user_id = ? AND {$tWsCond}");
+        $stmt->execute([$id, $userId]);
         $transaction = $stmt->fetch();
         if (!$transaction) {
             http_response_code(404);
@@ -46,9 +47,9 @@ if ($method === 'GET') {
                 FROM transactions t 
                 JOIN accounts a ON t.account_id = a.id 
                 LEFT JOIN categories c ON t.category_id = c.id 
-                WHERE t.user_id = :user_id AND (t.workspace IS NULL OR t.workspace = :workspace)";
+                WHERE t.user_id = :user_id AND {$tWsCond}";
         
-        $params = [':user_id' => $userId, ':workspace' => $workspace];
+        $params = [':user_id' => $userId];
 
         if ($accountId) {
             $sql .= " AND t.account_id = :account_id";
@@ -74,9 +75,7 @@ if ($method === 'GET') {
         $sql .= " ORDER BY t.date DESC, t.id DESC LIMIT :limit";
         
         $stmt = $db->prepare($sql);
-        // Bind integer parameter limit manually to avoid prepared statement issues
         $stmt->bindValue(':user_id', $userId, PDO::PARAM_INT);
-        $stmt->bindValue(':workspace', $workspace, PDO::PARAM_STR);
         if ($accountId) $stmt->bindValue(':account_id', $accountId, PDO::PARAM_INT);
         if ($categoryId) $stmt->bindValue(':category_id', $categoryId, PDO::PARAM_INT);
         if ($type) $stmt->bindValue(':type', $type, PDO::PARAM_STR);

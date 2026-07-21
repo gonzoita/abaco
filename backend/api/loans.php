@@ -170,14 +170,15 @@ if ($method === 'GET') {
     // 2. Obtener Préstamos (Listado General)
     if ($action === 'get_loans') {
         try {
+            $lWsCond = get_workspace_sql_clause('l.workspace');
             $stmt = $db->prepare("
                 SELECT l.*, c.name as client_name, c.document as client_document 
                 FROM loans l 
                 JOIN loan_clients c ON l.client_id = c.id 
-                WHERE l.user_id = ? AND (l.workspace IS NULL OR l.workspace = ?)
+                WHERE l.user_id = ? AND {$lWsCond}
                 ORDER BY l.created_at DESC
             ");
-            $stmt->execute([$userId, $workspace]);
+            $stmt->execute([$userId]);
             $loans = $stmt->fetchAll();
             
             // Para cada préstamo, adjuntar el resumen del plan (cuotas pagadas, saldo pendiente)
