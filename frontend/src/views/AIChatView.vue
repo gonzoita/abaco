@@ -36,19 +36,18 @@
     </div>
 
     <!-- Contenedor del Chat -->
-    <div class="glass-card chat-card">
+    <div class="chat-card">
       <div class="messages-container" ref="messagesBox">
         <!-- Mensaje de bienvenida del sistema -->
         <div class="message assistant">
           <div class="message-avatar">
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <polygon points="12 2 2 7 12 12 22 7 12 2"></polygon>
-              <polyline points="2 17 12 22 22 17"></polyline>
-              <polyline points="2 12 12 17 22 12"></polyline>
-            </svg>
+            <i class="fa-solid fa-brain" style="font-size:16px;"></i>
           </div>
           <div class="message-bubble">
-            <p>¡Hola, {{ userName }}! Soy tu asesor financiero y mentor en Ábaco. Mantengo el contexto de nuestra conversación para ayudarte a ahorrar, administrar tus préstamos y aplicar las mejores leyes de riqueza. ¿En qué trabajamos hoy?</p>
+            <div class="message-sender-title">Asesor Ábaco IA</div>
+            <div class="formatted-text">
+              ¡Hola, {{ userName }}! Soy tu mentor financiero en Ábaco. Puedo ayudarte a ahorrar, optimizar tus costos, gestionar tus préstamos o guiarte en el uso de la app. ¿En qué trabajamos hoy?
+            </div>
             <div class="suggestions-list">
               <button class="btn-suggestion" @click="sendPredefined('¿Cómo funciona el módulo de préstamos cuando le presto dinero a alguien?')">
                 🤝 Préstamos a personas
@@ -56,10 +55,10 @@
               <button class="btn-suggestion" @click="sendPredefined('Dame consejos de ahorro basados en El Hombre Más Rico de Babilonia.')">
                 📖 Regla del 10% (Babilonia)
               </button>
-              <button class="btn-suggestion" @click="sendPredefined('¿Cómo puedo aumentar mis ingresos siguiendo la regla 10X de Grant Cardone?')">
-                🚀 Estrategia 10X (Cardone)
+              <button class="btn-suggestion" @click="sendPredefined('¿Cómo puedo aumentar mis ingresos en mi negocio?')">
+                🚀 Estrategia de Ventas
               </button>
-              <button class="btn-suggestion" @click="sendPredefined('Dame un tutorial completo de cómo usar Ábaco.')">
+              <button class="btn-suggestion" @click="sendPredefined('Dame un tutorial rápido de cómo usar Ábaco.')">
                 📘 Tutorial de Ábaco
               </button>
             </div>
@@ -69,23 +68,18 @@
         <!-- Mensajes del chat históricos -->
         <div v-for="(msg, index) in messages" :key="index" :class="['message', msg.role]">
           <div class="message-avatar" v-if="msg.role === 'assistant'">
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <polygon points="12 2 2 7 12 12 22 7 12 2"></polygon>
-              <polyline points="2 17 12 22 22 17"></polyline>
-              <polyline points="2 12 12 17 22 12"></polyline>
-            </svg>
+            <i class="fa-solid fa-brain" style="font-size:16px;"></i>
           </div>
           <div class="message-bubble">
-            <p class="formatted-text">{{ msg.text }}</p>
+            <div v-if="msg.role === 'assistant'" class="message-sender-title">Asesor Ábaco IA</div>
+            <div class="formatted-text" v-html="renderFormattedText(msg.text)"></div>
           </div>
         </div>
 
         <!-- Indicador de que la IA está respondiendo -->
         <div class="message assistant" v-if="loading">
           <div class="message-avatar">
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <polygon points="12 2 2 7 12 12 22 7 12 2"></polygon>
-            </svg>
+            <i class="fa-solid fa-brain" style="font-size:16px;"></i>
           </div>
           <div class="message-bubble loading-bubble">
             <div class="typing-dots">
@@ -97,14 +91,18 @@
         </div>
       </div>
 
-      <!-- Barra de entrada de texto -->
+      <!-- Barra de entrada de texto flotante estilo WhatsApp/Telegram -->
       <form @submit.prevent="sendMessage" class="chat-input-bar">
-        <input type="text" v-model="userInput" placeholder="Escribe tu consulta o pide un consejo..." :disabled="loading" required />
-        <button type="submit" class="btn-send btn-primary" :disabled="loading">
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <line x1="22" y1="2" x2="11" y2="13"></line>
-            <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
-          </svg>
+        <input 
+          type="text" 
+          v-model="userInput" 
+          placeholder="Escribe un mensaje..." 
+          :disabled="loading" 
+          required 
+          class="chat-pill-input"
+        />
+        <button type="submit" class="btn-send-pill" :disabled="loading">
+          <i class="fa-solid fa-paper-plane"></i>
         </button>
       </form>
     </div>
@@ -229,6 +227,15 @@ export default {
       sendMessage()
     }
 
+    const renderFormattedText = (raw) => {
+      if (!raw) return ''
+      let text = raw.replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      text = text.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+      text = text.replace(/^\s*[-*]\s+(.+)$/gm, '<li style="margin-left:14px; list-style-type:disc;">$1</li>')
+      text = text.replace(/\n/g, '<br>')
+      return text
+    }
+
     onMounted(() => {
       checkUserName()
       loadHistory()
@@ -245,7 +252,8 @@ export default {
       sendPredefined,
       scrollToBottom,
       hasCustomKey,
-      clearHistory
+      clearHistory,
+      renderFormattedText
     }
   }
 }
@@ -253,9 +261,9 @@ export default {
 
 <style scoped>
 .ai-key-banner {
-  padding: 12px 18px;
-  margin-bottom: 16px;
-  border-radius: var(--radius-sm);
+  padding: 10px 16px;
+  margin-bottom: 12px;
+  border-radius: 12px;
   background: rgba(255, 159, 10, 0.04);
   border: 1px dashed rgba(255, 159, 10, 0.2);
   transition: var(--transition-smooth);
@@ -267,25 +275,14 @@ export default {
 .banner-content {
   display: flex;
   align-items: center;
-  gap: 12px;
-  font-size: 13.5px;
+  gap: 10px;
+  font-size: 12.5px;
   color: var(--text-secondary);
 }
 .banner-icon {
-  width: 20px;
-  height: 20px;
+  width: 18px;
+  height: 18px;
   flex-shrink: 0;
-}
-.text-warning {
-  color: var(--color-warning);
-}
-.text-success {
-  color: var(--color-success);
-}
-.banner-link {
-  color: var(--color-primary);
-  text-decoration: underline;
-  font-weight: 500;
 }
 
 .chat-header-top {
@@ -301,31 +298,24 @@ export default {
   border: 1px solid rgba(239, 68, 68, 0.25);
   color: #ef4444;
   padding: 6px 12px;
-  border-radius: 8px;
-  font-size: 12px;
+  border-radius: 20px;
+  font-size: 11.5px;
   font-weight: 600;
   cursor: pointer;
   transition: var(--transition-smooth);
-}
-.btn-clear-history:hover {
-  background: rgba(239, 68, 68, 0.2);
-}
-.btn-clear-history svg {
-  width: 14px;
-  height: 14px;
 }
 
 .chat-container {
   display: flex;
   flex-direction: column;
-  height: calc(100vh - 120px); /* Ajustar espacio para barra navegación */
-  gap: 16px;
-  animation: fadeIn 0.4s ease-out;
+  height: calc(100vh - 110px);
+  position: relative;
+  animation: fadeIn 0.3s ease-out;
 }
 
 @media (min-width: 769px) {
   .chat-container {
-    height: calc(100vh - 48px);
+    height: calc(100vh - 40px);
   }
 }
 
@@ -333,144 +323,182 @@ export default {
   display: flex;
   flex-direction: column;
   flex: 1;
-  padding: 0;
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
   overflow: hidden;
-  height: 100%;
+  position: relative;
 }
 
 .messages-container {
   flex: 1;
-  padding: 16px;
+  padding: 10px 4px 90px 4px;
   overflow-y: auto;
+  overflow-x: hidden !important;
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 14px;
+  width: 100%;
 }
 
 .message {
   display: flex;
   gap: 10px;
-  max-width: 95%;
-  width: auto;
+  width: 100%;
   align-self: flex-start;
-  animation: messageSlideIn 0.3s ease-out;
-}
-
-@media (min-width: 769px) {
-  .message {
-    max-width: 88%;
-  }
+  animation: messageSlideIn 0.25s ease-out;
 }
 
 .message.user {
-  align-self: flex-end;
-  flex-direction: row-reverse;
+  justify-content: flex-end;
 }
 
 .message-avatar {
-  width: 36px;
-  height: 36px;
+  width: 32px;
+  height: 32px;
   border-radius: 50%;
-  background: rgba(10, 132, 255, 0.12);
-  border: 1px solid rgba(10, 132, 255, 0.25);
+  background: linear-gradient(135deg, rgba(168, 85, 247, 0.2), rgba(56, 189, 248, 0.2));
+  border: 1px solid rgba(168, 85, 247, 0.4);
   display: flex;
   align-items: center;
   justify-content: center;
-  color: var(--color-primary);
+  color: #a855f7;
   flex-shrink: 0;
+  margin-top: 2px;
 }
 
-.message.user .message-avatar {
-  background: rgba(100, 210, 255, 0.12);
-  border-color: rgba(100, 210, 255, 0.25);
-  color: var(--color-secondary);
-}
-
-.message-avatar svg {
-  width: 18px;
-  height: 18px;
+.message-sender-title {
+  font-size: 10.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: #a855f7;
+  letter-spacing: 0.5px;
+  margin-bottom: 4px;
 }
 
 .message-bubble {
-  background: var(--bg-tertiary);
-  padding: 14px 18px;
-  border-radius: 0px var(--radius-md) var(--radius-md) var(--radius-md);
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--card-border);
+  padding: 12px 16px;
+  border-radius: 18px 18px 18px 4px;
   color: var(--text-primary);
-  font-size: 15px;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
+  font-size: 14.5px;
+  line-height: 1.55;
+  max-width: 85%;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+  overflow-x: hidden !important;
+  box-shadow: 0 4px 15px rgba(0,0,0,0.15);
+}
+
+body.light-theme .message-bubble {
+  background: rgba(0, 0, 0, 0.03);
 }
 
 .message.user .message-bubble {
-  background: var(--color-primary); /* Azul de iMessage */
-  border-radius: var(--radius-md) 0px var(--radius-md) var(--radius-md);
-  box-shadow: 0 4px 12px rgba(10, 132, 255, 0.15);
+  background: linear-gradient(135deg, #6366f1 0%, #a855f7 100%);
+  color: #ffffff;
+  border: none;
+  border-radius: 18px 18px 4px 18px;
+  box-shadow: 0 4px 15px rgba(99, 102, 241, 0.3);
 }
 
 .formatted-text {
-  white-space: pre-wrap;
-  line-height: 1.6;
+  overflow-x: hidden !important;
+  word-break: break-word;
+  overflow-wrap: anywhere;
 }
 
 /* Sugerencias de chat */
 .suggestions-list {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
-  margin-top: 4px;
+  gap: 6px;
+  margin-top: 10px;
 }
 
 .btn-suggestion {
-  background: var(--bg-primary);
+  background: rgba(255, 255, 255, 0.06);
   border: 1px solid var(--card-border);
-  color: var(--text-secondary);
-  border-radius: 9999px;
-  padding: 6px 14px;
-  font-size: 12px;
-  font-weight: 500;
+  color: var(--text-primary);
+  border-radius: 20px;
+  padding: 6px 12px;
+  font-size: 11.5px;
+  font-weight: 600;
   cursor: pointer;
   transition: var(--transition-smooth);
-  font-family: var(--font-main);
 }
 
 .btn-suggestion:hover {
-  background: rgba(10, 132, 255, 0.12);
-  color: var(--color-primary);
-  border-color: rgba(10, 132, 255, 0.25);
+  background: rgba(168, 85, 247, 0.2);
+  color: #a855f7;
+  border-color: rgba(168, 85, 247, 0.4);
 }
 
-/* Barra de Entrada */
+/* Barra de Entrada Flotante */
 .chat-input-bar {
+  position: fixed;
+  bottom: 68px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: calc(100% - 24px);
+  max-width: 760px;
+  background: rgba(15, 23, 42, 0.92);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 30px;
+  padding: 5px 6px 5px 16px;
   display: flex;
-  gap: 12px;
-  padding: 16px;
-  border-top: 1px solid var(--card-border);
-  background: var(--bg-secondary);
   align-items: center;
+  gap: 8px;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.4);
+  z-index: 90;
 }
 
-.chat-input-bar input {
+body.light-theme .chat-input-bar {
+  background: rgba(255, 255, 255, 0.92);
+  border-color: rgba(0, 0, 0, 0.12);
+  box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+}
+
+@media (min-width: 769px) {
+  .chat-input-bar {
+    bottom: 20px;
+    width: calc(100% - 260px);
+    margin-left: 110px;
+  }
+}
+
+.chat-pill-input {
+  background: transparent !important;
+  border: none !important;
+  outline: none !important;
+  color: var(--text-primary);
+  font-size: 14.5px;
   flex: 1;
-  border-radius: 9999px;
-  padding: 12px 24px;
+  padding: 8px 4px;
 }
 
-.btn-send {
-  width: 48px;
-  height: 48px;
+.btn-send-pill {
+  width: 40px;
+  height: 40px;
   border-radius: 50%;
+  background: linear-gradient(135deg, #6366f1 0%, #a855f7 100%);
+  color: #ffffff;
+  border: none;
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 0;
+  font-size: 14px;
+  cursor: pointer;
   flex-shrink: 0;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  box-shadow: 0 4px 12px rgba(168, 85, 247, 0.4);
 }
 
-.btn-send svg {
-  width: 20px;
-  height: 20px;
+.btn-send-pill:active {
+  transform: scale(0.92);
 }
 
 /* Animación de tres puntos suspensivos */
@@ -478,13 +506,13 @@ export default {
   display: flex;
   align-items: center;
   gap: 4px;
-  padding: 4px 8px;
+  padding: 4px 6px;
 }
 
 .typing-dots span {
-  width: 8px;
-  height: 8px;
-  background-color: var(--text-secondary);
+  width: 7px;
+  height: 7px;
+  background-color: #a855f7;
   border-radius: 50%;
   animation: typingDot 1.4s infinite both;
 }
@@ -505,7 +533,7 @@ export default {
 @keyframes messageSlideIn {
   from {
     opacity: 0;
-    transform: translateY(10px);
+    transform: translateY(8px);
   }
   to {
     opacity: 1;
