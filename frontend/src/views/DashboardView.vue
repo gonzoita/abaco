@@ -1013,6 +1013,20 @@ export default {
       formLoading.value = true
       modalError.value = ''
 
+      // Validar cuenta de pago seleccionada
+      if (!form.value.account_id || parseInt(form.value.account_id) <= 0) {
+        modalError.value = 'Por favor selecciona una Cuenta / Método de Pago.'
+        formLoading.value = false
+        return
+      }
+
+      // Validar monto mayor a cero
+      if (!form.value.amount || parseFloat(form.value.amount) <= 0) {
+        modalError.value = 'Por favor ingresa un monto mayor a cero.'
+        formLoading.value = false
+        return
+      }
+
       // Sanitizar la fecha al formato estricto YYYY-MM-DD exigido por HTML5
       form.value.date = formatDateForInput(form.value.date)
 
@@ -1040,7 +1054,8 @@ export default {
         try {
           data = JSON.parse(responseText)
         } catch (e) {
-          throw new Error('Respuesta inválida del servidor: ' + responseText.substring(0, 100))
+          const cleanMsg = responseText.replace(/<[^>]*>?/gm, '').trim()
+          throw new Error(cleanMsg.length > 0 ? cleanMsg.substring(0, 150) : 'Error inesperado en el servidor.')
         }
 
         if (!response.ok) {
