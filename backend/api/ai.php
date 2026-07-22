@@ -460,6 +460,142 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         exit();
     }
+
+    // 4. DIAGNÓSTICO FINANCIERO PERSONAL 360° (Basado en el Prompt Estructurado de 5 Fases)
+    if ($action === 'financial_diagnosis') {
+        $input = json_decode(file_get_contents('php://input'), true);
+        $userNotes = trim($input['user_notes'] ?? '');
+
+        $workspace = get_active_workspace();
+
+        // 1. Obtener datos financieros reales del usuario
+        $accounts = [];
+        $recentTransactions = [];
+        $loans = [];
+        $budgets = [];
+
+        try {
+            $stmtAccounts = $db->prepare("SELECT name, type, balance, currency FROM accounts WHERE user_id = ? AND (workspace IS NULL OR workspace = ?)");
+            $stmtAccounts->execute([$userId, $workspace]);
+            $accounts = $stmtAccounts->fetchAll();
+        } catch (Exception $e) {}
+
+        try {
+            $stmtTx = $db->prepare("SELECT t.type, t.amount, t.description, t.date, c.name as category 
+                                    FROM transactions t 
+                                    LEFT JOIN categories c ON t.category_id = c.id 
+                                    WHERE t.user_id = ? AND (t.workspace IS NULL OR t.workspace = ?) AND MONTH(t.date) = MONTH(CURRENT_DATE()) AND YEAR(t.date) = YEAR(CURRENT_DATE())");
+            $stmtTx->execute([$userId, $workspace]);
+            $recentTransactions = $stmtTx->fetchAll();
+        } catch (Exception $e) {}
+
+        try {
+            $stmtLoans = $db->prepare("SELECT l.amount, l.type, l.status, c.name as person_name 
+                                       FROM loans l 
+                                       LEFT JOIN loan_clients c ON l.client_id = c.id 
+                                       WHERE l.user_id = ? AND (l.workspace IS NULL OR l.workspace = ?) AND l.status != 'finalizado'");
+            $stmtLoans->execute([$userId, $workspace]);
+            $loans = $stmtLoans->fetchAll();
+        } catch (Exception $e) {}
+
+        try {
+            $stmtBudgets = $db->prepare("SELECT b.amount, c.name as category_name FROM budgets b LEFT JOIN categories c ON b.category_id = c.id WHERE b.user_id = ? AND b.month = MONTH(CURRENT_DATE()) AND b.year = YEAR(CURRENT_DATE())");
+            $stmtBudgets->execute([$userId]);
+            $budgets = $stmtBudgets->fetchAll();
+        } catch (Exception $e) {}
+
+        // Formatear la situación real del usuario
+        $totalBalance = 0;
+        $summaryData = "CUENTAS Y SALDOS:\n";
+        foreach ($accounts as $acc) {
+            $totalBalance += floatval($acc['balance']);
+            $summaryData .= "- {$acc['name']} ({$acc['type']}): {$acc['balance']} {$acc['currency']}\n";
+        }
+
+        $totalIncomeMonth = 0;
+        $totalExpenseMonth = 0;
+        foreach ($recentTransactions as $tx) {
+            if ($tx['type'] === 'ingreso') $totalIncomeMonth += floatval($tx['amount']);
+            if ($tx['type'] === 'egreso') $totalExpenseMonth += floatval($tx['amount']);
+        }
+
+        $summaryData .= "\nMOVIMIENTOS DEL MES ACTUAL:\n";
+        $summaryData .= "- Total Ingresos: {$totalIncomeMonth}\n";
+        $summaryData .= "- Total Egresos: {$totalExpenseMonth}\n";
+        $summaryData .= "- Ahorro Neto del Mes: " . ($totalIncomeMonth - $totalExpenseMonth) . "\n";
+
+        if (!empty($loans)) {
+            $summaryData .= "\nPRÉSTAMOS / CARTERA / DEUDAS:\n";
+            foreach ($loans as $l) {
+                $summaryData .= "- {$l['type']} a/de {$l['person_name']}: {$l['amount']} (Estado: {$l['status']})\n";
+            }
+        }
+
+        if (!empty($budgets)) {
+            $summaryData .= "\nPRESUPUESTOS DEL MES:\n";
+            foreach ($budgets as $b) {
+                $summaryData .= "- Categoría {$b['category_name']}: Límite {$b['amount']}\n";
+            }
+        }
+
+        if (!empty($userNotes)) {
+            $summaryData .= "\nNOTAS Y OBJETIVOS EXPRESADOS POR EL USUARIO:\n{$userNotes}\n";
+        }
+
+        $systemPrompt = "Actúa como asesor financiero personal con amplia experiencia en finanzas personales, planificación de deudas, ahorro e inversión para personas comunes (no expertos en finanzas).\n\n"
+                      . "La situación financiera real del usuario extraída de su aplicación es:\n"
+                      . "{$summaryData}\n\n"
+                      . "Con base en esa información, realiza un análisis completo siguiendo estrictamente esta estructura de 5 secciones en formato Markdown limpio:\n\n"
+                      . "### 1. Diagnóstico general\n"
+                      . "- Resume la situación financiera actual en términos simples.\n"
+                      . "- Identifica los 3 problemas o riesgos más urgentes detectados (ej. sobreendeudamiento, falta de fondo de emergencia, gastos hormiga, ausencia de ahorro, etc.).\n"
+                      . "- Señala también 1-2 fortalezas o aspectos positivos de su situación, si los hay.\n\n"
+                      . "### 2. Plan de acción priorizado\n"
+                      . "- Da un plan claro y realista dividido en:\n"
+                      . "  a) Qué hacer esta semana (acciones inmediatas y de bajo esfuerzo).\n"
+                      . "  b) Qué hacer este mes (ajustes de mediano plazo).\n"
+                      . "  c) Qué hacer en los próximos 3-6 meses (metas de fondo).\n"
+                      . "- Prioriza según impacto y facilidad de ejecución, no solo por lógica financiera teórica.\n\n"
+                      . "### 3. Escenarios y alternativas\n"
+                      . "- Si hay más de un camino posible (ej. pagar deuda vs. ahorrar primero), explica los pros y contras de cada uno aplicado a su caso.\n"
+                      . "- Indica qué harías tú en su lugar y por qué.\n\n"
+                      . "### 4. Puntos ciegos\n"
+                      . "- Señala 2-3 preguntas clave que probablemente el usuario no se ha hecho para tomar mejores decisiones (ej. sobre riesgos, seguros, metas a largo plazo, etc.).\n\n"
+                      . "### 5. Cierre\n"
+                      . "- Resume en 3-4 líneas lo más importante que debe recordar y hacer primero.\n\n"
+                      . "Reglas para tu respuesta:\n"
+                      . "- Sé directo y práctico, evita explicaciones teóricas innecesarias.\n"
+                      . "- Usa lenguaje simple, sin tecnicismos financieros salvo que sean indispensables (y en ese caso, explícalos brevemente).\n"
+                      . "- No asumas datos que no se te dieron.";
+
+        $payload = [
+            "contents" => [
+                [
+                    "role" => "user",
+                    "parts" => [
+                        ["text" => $systemPrompt]
+                    ]
+                ]
+            ]
+        ];
+
+        try {
+            $result = callGemini($payload, $apiKeyToUse);
+            
+            if (isset($result['error'])) {
+                $googleError = $result['error']['message'] ?? 'Error de la API de Google.';
+                echo json_encode(["error" => "Error de la API de Google: " . $googleError]);
+                exit();
+            }
+            
+            $analysis = $result['candidates'][0]['content']['parts'][0]['text'] ?? 'No se pudo generar el diagnóstico.';
+            echo json_encode(["diagnosis" => $analysis, "summary" => $summaryData]);
+        } catch (Exception $e) {
+            http_response_code(500);
+            echo json_encode(["error" => "Error al generar diagnóstico: " . $e->getMessage()]);
+        }
+        exit();
+    }
 }
 
 http_response_code(404);
