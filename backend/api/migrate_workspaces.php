@@ -8,7 +8,7 @@ header('Content-Type: application/json; charset=utf-8');
 try {
     $db = Database::getConnection();
     
-    $tables = ['transactions', 'accounts', 'categories', 'loans', 'category_budgets', 'budgets', 'savings_goals'];
+    $tables = ['transactions', 'accounts', 'categories', 'loans', 'loan_clients', 'category_budgets', 'budgets', 'savings_goals', 'reminders'];
     $migrated = [];
 
     foreach ($tables as $table) {
