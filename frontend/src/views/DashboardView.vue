@@ -415,16 +415,16 @@
           <button class="btn-close" @click="closeModal">&times;</button>
         </div>
 
-        <form @submit.prevent="saveTransaction" class="modal-form">
+        <form @submit.prevent="saveTransaction" class="modal-form" novalidate>
           <div class="form-row">
             <div class="form-group">
               <label for="amount">Monto (COP)</label>
-              <input type="number" id="amount" v-model.number="form.amount" placeholder="0" required min="1" />
+              <input type="number" id="amount" v-model.number="form.amount" placeholder="0" min="1" step="any" inputmode="decimal" />
             </div>
 
             <div class="form-group">
               <label for="date">Fecha</label>
-              <input type="date" id="date" v-model="form.date" required />
+              <input type="date" id="date" v-model="form.date" />
             </div>
           </div>
 
@@ -1224,9 +1224,13 @@ export default {
       const limit = parseFloat(matchedBudget.limit)
       const spent = parseFloat(matchedBudget.spent)
       const typingAmount = parseFloat(form.value.amount)
+      const newTotal = spent + typingAmount
+      const percentage = Math.round((newTotal / limit) * 100)
 
-      if (spent + typingAmount > limit) {
-        return `Registrar este gasto de ${formatCurrency(typingAmount)} superará tu presupuesto de ${formatCurrency(limit)} para esta categoría (actualmente has gastado ${formatCurrency(spent)}).`
+      if (newTotal > limit) {
+        return `🚨 ¡Alerta de Presupuesto! Con este gasto de ${formatCurrency(typingAmount)} superarás el 100% de tu límite asignado (${formatCurrency(newTotal)} de ${formatCurrency(limit)}).`
+      } else if (percentage >= 80) {
+        return `⚠️ ¡Alerta! Con este gasto alcanzarás el ${percentage}% de tu presupuesto mensual para esta categoría (${formatCurrency(newTotal)} de ${formatCurrency(limit)}).`
       }
       return null
     })

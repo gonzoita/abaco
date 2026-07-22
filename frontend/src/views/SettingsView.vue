@@ -144,6 +144,45 @@
       </div>
     </div>
 
+    <!-- Fila de Reportes Financieros Ejecutivos & Estado de Resultados P&L (Ubicado justo después de Categorías) -->
+    <div class="glass-card reports-export-panel" style="margin-bottom:24px;">
+      <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px; margin-bottom:16px;">
+        <div>
+          <h3 class="card-title text-gradient-green" style="margin:0; display:flex; align-items:center; gap:8px;">
+            <i class="fa-solid fa-file-invoice-dollar" style="color:#10b981;"></i> Reportes Financieros & Estado de Resultados (P&L)
+          </h3>
+          <p class="card-subtitle" style="margin:4px 0 0 0;">Genera informes contables impresos en PDF, exporta a Excel o analiza el Estado de Resultados de tu Negocio.</p>
+        </div>
+
+        <!-- Selector de Mes y Año -->
+        <div style="display:flex; gap:10px; align-items:center;">
+          <select v-model.number="reportMonth" style="height:36px; border-radius:8px; border:1px solid var(--card-border); background:rgba(0,0,0,0.2); color:var(--text-primary); padding:0 10px; font-size:13px; outline:none;">
+            <option v-for="(m, i) in monthNames" :key="i" :value="i + 1">{{ m }}</option>
+          </select>
+          <select v-model.number="reportYear" style="height:36px; border-radius:8px; border:1px solid var(--card-border); background:rgba(0,0,0,0.2); color:var(--text-primary); padding:0 10px; font-size:13px; outline:none;">
+            <option v-for="y in [2024, 2025, 2026, 2027]" :key="y" :value="y">{{ y }}</option>
+          </select>
+        </div>
+      </div>
+
+      <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap:12px;">
+        <button @click="downloadReport('html')" class="btn-primary" style="display:flex; align-items:center; justify-content:center; gap:8px; height:42px; font-size:13px; border-radius:8px;">
+          <i class="fa-solid fa-file-pdf"></i>
+          <span>Descargar Reporte PDF</span>
+        </button>
+
+        <button @click="downloadReport('csv')" class="btn-secondary" style="display:flex; align-items:center; justify-content:center; gap:8px; height:42px; font-size:13px; border-radius:8px;">
+          <i class="fa-solid fa-file-excel" style="color:#10b981;"></i>
+          <span>Exportar a Excel / CSV</span>
+        </button>
+
+        <button @click="openPnlModal" class="btn-primary" style="background:linear-gradient(135deg, #0ea5e9, #6366f1); display:flex; align-items:center; justify-content:center; gap:8px; height:42px; font-size:13px; border-radius:8px;">
+          <i class="fa-solid fa-chart-line"></i>
+          <span>Estado de Resultados (P&L)</span>
+        </button>
+      </div>
+    </div>
+
     <!-- Tercera Fila (Al Final): Respaldo y Zona de Peligro -->
     <div class="glass-card tools-card" style="margin-bottom:24px;">
       <h3 class="card-title text-gradient-green">
@@ -234,6 +273,81 @@
             </button>
           </div>
         </form>
+      </div>
+    </div>
+
+    <!-- MODAL ESTADO DE RESULTADOS (P&L MODO NEGOCIO) -->
+    <div v-if="showPnlModal" class="modal-overlay" @click.self="showPnlModal = false">
+      <div class="glass-card modal-content" style="max-width:680px; width:92%; padding:24px; border-radius:16px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--card-border); padding-bottom:14px; margin-bottom:16px;">
+          <div>
+            <h3 style="font-size:18px; font-weight:700; color:var(--text-primary); margin:0; display:flex; align-items:center; gap:8px;">
+              <i class="fa-solid fa-chart-line" style="color:#0ea5e9;"></i> Estado de Resultados (P&L)
+            </h3>
+            <span style="font-size:12.5px; color:var(--text-secondary);">{{ form.business_name || 'Mi Negocio' }} • {{ monthNames[reportMonth - 1] }} {{ reportYear }}</span>
+          </div>
+          <button class="btn-close" @click="showPnlModal = false">&times;</button>
+        </div>
+
+        <div v-if="pnlLoading" style="text-align:center; padding:30px 0; color:var(--text-muted);">
+          <i class="fa-solid fa-spinner fa-spin" style="font-size:24px; color:var(--color-primary);"></i>
+          <p style="margin-top:10px; font-size:13px;">Generando Estado de Resultados P&L...</p>
+        </div>
+
+        <div v-else-if="pnlData" style="display:flex; flex-direction:column; gap:16px;">
+          <!-- 1. Ventas e Ingresos Operativos -->
+          <div style="background:rgba(48,209,88,0.1); border:1px solid rgba(48,209,88,0.3); border-radius:12px; padding:16px; display:flex; justify-content:space-between; align-items:center;">
+            <div>
+              <span style="font-size:11px; text-transform:uppercase; font-weight:700; color:#30d158; letter-spacing:0.5px;">(+) Ventas e Ingresos Operativos</span>
+              <h2 style="margin:4px 0 0 0; font-size:22px; font-weight:800; color:var(--text-primary);">{{ formatCurrency(pnlData.totals?.ingresos || 0) }}</h2>
+            </div>
+            <i class="fa-solid fa-arrow-trend-up" style="font-size:32px; color:rgba(48,209,88,0.4);"></i>
+          </div>
+
+          <!-- 2. Costos & Gastos Operativos -->
+          <div style="background:rgba(255,69,58,0.1); border:1px solid rgba(255,69,58,0.3); border-radius:12px; padding:16px; display:flex; justify-content:space-between; align-items:center;">
+            <div>
+              <span style="font-size:11px; text-transform:uppercase; font-weight:700; color:#ff453a; letter-spacing:0.5px;">(-) Costos & Gastos Operativos</span>
+              <h2 style="margin:4px 0 0 0; font-size:22px; font-weight:800; color:var(--text-primary);">{{ formatCurrency(pnlData.totals?.egresos || 0) }}</h2>
+            </div>
+            <i class="fa-solid fa-arrow-trend-down" style="font-size:32px; color:rgba(255,69,58,0.4);"></i>
+          </div>
+
+          <!-- 3. Utilidad / Ganancia Neta -->
+          <div :style="{ background: (pnlData.totals?.neto || 0) >= 0 ? 'rgba(56,189,248,0.15)' : 'rgba(239,68,68,0.15)', borderColor: (pnlData.totals?.neto || 0) >= 0 ? '#38bdf8' : '#ef4444' }" style="border:1px solid; border-radius:12px; padding:16px; display:flex; justify-content:space-between; align-items:center;">
+            <div>
+              <span style="font-size:11.5px; text-transform:uppercase; font-weight:700; letter-spacing:0.5px;" :style="{ color: (pnlData.totals?.neto || 0) >= 0 ? '#38bdf8' : '#ef4444' }">
+                (=) Utilidad Neta Operativa (P&L)
+              </span>
+              <h2 style="margin:4px 0 0 0; font-size:24px; font-weight:800; color:var(--text-primary);">{{ formatCurrency(pnlData.totals?.neto || 0) }}</h2>
+            </div>
+            <div style="text-align:right;">
+              <span style="font-size:12px; font-weight:700; color:var(--text-muted);">Margen Operativo:</span>
+              <h3 style="margin:2px 0 0 0; font-size:18px; font-weight:800; color:var(--text-primary);">
+                {{ (pnlData.totals?.ingresos || 0) > 0 ? (((pnlData.totals?.neto || 0) / (pnlData.totals?.ingresos || 1)) * 100).toFixed(1) : '0' }}%
+              </h3>
+            </div>
+          </div>
+
+          <!-- Desglose por Categorías de Gasto del Negocio -->
+          <div v-if="pnlData.categories && pnlData.categories.length > 0" style="margin-top:4px;">
+            <h4 style="font-size:13px; font-weight:700; color:var(--text-secondary); margin-bottom:10px;">Desglose de Gastos Operativos por Categoría:</h4>
+            <div style="display:flex; flex-direction:column; gap:6px; max-height:160px; overflow-y:auto;">
+              <div v-for="cat in pnlData.categories" :key="cat.name" style="display:flex; justify-content:space-between; align-items:center; padding:8px 12px; background:rgba(255,255,255,0.03); border-radius:8px; border:1px solid var(--card-border); font-size:12.5px;">
+                <span style="display:flex; align-items:center; gap:8px;">
+                  <i :class="'fa-solid ' + cat.icon" :style="{ color: cat.color }"></i>
+                  <strong>{{ cat.name }}</strong>
+                </span>
+                <span style="font-weight:700; color:var(--text-primary);">{{ formatCurrency(cat.total) }}</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Botón Imprimir P&L -->
+          <button @click="downloadReport('html')" class="btn-primary" style="margin-top:10px; height:42px; font-size:13.5px; border-radius:8px; display:flex; align-items:center; justify-content:center; gap:8px;">
+            <i class="fa-solid fa-print"></i> Imprimir / Exportar Estado de Resultados a PDF
+          </button>
+        </div>
       </div>
     </div>
   </div>
@@ -562,6 +676,55 @@ export default {
       }
     }
 
+    const monthNames = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre']
+    const reportMonth = ref(new Date().getMonth() + 1)
+    const reportYear = ref(new Date().getFullYear())
+
+    const downloadReport = (format) => {
+      const token = localStorage.getItem('token')
+      const url = `${API_BASE}/export_report.php?format=${format}&month=${reportMonth.value}&year=${reportYear.value}&token=${token}`
+      window.open(url, '_blank')
+    }
+
+    const showPnlModal = ref(false)
+    const pnlLoading = ref(false)
+    const pnlData = ref(null)
+
+    const openPnlModal = async () => {
+      showPnlModal.value = true
+      pnlLoading.value = true
+      const token = localStorage.getItem('token')
+      try {
+        const res = await fetch(`${API_BASE}/reports.php?month=${reportMonth.value}&year=${reportYear.value}`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        })
+        const data = await res.json()
+        pnlData.value = data
+      } catch (e) {
+        console.error(e)
+      } finally {
+        pnlLoading.value = false
+      }
+    }
+
+    const formatCurrency = (val) => {
+      let currencyCode = 'COP'
+      try {
+        const user = JSON.parse(localStorage.getItem('user'))
+        if (user && user.currency) {
+          currencyCode = user.currency
+        }
+      } catch (e) {}
+
+      const locale = currencyCode === 'COP' ? 'es-CO' : (currencyCode === 'MXN' ? 'es-MX' : (currencyCode === 'USD' ? 'en-US' : 'de-DE'))
+      return new Intl.NumberFormat(locale, {
+        style: 'currency',
+        currency: currencyCode,
+        minimumFractionDigits: currencyCode === 'USD' || currencyCode === 'EUR' ? 2 : 0,
+        maximumFractionDigits: currencyCode === 'USD' || currencyCode === 'EUR' ? 2 : 0
+      }).format(val)
+    }
+
     onMounted(() => {
       fetchSettings()
       fetchCategories()
@@ -591,7 +754,16 @@ export default {
       closeCategoryModal,
       geminiApiKey,
       aiKeySuccessMsg,
-      saveGeminiKey
+      saveGeminiKey,
+      monthNames,
+      reportMonth,
+      reportYear,
+      downloadReport,
+      showPnlModal,
+      pnlLoading,
+      pnlData,
+      openPnlModal,
+      formatCurrency
     }
   }
 }
