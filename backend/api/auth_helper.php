@@ -30,6 +30,10 @@ function authenticate() {
         $authHeader = $headers['Authorization'];
     } elseif (isset($headers['authorization'])) {
         $authHeader = $headers['authorization'];
+    } elseif (isset($_SERVER['HTTP_AUTHORIZATION'])) {
+        $authHeader = $_SERVER['HTTP_AUTHORIZATION'];
+    } elseif (isset($_GET['token']) && !empty($_GET['token'])) {
+        $authHeader = 'Bearer ' . trim($_GET['token']);
     }
 
     if (empty($authHeader)) {

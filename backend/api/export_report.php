@@ -19,20 +19,23 @@ $user = $stmtUser->fetch();
 $userName = $user['name'] ?? 'Usuario';
 $currency = $user['currency'] ?? 'COP';
 
-// Transacciones del mes solicitado
+$tWsCond = get_workspace_sql_clause('t.workspace');
+$aWsCond = get_workspace_sql_clause('workspace');
+
+// Transacciones del mes solicitado por workspace
 $stmtTx = $db->prepare("
     SELECT t.date, t.type, t.amount, t.description, t.tags, c.name as category_name, a.name as account_name
     FROM transactions t
     LEFT JOIN categories c ON t.category_id = c.id
     LEFT JOIN accounts a ON t.account_id = a.id
-    WHERE t.user_id = ? AND MONTH(t.date) = ? AND YEAR(t.date) = ?
+    WHERE t.user_id = ? AND {$tWsCond} AND MONTH(t.date) = ? AND YEAR(t.date) = ?
     ORDER BY t.date DESC
 ");
 $stmtTx->execute([$userId, $month, $year]);
 $transactions = $stmtTx->fetchAll();
 
-// Cuentas del usuario
-$stmtAccounts = $db->prepare("SELECT name, type, balance FROM accounts WHERE user_id = ?");
+// Cuentas del usuario por workspace
+$stmtAccounts = $db->prepare("SELECT name, type, balance FROM accounts WHERE user_id = ? AND {$aWsCond}");
 $stmtAccounts->execute([$userId]);
 $accounts = $stmtAccounts->fetchAll();
 
