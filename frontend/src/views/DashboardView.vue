@@ -766,7 +766,7 @@ export default {
         form.value.amount = data.amount || 0
         form.value.description = data.description || 'Gasto registrado por voz'
         form.value.tags = data.tags || ''
-        form.value.date = new Date().toISOString().split('T')[0]
+        form.value.date = formatDateForInput(new Date())
 
         if (data.category_id) {
           form.value.category_id = data.category_id
@@ -779,8 +779,12 @@ export default {
           }
         }
 
-        if (data.account_id) {
-          form.value.account_id = data.account_id
+        // Garantizar que la cuenta nunca quede vacía al procesar por voz
+        const defaultAccountId = accounts.value[0]?.id || ''
+        if (data.account_id && accounts.value.some(a => a.id === parseInt(data.account_id))) {
+          form.value.account_id = parseInt(data.account_id)
+        } else {
+          form.value.account_id = defaultAccountId
         }
 
         editingTransaction.value = null

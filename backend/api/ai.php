@@ -183,17 +183,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $categoriesList = [];
         $accountsList = [];
         try {
+            $aWsCond = get_workspace_sql_clause('workspace');
             $stmtC = $db->prepare("SELECT id, name, type FROM categories WHERE user_id = ? OR is_default = 1");
             $stmtC->execute([$userId]);
             $categoriesList = $stmtC->fetchAll(PDO::FETCH_ASSOC);
 
-            $stmtA = $db->prepare("SELECT id, name, type FROM accounts WHERE user_id = ?");
+            $stmtA = $db->prepare("SELECT id, name, type FROM accounts WHERE user_id = ? AND {$aWsCond}");
             $stmtA->execute([$userId]);
             $accountsList = $stmtA->fetchAll(PDO::FETCH_ASSOC);
         } catch (Exception $e) {}
 
         $categoriesJson = json_encode($categoriesList, JSON_UNESCAPED_UNICODE);
         $accountsJson = json_encode($accountsList, JSON_UNESCAPED_UNICODE);
+        $defaultAccId = !empty($accountsList) ? $accountsList[0]['id'] : null;
 
         $prompt = "Eres el motor de análisis de voz de la aplicación Ábaco. "
                 . "El usuario acaba de dictar por micrófono: \"{$transcript}\".\n"
@@ -203,7 +205,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 . "- 'description': título o concepto del gasto (ej: 'Cine', 'Gasolina', 'Almuerzo'). Capitaliza la primera letra.\n"
                 . "- 'category_name': el nombre de la categoría más adecuada (ej: Alimentación, Transporte, Entretenimiento, Salud, Servicios Públicos, Vivienda, Educación, Compras, Salario).\n"
                 . "- 'category_id': ID entero de la categoría si coincide en este listado: {$categoriesJson}, o null si no existe.\n"
-                . "- 'account_id': ID entero de la cuenta mencionada en este listado: {$accountsJson}, o el ID de la primera cuenta por defecto.\n"
+                . "- 'account_id': ID entero de la cuenta mencionada en este listado: {$accountsJson}. Si no menciona ninguna cuenta explícitamente, retorna el ID de la primera cuenta por defecto ({$defaultAccId}).\n"
                 . "- 'tags': hashtags relevantes si aplica (ej: '#Cine', '#Gasolina').\n"
                 . "No incluyas markdown, formato ni texto adicional. Devuelve solo el JSON puro.";
 
