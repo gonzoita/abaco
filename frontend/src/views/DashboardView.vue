@@ -951,13 +951,33 @@ export default {
       }
     }
 
+    const formatDateForInput = (d) => {
+      if (!d) return new Date().toISOString().split('T')[0]
+      if (typeof d === 'string') {
+        const clean = d.trim().split('T')[0].split(' ')[0]
+        if (/^\d{4}-\d{2}-\d{2}$/.test(clean)) {
+          return clean
+        }
+      }
+      try {
+        const dt = new Date(d)
+        if (!isNaN(dt.getTime())) {
+          const year = dt.getFullYear()
+          const month = String(dt.getMonth() + 1).padStart(2, '0')
+          const day = String(dt.getDate()).padStart(2, '0')
+          return `${year}-${month}-${day}`
+        }
+      } catch (e) {}
+      return new Date().toISOString().split('T')[0]
+    }
+
     // Modal helpers
     const openTransactionModal = (type) => {
       editingTransaction.value = null
       modalType.value = type
       form.value = {
         amount: '',
-        date: new Date().toISOString().split('T')[0],
+        date: formatDateForInput(new Date()),
         description: '',
         tags: '',
         account_id: accounts.value[0]?.id || '',
@@ -978,7 +998,7 @@ export default {
       modalType.value = tx.type
       form.value = {
         amount: Math.abs(tx.amount), // en positivo para el input
-        date: tx.date,
+        date: formatDateForInput(tx.date),
         description: tx.description,
         tags: tx.tags || '',
         account_id: tx.account_id,
@@ -992,6 +1012,9 @@ export default {
     const saveTransaction = async () => {
       formLoading.value = true
       modalError.value = ''
+
+      // Sanitizar la fecha al formato estricto YYYY-MM-DD exigido por HTML5
+      form.value.date = formatDateForInput(form.value.date)
 
       const token = localStorage.getItem('token')
       const isEdit = !!editingTransaction.value
@@ -1012,7 +1035,13 @@ export default {
           })
         })
 
-        const data = await response.json()
+        const responseText = await response.text()
+        let data
+        try {
+          data = JSON.parse(responseText)
+        } catch (e) {
+          throw new Error('Respuesta inválida del servidor: ' + responseText.substring(0, 100))
+        }
 
         if (!response.ok) {
           throw new Error(data.error || 'Error al guardar la transacción.')
