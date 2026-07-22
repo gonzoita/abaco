@@ -60,29 +60,35 @@
     </div>
 
     <!-- Modal Reproductor de Video -->
-    <div class="modal-overlay" :class="{ active: activeVideo !== null }" @click.self="activeVideo = null">
-      <div class="glass-card modal-content" style="max-width:720px; width:92%; padding:20px; border-radius:16px;">
+    <div v-if="activeVideo" class="modal-overlay active" @click.self="activeVideo = null" style="position:fixed; inset:0; background:rgba(0,0,0,0.75); backdrop-filter:blur(6px); display:flex; align-items:center; justify-content:center; z-index:9999; padding:16px;">
+      <div class="glass-card modal-content" style="max-width:760px; width:100%; padding:20px; border-radius:16px; background:var(--card-bg); border:1px solid var(--card-border); box-shadow:0 20px 50px rgba(0,0,0,0.5);">
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;">
-          <h3 style="font-size:17px; font-weight:700; color:var(--text-primary); margin:0;">{{ activeVideo?.title }}</h3>
-          <button class="close-sheet-btn" @click="activeVideo = null"><i class="fa-solid fa-xmark"></i></button>
+          <h3 style="font-size:16px; font-weight:700; color:var(--text-primary); margin:0; line-height:1.3;">{{ activeVideo.title }}</h3>
+          <button class="btn-close" @click="activeVideo = null" style="background:none; border:none; color:var(--text-secondary); font-size:22px; cursor:pointer; padding:4px 8px;">&times;</button>
         </div>
         
-        <div v-if="activeVideo" class="video-embed-wrapper" style="position:relative; padding-bottom:56.25%; height:0; overflow:hidden; border-radius:12px; background:#000;">
+        <div class="video-embed-wrapper" style="position:relative; width:100%; aspect-ratio:16/9; border-radius:12px; overflow:hidden; background:#000; display:flex; align-items:center; justify-content:center;">
           <iframe 
             v-if="activeVideo.embedUrl" 
             :src="activeVideo.embedUrl" 
-            style="position:absolute; top:0; left:0; width:100%; height:100%; border:0;" 
+            style="width:100%; height:100%; border:0;" 
             allowfullscreen 
-            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
           ></iframe>
-          <video v-else-if="activeVideo.url" controls autoplay style="position:absolute; top:0; left:0; width:100%; height:100%;">
+          <video v-else-if="activeVideo.url" controls autoplay style="width:100%; height:100%;">
             <source :src="activeVideo.url" type="video/mp4" />
             Tu navegador no soporta reproducción de video.
           </video>
         </div>
-        <p style="margin-top:14px; font-size:13px; color:var(--text-secondary); line-height:1.5;">
-          {{ activeVideo?.description }}
-        </p>
+
+        <div style="margin-top:14px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
+          <span style="font-size:11px; font-weight:700; color:#38bdf8; text-transform:uppercase;">
+            Categoría: {{ activeVideo.category }}
+          </span>
+          <p style="font-size:13px; color:var(--text-secondary); margin:0; line-height:1.4; flex:1 1 100%;">
+            {{ activeVideo.description }}
+          </p>
+        </div>
       </div>
     </div>
   </div>
