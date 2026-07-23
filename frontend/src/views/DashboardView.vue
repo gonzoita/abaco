@@ -1483,12 +1483,26 @@ export default {
   background: rgba(11, 15, 25, 0.35);
   border-radius: var(--radius-sm);
   border: 1px solid rgba(255,255,255,0.03);
+  gap: 10px;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .rem-info {
   display: flex;
   flex-direction: column;
   gap: 4px;
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+}
+
+.rem-title-text {
+  font-size: 14px;
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .rem-badge {
@@ -1498,6 +1512,7 @@ export default {
   padding: 2px 6px;
   border-radius: 4px;
   align-self: flex-start;
+  flex-shrink: 0;
 }
 
 .badge-tarjeta {
@@ -1528,7 +1543,8 @@ export default {
 .rem-action {
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 12px;
+  flex-shrink: 0;
 }
 
 .due-date {
@@ -1778,6 +1794,8 @@ body.light-theme .trial-badge {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 8px;
+  width: 100%;
 }
 
 .category-name-badge {
@@ -1785,18 +1803,26 @@ body.light-theme .trial-badge {
   align-items: center;
   gap: 8px;
   font-weight: 500;
-  font-size: 15px;
+  font-size: 14.5px;
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .color-dot {
   width: 10px;
   height: 10px;
   border-radius: 50%;
+  flex-shrink: 0;
 }
 
 .category-amount {
   font-weight: 600;
-  font-size: 15px;
+  font-size: 14.5px;
+  flex-shrink: 0;
+  white-space: nowrap;
 }
 
 .progress-bar-bg {
@@ -1851,17 +1877,21 @@ body.light-theme .trial-badge {
   display: flex;
   flex-direction: column;
   gap: 12px;
+  width: 100%;
 }
 
 .transaction-item {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 12px 16px;
+  padding: 12px 14px;
   background: var(--bg-primary);
   border: 1px solid var(--card-border);
   border-radius: var(--radius-sm);
   transition: var(--transition-smooth);
+  width: 100%;
+  box-sizing: border-box;
+  gap: 8px;
 }
 
 .transaction-item:hover {
@@ -1871,42 +1901,55 @@ body.light-theme .trial-badge {
 .tx-info {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
 }
 
 .tx-icon {
-  width: 40px;
-  height: 40px;
+  width: 36px;
+  height: 36px;
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
+  flex-shrink: 0;
 }
 
 .icon-svg {
-  width: 20px;
-  height: 20px;
+  width: 18px;
+  height: 18px;
 }
 
 .tx-title {
-  font-size: 15px;
+  font-size: 14px;
   font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .tx-meta {
-  font-size: 12px;
+  font-size: 11.5px;
   color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .tx-actions {
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 8px;
+  flex-shrink: 0;
 }
 
 .tx-amount {
   font-weight: 700;
-  font-size: 16px;
+  font-size: 14px;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .btn-delete, .btn-edit-action-small {
@@ -1920,6 +1963,7 @@ body.light-theme .trial-badge {
   display: flex;
   align-items: center;
   justify-content: center;
+  flex-shrink: 0;
 }
 
 .btn-delete:hover {
@@ -1933,8 +1977,8 @@ body.light-theme .trial-badge {
 }
 
 .btn-delete svg, .btn-edit-action-small svg {
-  width: 16px;
-  height: 16px;
+  width: 15px;
+  height: 15px;
 }
 
 /* Estilos de modal */
