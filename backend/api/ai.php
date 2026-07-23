@@ -34,7 +34,7 @@ if (empty($apiKeyToUse)) {
  * Función auxiliar para realizar peticiones HTTP a la API de Gemini con reintentos para picos de demanda
  */
 function callGemini($payload, $apiKey) {
-    $url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=" . $apiKey;
+    $url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=" . $apiKey;
 
     $maxAttempts = 4;
     $lastDecoded = null;
@@ -225,6 +225,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         try {
             $result = callGemini($payload, $apiKeyToUse);
+            // Reintento de contingencia sin responseMimeType si falla
+            if (isset($result['error'])) {
+                unset($payload['generationConfig']['responseMimeType']);
+                $result = callGemini($payload, $apiKeyToUse);
+            }
+
             if (isset($result['error'])) {
                 http_response_code(500);
                 echo json_encode(["error" => $result['error']['message'] ?? 'Error al procesar voz con IA']);
@@ -232,10 +238,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
 
             $rawText = $result['candidates'][0]['content']['parts'][0]['text'] ?? '{}';
-            $jsonText = preg_replace('/^```json\s*/', '', trim($rawText));
-            $jsonText = preg_replace('/```$/', '', trim($jsonText));
+            $cleanText = preg_replace('/```(?:json)?/i', '', $rawText);
+            $cleanText = trim($cleanText);
 
-            echo $jsonText;
+            $parsedData = json_decode($cleanText, true);
+            if (!$parsedData) {
+                // Extraer el bloque JSON de la respuesta si vino rodeado de texto
+                if (preg_match('/\{.*\}/s', $cleanText, $matches)) {
+                    $parsedData = json_decode($matches[0], true);
+                }
+            }
+
+            if (!$parsedData) {
+                $parsedData = [
+                    "type" => "egreso",
+                    "amount" => 0,
+                    "description" => $transcript,
+                    "account_id" => $defaultAccId
+                ];
+            }
+
+            if (empty($parsedData['account_id']) && $defaultAccId) {
+                $parsedData['account_id'] = $defaultAccId;
+            }
+
+            echo json_encode($parsedData, JSON_UNESCAPED_UNICODE);
         } catch (Exception $e) {
             http_response_code(500);
             echo json_encode(["error" => "Error al interpretar dictado: " . $e->getMessage()]);

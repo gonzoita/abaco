@@ -114,7 +114,7 @@
       </div>
 
       <div v-if="showFilterDrawer" class="filter-row" style="display:flex; flex-wrap:wrap; gap:12px; align-items:center; margin-top:12px; padding-top:12px; border-top:1px solid rgba(255,255,255,0.08);">
-        <div class="filter-group" style="flex:1; min-width:140px;">
+        <div class="filter-group" style="flex:1 1 140px; width:100%;">
           <label style="display:block; font-size:11px; color:var(--text-secondary); margin-bottom:4px; font-weight:600;">Modo Rango</label>
           <select v-model="filterRangeMode" style="width:100%; height:38px; border-radius:8px; border:1px solid var(--card-border); background:rgba(255,255,255,0.05); color:var(--text-primary); padding:0 8px; font-size:13px; outline:none;">
             <option value="month">Por Mes</option>
@@ -123,7 +123,7 @@
           </select>
         </div>
 
-        <div v-if="filterRangeMode === 'month'" class="filter-group" style="flex:1.2; min-width:160px; display:flex; gap:8px;">
+        <div v-if="filterRangeMode === 'month'" class="filter-group" style="flex:1 1 180px; width:100%; display:flex; gap:8px;">
           <div style="flex:1.5;">
             <label style="display:block; font-size:11px; color:var(--text-secondary); margin-bottom:4px; font-weight:600;">Mes</label>
             <select v-model.number="filterMonth" style="width:100%; height:38px; border-radius:8px; border:1px solid var(--card-border); background:rgba(255,255,255,0.05); color:var(--text-primary); padding:0 8px; font-size:13px; outline:none;">
@@ -151,7 +151,7 @@
           </div>
         </div>
 
-        <div v-if="filterRangeMode === 'custom'" class="filter-group" style="flex:2; min-width:240px; display:flex; gap:8px;">
+        <div v-if="filterRangeMode === 'custom'" class="filter-group" style="flex:1 1 200px; width:100%; display:flex; gap:8px;">
           <div style="flex:1;">
             <label style="display:block; font-size:11px; color:var(--text-secondary); margin-bottom:4px; font-weight:600;">Desde</label>
             <input type="date" v-model="filterStartDate" style="width:100%; height:38px; border-radius:8px; border:1px solid var(--card-border); background:rgba(255,255,255,0.05); color:var(--text-primary); padding:0 8px; font-size:13px; outline:none;" />
@@ -162,7 +162,7 @@
           </div>
         </div>
 
-        <button @click="applyDateFilters" class="btn-primary" style="height:38px; margin-top:19px; padding:0 16px; font-size:13px; border-radius:8px; display:flex; align-items:center; gap:6px;">
+        <button @click="applyDateFilters" class="btn-primary" style="height:38px; margin-top:19px; padding:0 16px; font-size:13px; border-radius:8px; display:flex; align-items:center; gap:6px; flex:1 1 auto; justify-content:center;">
           <i class="fa-solid fa-rotate"></i> Aplicar
         </button>
       </div>
