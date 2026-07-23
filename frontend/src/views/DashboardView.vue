@@ -563,9 +563,14 @@
           "Pagué 120.000 de gasolina con Bancolombia #Viaje"
         </div>
 
-        <!-- Transcripción en tiempo real -->
-        <div v-if="voiceTranscript || isRecording" style="min-height:54px; background:rgba(0,0,0,0.25); border:1px solid var(--card-border); border-radius:8px; padding:12px; font-size:14px; font-weight:600; color:var(--text-primary); margin-bottom:18px; word-break:break-word;">
-          {{ voiceTranscript || 'Escuchando tu voz...' }}
+        <!-- Transcripción en tiempo real / Edición de texto libre -->
+        <div style="margin-bottom:18px;">
+          <textarea 
+            v-model="voiceTranscript" 
+            placeholder="Dicta con el micrófono o escribe aquí tu frase (ej: Pagué 45.000 en cine con Nequi)..." 
+            rows="3" 
+            style="width:100%; border-radius:12px; border:1px solid var(--card-border); background:rgba(0,0,0,0.3); color:var(--text-primary); padding:12px; font-size:14px; font-weight:600; outline:none; resize:none; box-sizing:border-box;"
+          ></textarea>
         </div>
 
         <div v-if="voiceProcessing" style="display:flex; flex-direction:column; align-items:center; gap:8px; margin-bottom:16px; color:#a855f7;">
@@ -574,15 +579,19 @@
         </div>
 
         <div style="display:flex; gap:10px; justify-content:center; flex-wrap:wrap;">
-          <button v-if="!isRecording && !voiceProcessing" class="btn-primary" @click="startListening" style="background:#a855f7; border:none; padding:10px 20px;">
-            <i class="fa-solid fa-microphone"></i> Iniciar Dictado
+          <button v-if="!isRecording" class="btn-primary" @click="startListening" :disabled="voiceProcessing" style="background:#a855f7; border:none; padding:10px 18px; border-radius:8px; font-weight:700;">
+            <i class="fa-solid fa-microphone"></i> Dictar por Voz
           </button>
 
-          <button v-if="isRecording" class="btn-success" @click="stopListeningAndProcess" style="padding:10px 20px;">
+          <button v-else class="btn-danger" @click="stopListeningOnly" style="padding:10px 18px; border-radius:8px; font-weight:700;">
+            <i class="fa-solid fa-stop"></i> Detener Micrófono
+          </button>
+
+          <button class="btn-success" @click="stopListeningAndProcess" :disabled="voiceProcessing" style="padding:10px 18px; border-radius:8px; font-weight:700;">
             <i class="fa-solid fa-wand-magic-sparkles"></i> Procesar con IA
           </button>
 
-          <button class="btn-secondary" @click="closeVoiceModal" style="padding:10px 20px;">Cancelar</button>
+          <button class="btn-secondary" @click="closeVoiceModal" style="padding:10px 16px; border-radius:8px;">Cancelar</button>
         </div>
       </div>
     </div>
@@ -694,13 +703,18 @@ export default {
     const startListening = () => {
       const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition
       if (!SpeechRecognition) {
-        alert('Tu navegador o dispositivo no soporta entrada por voz en vivo. Te recomendamos usar Chrome en Android o Escritorio.')
+        alert('Tu navegador no soporta micrófono directo, pero puedes escribir tu gasto en el recuadro y presionar Procesar con IA.')
         return
       }
 
+      if (recognition) {
+        try { recognition.stop() } catch (e) {}
+      }
+
+      const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent)
       recognition = new SpeechRecognition()
       recognition.lang = 'es-ES'
-      recognition.continuous = true
+      recognition.continuous = !isMobile
       recognition.interimResults = true
 
       recognition.onstart = () => {
@@ -712,7 +726,9 @@ export default {
         for (let i = event.resultIndex; i < event.results.length; i++) {
           current += event.results[i][0].transcript
         }
-        voiceTranscript.value = current
+        if (current.trim()) {
+          voiceTranscript.value = current
+        }
       }
 
       recognition.onerror = (event) => {
@@ -724,17 +740,26 @@ export default {
         isRecording.value = false
       }
 
-      recognition.start()
+      try {
+        recognition.start()
+      } catch (e) {
+        console.error('Error al iniciar micrófono:', e)
+      }
     }
 
-    const stopListeningAndProcess = async () => {
+    const stopListeningOnly = () => {
       if (recognition) {
         try { recognition.stop() } catch (e) {}
       }
       isRecording.value = false
+    }
 
-      if (!voiceTranscript.value.trim()) {
-        alert('No escuchamos ninguna palabra. Por favor vuelve a pulsar Iniciar Dictado e intenta hablar de nuevo.')
+    const stopListeningAndProcess = async () => {
+      stopListeningOnly()
+
+      const textToProcess = voiceTranscript.value ? voiceTranscript.value.trim() : ''
+      if (!textToProcess) {
+        alert('Por favor habla por el micrófono o escribe una frase en el recuadro (ej: "Pagué 45.000 en cine con Nequi").')
         return
       }
 
@@ -753,7 +778,7 @@ export default {
         const res = await fetch(`${API_BASE}/ai.php?action=voice_transaction`, {
           method: 'POST',
           headers,
-          body: JSON.stringify({ transcript: voiceTranscript.value })
+          body: JSON.stringify({ transcript: textToProcess })
         })
 
         const data = await res.json()
@@ -764,7 +789,7 @@ export default {
         // Llenar formulario automáticamente con lo interpretado por la IA
         modalType.value = data.type || 'egreso'
         form.value.amount = data.amount || 0
-        form.value.description = data.description || 'Gasto registrado por voz'
+        form.value.description = data.description || textToProcess
         form.value.tags = data.tags || ''
         form.value.date = formatDateForInput(new Date())
 
@@ -791,7 +816,7 @@ export default {
         showVoiceModal.value = false
         showModal.value = true
       } catch (err) {
-        alert('Error IA: ' + err.message)
+        alert('Error al procesar: ' + err.message)
       } finally {
         voiceProcessing.value = false
       }
@@ -1376,6 +1401,7 @@ export default {
       voiceProcessing,
       startVoiceDictation,
       startListening,
+      stopListeningOnly,
       stopListeningAndProcess,
       closeVoiceModal,
       categorySearchQuery,
