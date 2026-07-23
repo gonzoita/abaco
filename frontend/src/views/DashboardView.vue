@@ -374,10 +374,10 @@
                 <!-- Icono de categoría real de FontAwesome -->
                 <i :class="['fa-solid', tx.category_icon || 'fa-tag']" style="font-size:14px;"></i>
               </div>
-              <div>
+              <div class="tx-details">
                 <h4 class="tx-title">
                   {{ tx.description || tx.category_name }}
-                  <span v-if="tx.tags" style="font-size:10px; background:rgba(139,92,246,0.15); color:var(--color-accent); padding:2px 6px; border-radius:4px; margin-left:6px; font-weight:600;">
+                  <span v-if="tx.tags" style="font-size:9.5px; background:rgba(139,92,246,0.15); color:var(--color-accent); padding:2px 5px; border-radius:4px; margin-left:4px; font-weight:600; display:inline-block;">
                     {{ tx.tags }}
                   </span>
                 </h4>
@@ -1803,12 +1803,11 @@ body.light-theme .trial-badge {
   align-items: center;
   gap: 8px;
   font-weight: 500;
-  font-size: 14.5px;
+  font-size: 14px;
   min-width: 0;
   flex: 1;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  word-break: break-word;
+  white-space: normal;
 }
 
 .color-dot {
@@ -1820,7 +1819,7 @@ body.light-theme .trial-badge {
 
 .category-amount {
   font-weight: 600;
-  font-size: 14.5px;
+  font-size: 14px;
   flex-shrink: 0;
   white-space: nowrap;
 }
@@ -1849,6 +1848,8 @@ body.light-theme .trial-badge {
 .transactions-section {
   display: flex;
   flex-direction: column;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .section-header {
@@ -1876,15 +1877,16 @@ body.light-theme .trial-badge {
 .transactions-list {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 10px;
   width: 100%;
+  box-sizing: border-box;
 }
 
 .transaction-item {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 12px 14px;
+  padding: 10px 12px;
   background: var(--bg-primary);
   border: 1px solid var(--card-border);
   border-radius: var(--radius-sm);
@@ -1904,7 +1906,11 @@ body.light-theme .trial-badge {
   gap: 10px;
   min-width: 0;
   flex: 1;
-  overflow: hidden;
+}
+
+.tx-details {
+  min-width: 0;
+  flex: 1;
 }
 
 .tx-icon {
@@ -1923,31 +1929,32 @@ body.light-theme .trial-badge {
 }
 
 .tx-title {
-  font-size: 14px;
+  font-size: 13.5px;
   font-weight: 500;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  white-space: normal;
+  word-break: break-word;
+  line-height: 1.35;
+  color: var(--text-primary);
 }
 
 .tx-meta {
-  font-size: 11.5px;
+  font-size: 11px;
   color: var(--text-muted);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  white-space: normal;
+  word-break: break-word;
+  margin-top: 2px;
 }
 
 .tx-actions {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   flex-shrink: 0;
 }
 
 .tx-amount {
   font-weight: 700;
-  font-size: 14px;
+  font-size: 13.5px;
   white-space: nowrap;
   flex-shrink: 0;
 }
