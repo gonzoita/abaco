@@ -34,7 +34,7 @@ if (empty($apiKeyToUse)) {
  * Función auxiliar para realizar peticiones HTTP a la API de Gemini con reintentos para picos de demanda
  */
 function callGemini($payload, $apiKey) {
-    $models = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash-latest', 'gemini-flash-latest', 'gemini-1.5-flash'];
+    $models = ['gemini-2.0-flash', 'gemini-1.5-flash-latest', 'gemini-1.5-flash', 'gemini-flash-latest'];
     $lastDecoded = null;
 
     foreach ($models as $modelName) {
@@ -73,9 +73,8 @@ function callGemini($payload, $apiKey) {
                 if (strpos($errMsg, 'api_key_invalid') !== false || strpos($errMsg, 'invalid api key') !== false) {
                     return $decoded;
                 }
-                // Si el modelo no existe o no es soportado por esa clave/API, pasar al siguiente modelo
                 if (strpos($errMsg, 'not found') !== false || strpos($errMsg, 'not supported') !== false) {
-                    break; // romper reintentos del modelo actual y probar el siguiente en el foreach
+                    break;
                 }
                 if (strpos($errMsg, 'high demand') !== false || strpos($errMsg, 'overloaded') !== false || strpos($errMsg, '503') !== false || strpos($errMsg, 'resource_exhausted') !== false || strpos($errMsg, 'quota') !== false) {
                     sleep(1);
@@ -87,6 +86,64 @@ function callGemini($payload, $apiKey) {
     }
 
     return $lastDecoded ?? ["error" => ["message" => "Google Gemini no pudo procesar la solicitud. Verifica tu clave de API."]];
+}
+
+function fallbackVoiceParser($transcript, $categoriesList, $accountsList, $defaultAccId) {
+    $clean = mb_strtolower($transcript);
+    
+    // Tipo
+    $type = 'egreso';
+    if (preg_match('/ingreso|sueldo|salario|venta|cobr|abono|gananci|recib/i', $clean)) {
+        $type = 'ingreso';
+    }
+
+    // Monto
+    $amount = 0;
+    if (preg_match('/(\d+(?:[\.,]\d+)?)\s*(?:mil|k)/i', $clean, $m)) {
+        $num = (float)str_replace(',', '.', $m[1]);
+        $amount = (int)($num * 1000);
+    } elseif (preg_match('/(\d+(?:[\.,]\d+)?)\s*(?:millon|millón|millones|m)/i', $clean, $m)) {
+        $num = (float)str_replace(',', '.', $m[1]);
+        $amount = (int)($num * 1000000);
+    } elseif (preg_match('/\$?\s*(\d+[\d\.,]*)/i', $clean, $m)) {
+        $cleanNum = preg_replace('/[^\d]/', '', $m[1]);
+        $amount = (int)$cleanNum;
+    }
+
+    // Descripción
+    $desc = mb_convert_case(trim($transcript), MB_CASE_TITLE, "UTF-8");
+
+    // Categoría
+    $catId = null;
+    $catName = null;
+    foreach ($categoriesList as $cat) {
+        $cName = mb_strtolower($cat['name']);
+        if (strpos($clean, $cName) !== false) {
+            $catId = $cat['id'];
+            $catName = $cat['name'];
+            break;
+        }
+    }
+
+    // Cuenta
+    $accId = $defaultAccId;
+    foreach ($accountsList as $acc) {
+        $aName = mb_strtolower($acc['name']);
+        if (strpos($clean, $aName) !== false) {
+            $accId = $acc['id'];
+            break;
+        }
+    }
+
+    return [
+        "type" => $type,
+        "amount" => $amount,
+        "description" => $desc,
+        "category_id" => $catId,
+        "category_name" => $catName,
+        "account_id" => $accId,
+        "tags" => ""
+    ];
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -234,31 +291,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $result = callGemini($payload, $apiKeyToUse);
             }
 
-            if (isset($result['error'])) {
-                http_response_code(500);
-                echo json_encode(["error" => $result['error']['message'] ?? 'Error al procesar voz con IA']);
-                exit();
-            }
+            $parsedData = null;
+            if (!isset($result['error'])) {
+                $rawText = $result['candidates'][0]['content']['parts'][0]['text'] ?? '{}';
+                $cleanText = preg_replace('/```(?:json)?/i', '', $rawText);
+                $cleanText = trim($cleanText);
 
-            $rawText = $result['candidates'][0]['content']['parts'][0]['text'] ?? '{}';
-            $cleanText = preg_replace('/```(?:json)?/i', '', $rawText);
-            $cleanText = trim($cleanText);
-
-            $parsedData = json_decode($cleanText, true);
-            if (!$parsedData) {
-                // Extraer el bloque JSON de la respuesta si vino rodeado de texto
-                if (preg_match('/\{.*\}/s', $cleanText, $matches)) {
+                $parsedData = json_decode($cleanText, true);
+                if (!$parsedData && preg_match('/\{.*\}/s', $cleanText, $matches)) {
                     $parsedData = json_decode($matches[0], true);
                 }
             }
 
-            if (!$parsedData) {
-                $parsedData = [
-                    "type" => "egreso",
-                    "amount" => 0,
-                    "description" => $transcript,
-                    "account_id" => $defaultAccId
-                ];
+            // Fallback de análisis inteligente local en PHP si la IA no entregó JSON válido
+            if (!$parsedData || !is_array($parsedData)) {
+                $parsedData = fallbackVoiceParser($transcript, $categoriesList, $accountsList, $defaultAccId);
             }
 
             if (empty($parsedData['account_id']) && $defaultAccId) {
@@ -267,8 +314,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             echo json_encode($parsedData, JSON_UNESCAPED_UNICODE);
         } catch (Exception $e) {
-            http_response_code(500);
-            echo json_encode(["error" => "Error al interpretar dictado: " . $e->getMessage()]);
+            $fallback = fallbackVoiceParser($transcript, $categoriesList, $accountsList, $defaultAccId);
+            echo json_encode($fallback, JSON_UNESCAPED_UNICODE);
         }
         exit();
     }
