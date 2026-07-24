@@ -315,13 +315,14 @@ export default {
       router.push({ path: '/', query: { action: actionType, t: Date.now() } })
     }
 
-    // Interceptor global de fetch para inyectar automáticamente la cabecera X-Workspace
+    // Interceptor global de fetch para inyectar automáticamente la cabecera X-Workspace y parámetro ?workspace=...
     if (!window._fetchPatched) {
       const originalFetch = window.fetch
       window.fetch = function(url, options = {}) {
         options = options || {}
         options.headers = options.headers || {}
         const ws = localStorage.getItem('active_workspace') || 'personal'
+
         if (options.headers instanceof Headers) {
           options.headers.set('X-Workspace', ws)
         } else if (Array.isArray(options.headers)) {
@@ -329,6 +330,13 @@ export default {
         } else {
           options.headers['X-Workspace'] = ws
         }
+
+        // Garantizar el envío del parámetro URL workspace a los endpoints del backend
+        if (typeof url === 'string' && (url.includes('/api/') || url.includes('.php')) && !url.includes('workspace=')) {
+          const sep = url.includes('?') ? '&' : '?'
+          url = `${url}${sep}workspace=${ws}`
+        }
+
         return originalFetch(url, options)
       }
       window._fetchPatched = true

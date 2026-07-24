@@ -36,6 +36,17 @@ if ($method === 'GET') {
         $stmt = $db->prepare("SELECT * FROM accounts WHERE user_id = ? AND {$wsCond} ORDER BY id DESC");
         $stmt->execute([$userId]);
         $accounts = $stmt->fetchAll();
+
+        // Auto-crear cuentas iniciales del negocio si el espacio business está vacío
+        if ($workspace === 'business' && empty($accounts)) {
+            $stmtSeed = $db->prepare("INSERT INTO accounts (user_id, name, type, balance, currency, workspace) VALUES (?, ?, ?, ?, ?, ?)");
+            $stmtSeed->execute([$userId, 'Caja Chica Negocio', 'efectivo', 0.00, 'COP', 'business']);
+            $stmtSeed->execute([$userId, 'Cuenta Banco Empresa', 'banco', 0.00, 'COP', 'business']);
+
+            $stmt->execute([$userId]);
+            $accounts = $stmt->fetchAll();
+        }
+
         echo json_encode($accounts);
     }
     exit();

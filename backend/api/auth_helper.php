@@ -67,17 +67,32 @@ function authenticate() {
  * Obtiene el espacio de trabajo activo ('personal' o 'business') enviado en la cabecera X-Workspace o por parámetro GET.
  */
 function get_active_workspace() {
-    $headers = getallheaders();
     $ws = '';
 
-    if (isset($headers['X-Workspace'])) {
-        $ws = trim($headers['X-Workspace']);
-    } elseif (isset($headers['x-workspace'])) {
-        $ws = trim($headers['x-workspace']);
-    } elseif (isset($_SERVER['HTTP_X_WORKSPACE'])) {
-        $ws = trim($_SERVER['HTTP_X_WORKSPACE']);
-    } elseif (isset($_GET['workspace'])) {
+    // 1. Intentar desde $_GET o $_POST primero (máxima prioridad explícita)
+    if (isset($_GET['workspace']) && !empty($_GET['workspace'])) {
         $ws = trim($_GET['workspace']);
+    } elseif (isset($_POST['workspace']) && !empty($_POST['workspace'])) {
+        $ws = trim($_POST['workspace']);
+    }
+
+    // 2. Intentar desde cabeceras HTTP si no vino por URL
+    if (empty($ws)) {
+        $headers = function_exists('getallheaders') ? getallheaders() : [];
+        foreach ($headers as $key => $val) {
+            if (strtolower($key) === 'x-workspace') {
+                $ws = trim($val);
+                break;
+            }
+        }
+    }
+
+    // 3. Fallbacks de variables de servidor CGI/Nginx/Apache
+    if (empty($ws) && isset($_SERVER['HTTP_X_WORKSPACE'])) {
+        $ws = trim($_SERVER['HTTP_X_WORKSPACE']);
+    }
+    if (empty($ws) && isset($_SERVER['REDIRECT_HTTP_X_WORKSPACE'])) {
+        $ws = trim($_SERVER['REDIRECT_HTTP_X_WORKSPACE']);
     }
 
     $ws = strtolower($ws);

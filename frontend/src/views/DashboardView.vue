@@ -870,7 +870,11 @@ export default {
     const fetchData = async () => {
       loading.value = true
       const token = localStorage.getItem('token')
-      const headers = { 'Authorization': `Bearer ${token}` }
+      const ws = localStorage.getItem('active_workspace') || 'personal'
+      const headers = { 
+        'Authorization': `Bearer ${token}`,
+        'X-Workspace': ws
+      }
 
       try {
         // 1. Cargar Cuentas
