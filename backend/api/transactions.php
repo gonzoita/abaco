@@ -92,7 +92,9 @@ if ($method === 'GET') {
 
 if ($method === 'POST') {
     $accountId = intval($input['account_id'] ?? 0);
-    $categoryId = isset($input['category_id']) ? intval($input['category_id']) : null;
+    $rawCatId = isset($input['category_id']) ? intval($input['category_id']) : 0;
+    $categoryId = ($rawCatId > 0) ? $rawCatId : null;
+
     $type = trim($input['type'] ?? ''); // ingreso, egreso, transferencia
     $amount = floatval($input['amount'] ?? 0.00);
     $description = trim($input['description'] ?? '');
@@ -106,7 +108,8 @@ if ($method === 'POST') {
     }
     
     // Específico para transferencias
-    $transferToAccountId = isset($input['transfer_to_account_id']) ? intval($input['transfer_to_account_id']) : null;
+    $rawTransDest = isset($input['transfer_to_account_id']) ? intval($input['transfer_to_account_id']) : 0;
+    $transferToAccountId = ($rawTransDest > 0) ? $rawTransDest : null;
     
     // Específico para compras diferidas en cuotas (tarjetas)
     $installmentsTotal = intval($input['installments_total'] ?? 1);
@@ -140,13 +143,18 @@ if ($method === 'POST') {
             }
         }
 
-        // Insertar la transacción (incluyendo tags y workspace si las columnas existen)
+        // Insertar la transacción con soporte multi-esquema
         try {
             $stmtInsert = $db->prepare("INSERT INTO transactions (user_id, account_id, category_id, type, amount, description, tags, date, receipt_url, installments_total, installments_current, transfer_to_account_id, workspace) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)");
             $stmtInsert->execute([$userId, $accountId, $categoryId, $type, $amount, $description, $tags ?: null, $date, $receiptUrl ?: null, $installmentsTotal, $transferToAccountId, $workspace]);
         } catch (Exception $e) {
-            $stmtInsert = $db->prepare("INSERT INTO transactions (user_id, account_id, category_id, type, amount, description, date, receipt_url, installments_total, installments_current, transfer_to_account_id, workspace) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)");
-            $stmtInsert->execute([$userId, $accountId, $categoryId, $type, $amount, $description, $date, $receiptUrl ?: null, $installmentsTotal, $transferToAccountId, $workspace]);
+            try {
+                $stmtInsert = $db->prepare("INSERT INTO transactions (user_id, account_id, category_id, type, amount, description, date, receipt_url, installments_total, installments_current, transfer_to_account_id, workspace) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)");
+                $stmtInsert->execute([$userId, $accountId, $categoryId, $type, $amount, $description, $date, $receiptUrl ?: null, $installmentsTotal, $transferToAccountId, $workspace]);
+            } catch (Exception $e2) {
+                $stmtInsert = $db->prepare("INSERT INTO transactions (user_id, account_id, category_id, type, amount, description, date, receipt_url, installments_total, installments_current, transfer_to_account_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)");
+                $stmtInsert->execute([$userId, $accountId, $categoryId, $type, $amount, $description, $date, $receiptUrl ?: null, $installmentsTotal, $transferToAccountId]);
+            }
         }
         $newTransactionId = $db->lastInsertId();
 
@@ -265,13 +273,16 @@ if ($method === 'PUT') {
 
         // 3. ACTUALIZACIÓN: Leer nuevos valores y actualizar la transacción
         $accountId = intval($input['account_id'] ?? 0);
-        $categoryId = isset($input['category_id']) && $input['category_id'] !== '' ? intval($input['category_id']) : null;
+        $rawCatId = isset($input['category_id']) ? intval($input['category_id']) : 0;
+        $categoryId = ($rawCatId > 0) ? $rawCatId : null;
+
         $type = trim($input['type'] ?? '');
         $amount = floatval($input['amount'] ?? 0.00);
         $description = trim($input['description'] ?? '');
         $date = trim($input['date'] ?? '');
         $installmentsTotal = isset($input['installments_total']) ? intval($input['installments_total']) : 1;
-        $transferToAccountId = isset($input['transfer_to_account_id']) && $input['transfer_to_account_id'] !== '' ? intval($input['transfer_to_account_id']) : null;
+        $rawTransDest = isset($input['transfer_to_account_id']) ? intval($input['transfer_to_account_id']) : 0;
+        $transferToAccountId = ($rawTransDest > 0) ? $rawTransDest : null;
         $receiptUrl = isset($input['receipt_url']) ? trim($input['receipt_url']) : null;
 
         if ($accountId <= 0 || empty($type) || $amount <= 0 || empty($date)) {

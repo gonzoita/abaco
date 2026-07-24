@@ -46,8 +46,13 @@ if ($method === 'POST') {
     }
 
     try {
-        $stmt = $db->prepare("INSERT INTO categories (user_id, name, icon, color, type, workspace) VALUES (?, ?, ?, ?, ?, ?)");
-        $stmt->execute([$userId, $name, $icon, $color, $type, $workspace]);
+        try {
+            $stmt = $db->prepare("INSERT INTO categories (user_id, name, icon, color, type, workspace) VALUES (?, ?, ?, ?, ?, ?)");
+            $stmt->execute([$userId, $name, $icon, $color, $type, $workspace]);
+        } catch (Exception $e) {
+            $stmt = $db->prepare("INSERT INTO categories (user_id, name, icon, color, type) VALUES (?, ?, ?, ?, ?)");
+            $stmt->execute([$userId, $name, $icon, $color, $type]);
+        }
         
         $newId = $db->lastInsertId();
         echo json_encode([
