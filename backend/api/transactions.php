@@ -170,7 +170,8 @@ if ($method === 'POST') {
         $db->beginTransaction();
 
         // Validar que la cuenta origen pertenezca al usuario
-        $stmtAcc = $db->prepare("SELECT balance, type, tax_exempt FROM accounts WHERE id = ? AND user_id = ?");
+        // Usamos SELECT * para evitar fallos si tax_exempt aún no existe en la BD
+        $stmtAcc = $db->prepare("SELECT * FROM accounts WHERE id = ? AND user_id = ?");
         $stmtAcc->execute([$accountId, $userId]);
         $accountSource = $stmtAcc->fetch();
         if (!$accountSource) {
@@ -242,7 +243,7 @@ if ($method === 'POST') {
 
         // --- CÁLCULO E INSERCIÓN DEL IMPUESTO 4x1000 (GMF) ---
         // Si no está exenta (tax_exempt = 0) y es un egreso o transferencia
-        if (isset($accountSource['tax_exempt']) && $accountSource['tax_exempt'] == 0 && ($type === 'egreso' || $type === 'transferencia')) {
+        if (intval($accountSource['tax_exempt'] ?? 0) == 0 && ($type === 'egreso' || $type === 'transferencia')) {
             $taxAmount = $amount * 0.004; // 0.4%
             if ($taxAmount > 0) {
                 // Buscar la categoría "Gastos Bancarios"
@@ -268,10 +269,12 @@ if ($method === 'POST') {
             "transaction_id" => $newTransactionId
         ]);
 
-    } catch (Exception $e) {
-        $db->rollBack();
+    } catch (Throwable $e) {
+        if ($db->inTransaction()) {
+            $db->rollBack();
+        }
         http_response_code(500);
-        echo json_encode(["error" => "Error al agregar la transacción: " . $e->getMessage()]);
+        echo json_encode(["error" => "Error al agregar la transacción: " . $e->getMessage()], JSON_UNESCAPED_UNICODE);
     }
     exit();
 }
@@ -294,11 +297,11 @@ if ($method === 'PUT') {
             throw new Exception("Transacción original no encontrada o sin permisos.");
         }
 
-        // Obtener exención de impuestos de la cuenta origen original
-        $stmtOldAcc = $db->prepare("SELECT tax_exempt FROM accounts WHERE id = ?");
+        // Obtener datos de la cuenta origen original (SELECT * para tolerar columnas variables)
+        $stmtOldAcc = $db->prepare("SELECT * FROM accounts WHERE id = ?");
         $stmtOldAcc->execute([$oldTx['account_id']]);
         $oldAcc = $stmtOldAcc->fetch();
-        $oldTaxExempt = $oldAcc ? $oldAcc['tax_exempt'] : 0;
+        $oldTaxExempt = $oldAcc ? intval($oldAcc['tax_exempt'] ?? 0) : 0;
 
         // 2. REVERSIÓN: Deshacer impacto de saldo de la transacción original
         $oldAmount = floatval($oldTx['amount']);
@@ -354,8 +357,8 @@ if ($method === 'PUT') {
             throw new Exception("Cuenta, tipo, fecha y monto mayor a cero son obligatorios.");
         }
 
-        // Cargar datos de la nueva cuenta
-        $stmtNewAcc = $db->prepare("SELECT tax_exempt FROM accounts WHERE id = ? AND user_id = ?");
+        // Cargar datos de la nueva cuenta (SELECT * para tolerar columnas variables)
+        $stmtNewAcc = $db->prepare("SELECT * FROM accounts WHERE id = ? AND user_id = ?");
         $stmtNewAcc->execute([$accountId, $userId]);
         $newAcc = $stmtNewAcc->fetch();
         if (!$newAcc) {
@@ -422,7 +425,7 @@ if ($method === 'PUT') {
         }
 
         // Calcular e insertar nuevo impuesto 4x1000 si aplica
-        if ($newAcc['tax_exempt'] == 0 && ($type === 'egreso' || $type === 'transferencia')) {
+        if (intval($newAcc['tax_exempt'] ?? 0) == 0 && ($type === 'egreso' || $type === 'transferencia')) {
             $taxAmount = $amount * 0.004;
             if ($taxAmount > 0) {
                 $stmtGetCat = $db->prepare("SELECT id FROM categories WHERE name = 'Gastos Bancarios' AND (user_id IS NULL OR user_id = ?) LIMIT 1");
@@ -441,10 +444,12 @@ if ($method === 'PUT') {
         $db->commit();
         echo json_encode(["message" => "Transacción actualizada y saldos recalculados con éxito."]);
 
-    } catch (Exception $e) {
-        $db->rollBack();
+    } catch (Throwable $e) {
+        if ($db->inTransaction()) {
+            $db->rollBack();
+        }
         http_response_code(500);
-        echo json_encode(["error" => "Error al actualizar la transacción: " . $e->getMessage()]);
+        echo json_encode(["error" => "Error al actualizar la transacción: " . $e->getMessage()], JSON_UNESCAPED_UNICODE);
     }
     exit();
 }
@@ -496,10 +501,12 @@ if ($method === 'DELETE') {
         $db->commit();
         echo json_encode(["message" => "Transacción eliminada y saldos revertidos con éxito."]);
 
-    } catch (Exception $e) {
-        $db->rollBack();
+    } catch (Throwable $e) {
+        if ($db->inTransaction()) {
+            $db->rollBack();
+        }
         http_response_code(500);
-        echo json_encode(["error" => "Error al eliminar la transacción: " . $e->getMessage()]);
+        echo json_encode(["error" => "Error al eliminar la transacción: " . $e->getMessage()], JSON_UNESCAPED_UNICODE);
     }
     exit();
 }

@@ -12,3 +12,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     http_response_code(200);
     exit();
 }
+
+// Capturar cualquier error o excepción de PHP y retornarlo en formato JSON seguro
+set_exception_handler(function ($e) {
+    if (!headers_sent()) {
+        http_response_code(500);
+    }
+    echo json_encode(["error" => "Error Servidor: " . $e->getMessage()], JSON_UNESCAPED_UNICODE);
+    exit();
+});
