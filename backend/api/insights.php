@@ -157,33 +157,38 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
         else $scoreRunway = 5;
 
         // Presupuestos cumplidos
-        $stmtBudgets = $db->prepare("
-            SELECT b.amount as limit_amt, SUM(t.amount) as spent_amt
-            FROM budgets b
-            LEFT JOIN transactions t ON b.category_id = t.category_id AND t.user_id = b.user_id AND MONTH(t.date) = MONTH(CURRENT_DATE()) AND YEAR(t.date) = YEAR(CURRENT_DATE())
-            WHERE b.user_id = ? AND b.month = MONTH(CURRENT_DATE()) AND b.year = YEAR(CURRENT_DATE())
-            GROUP BY b.id
-        ");
-        $stmtBudgets->execute([$userId]);
-        $budgets = $stmtBudgets->fetchAll();
-
         $scoreBudget = 20;
-        if (!empty($budgets)) {
-            $overBudgetCount = 0;
-            foreach ($budgets as $b) {
-                if (floatval($b['spent_amt']) > floatval($b['limit_amt'])) {
-                    $overBudgetCount++;
+        try {
+            $stmtBudgets = $db->prepare("
+                SELECT b.amount as limit_amt, SUM(t.amount) as spent_amt
+                FROM budgets b
+                LEFT JOIN transactions t ON b.category_id = t.category_id AND t.user_id = b.user_id AND MONTH(t.date) = MONTH(CURRENT_DATE()) AND YEAR(t.date) = YEAR(CURRENT_DATE())
+                WHERE b.user_id = ? AND b.month = MONTH(CURRENT_DATE()) AND b.year = YEAR(CURRENT_DATE())
+                GROUP BY b.id
+            ");
+            $stmtBudgets->execute([$userId]);
+            $budgets = $stmtBudgets->fetchAll();
+
+            if (!empty($budgets)) {
+                $overBudgetCount = 0;
+                foreach ($budgets as $b) {
+                    if (floatval($b['spent_amt']) > floatval($b['limit_amt'])) {
+                        $overBudgetCount++;
+                    }
                 }
+                if ($overBudgetCount === 0) $scoreBudget = 20;
+                elseif ($overBudgetCount === 1) $scoreBudget = 12;
+                else $scoreBudget = 5;
             }
-            if ($overBudgetCount === 0) $scoreBudget = 20;
-            elseif ($overBudgetCount === 1) $scoreBudget = 12;
-            else $scoreBudget = 5;
-        }
+        } catch (Exception $e) {}
 
         // Préstamos / Deudas
-        $stmtDeudas = $db->prepare("SELECT COUNT(*) as active_debts FROM loans WHERE user_id = ? AND type = 'por_pagar' AND status != 'finalizado'");
-        $stmtDeudas->execute([$userId]);
-        $activeDebts = intval($stmtDeudas->fetch()['active_debts'] ?? 0);
+        $activeDebts = 0;
+        try {
+            $stmtDeudas = $db->prepare("SELECT COUNT(*) as active_debts FROM loans WHERE user_id = ? AND type = 'por_pagar' AND status != 'finalizado'");
+            $stmtDeudas->execute([$userId]);
+            $activeDebts = intval($stmtDeudas->fetch()['active_debts'] ?? 0);
+        } catch (Exception $e) {}
         $scoreDebt = $activeDebts === 0 ? 10 : 5;
 
         $totalHealthScore = min(100, $scoreSavings + $scoreRunway + $scoreBudget + $scoreDebt);

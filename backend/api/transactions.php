@@ -18,6 +18,38 @@ function get_db_columns($db, $tableName) {
     return $colsCache[$tableName];
 }
 
+function insert_tax_transaction($db, $userId, $accountId, $bankCatId, $taxAmount, $taxDesc, $date, $workspace) {
+    $dataToInsert = [
+        'user_id' => $userId,
+        'account_id' => $accountId,
+        'category_id' => $bankCatId,
+        'type' => 'egreso',
+        'amount' => $taxAmount,
+        'description' => $taxDesc,
+        'date' => $date,
+        'installments_total' => 1,
+        'installments_current' => 1,
+        'workspace' => $workspace
+    ];
+
+    $dbCols = get_db_columns($db, 'transactions');
+    $fields = [];
+    $values = [];
+    $placeholders = [];
+
+    foreach ($dataToInsert as $colName => $colValue) {
+        if (empty($dbCols) || in_array(strtolower($colName), $dbCols)) {
+            $fields[] = $colName;
+            $values[] = $colValue;
+            $placeholders[] = '?';
+        }
+    }
+
+    $sqlInsert = "INSERT INTO transactions (" . implode(', ', $fields) . ") VALUES (" . implode(', ', $placeholders) . ")";
+    $stmtInsert = $db->prepare($sqlInsert);
+    $stmtInsert->execute($values);
+}
+
 $userData = authenticate();
 $userId = $userData['user_id'];
 $db = Database::getConnection();
@@ -219,10 +251,9 @@ if ($method === 'POST') {
                 $bankCat = $stmtGetCat->fetch();
                 $bankCatId = $bankCat ? $bankCat['id'] : null;
 
-                // Insertar transacción de impuesto
+                // Insertar transacción de impuesto de forma dinámica y segura
                 $taxDesc = "GMF 4x1000 - " . (empty($description) ? "Impuesto Financiero" : $description);
-                $stmtInsertTax = $db->prepare("INSERT INTO transactions (user_id, account_id, category_id, type, amount, description, date, receipt_url, installments_total, installments_current) VALUES (?, ?, ?, 'egreso', ?, ?, ?, NULL, 1, 1)");
-                $stmtInsertTax->execute([$userId, $accountId, $bankCatId, $taxAmount, $taxDesc, $date]);
+                insert_tax_transaction($db, $userId, $accountId, $bankCatId, $taxAmount, $taxDesc, $date, $workspace);
 
                 // Descontar de la cuenta
                 $stmtUpdateTaxBalance = $db->prepare("UPDATE accounts SET balance = balance - ? WHERE id = ?");
@@ -400,8 +431,7 @@ if ($method === 'PUT') {
                 $bankCatId = $bankCat ? $bankCat['id'] : null;
 
                 $taxDesc = "GMF 4x1000 - " . (empty($description) ? "Impuesto Financiero" : $description);
-                $stmtInsertTax = $db->prepare("INSERT INTO transactions (user_id, account_id, category_id, type, amount, description, date, receipt_url, installments_total, installments_current) VALUES (?, ?, ?, 'egreso', ?, ?, ?, NULL, 1, 1)");
-                $stmtInsertTax->execute([$userId, $accountId, $bankCatId, $taxAmount, $taxDesc, $date]);
+                insert_tax_transaction($db, $userId, $accountId, $bankCatId, $taxAmount, $taxDesc, $date, $workspace);
 
                 $stmtUpdateTaxBalance = $db->prepare("UPDATE accounts SET balance = balance - ? WHERE id = ?");
                 $stmtUpdateTaxBalance->execute([$taxAmount, $accountId]);
