@@ -141,14 +141,16 @@ if ($method === 'POST') {
     $rawCatId = isset($input['category_id']) ? intval($input['category_id']) : 0;
     $categoryId = ($rawCatId > 0) ? $rawCatId : null;
 
-    $type = trim($input['type'] ?? ''); // ingreso, egreso, transferencia
+    $type = trim((string)($input['type'] ?? '')); // ingreso, egreso, transferencia
     $amount = floatval($input['amount'] ?? 0.00);
-    $description = trim($input['description'] ?? '');
-    $date = trim($input['date'] ?? date('Y-m-d'));
-    $receiptUrl = trim($input['receipt_url'] ?? '');
-    $tags = trim($input['tags'] ?? '');
+    $description = trim((string)($input['description'] ?? ''));
+    $date = trim((string)($input['date'] ?? date('Y-m-d')));
+    $receiptUrl = trim((string)($input['receipt_url'] ?? ''));
+    // tags puede venir como array o string
+    $rawTags = $input['tags'] ?? '';
+    $tags = is_array($rawTags) ? implode(', ', $rawTags) : trim((string)$rawTags);
     if (empty($tags) && !empty($description)) {
-        if (preg_match_all('/#[\wñáéíóúÁÉÍÓÚ]+/u', $description, $matches)) {
+        if (preg_match_all('/#[\w\xC0-\xFF]+/u', $description, $matches)) {
             $tags = implode(', ', $matches[0]);
         }
     }
@@ -344,14 +346,15 @@ if ($method === 'PUT') {
         $rawCatId = isset($input['category_id']) ? intval($input['category_id']) : 0;
         $categoryId = ($rawCatId > 0) ? $rawCatId : null;
 
-        $type = trim($input['type'] ?? '');
+        $type = trim((string)($input['type'] ?? ''));
         $amount = floatval($input['amount'] ?? 0.00);
-        $description = trim($input['description'] ?? '');
-        $date = trim($input['date'] ?? '');
+        $description = trim((string)($input['description'] ?? ''));
+        $date = trim((string)($input['date'] ?? ''));
         $installmentsTotal = isset($input['installments_total']) ? intval($input['installments_total']) : 1;
         $rawTransDest = isset($input['transfer_to_account_id']) ? intval($input['transfer_to_account_id']) : 0;
         $transferToAccountId = ($rawTransDest > 0) ? $rawTransDest : null;
-        $receiptUrl = isset($input['receipt_url']) ? trim($input['receipt_url']) : null;
+        $rawReceipt = $input['receipt_url'] ?? null;
+        $receiptUrl = $rawReceipt !== null ? trim((string)$rawReceipt) : null;
 
         if ($accountId <= 0 || empty($type) || $amount <= 0 || empty($date)) {
             throw new Exception("Cuenta, tipo, fecha y monto mayor a cero son obligatorios.");
