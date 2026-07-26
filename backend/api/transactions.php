@@ -4,6 +4,20 @@ require_once __DIR__ . '/cors.php';
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/auth_helper.php';
 
+function get_db_columns($db, $tableName) {
+    static $colsCache = [];
+    if (!isset($colsCache[$tableName])) {
+        try {
+            $stmt = $db->query("SHOW COLUMNS FROM {$tableName}");
+            $cols = $stmt->fetchAll(PDO::FETCH_COLUMN);
+            $colsCache[$tableName] = array_map('strtolower', $cols);
+        } catch (Exception $e) {
+            $colsCache[$tableName] = [];
+        }
+    }
+    return $colsCache[$tableName];
+}
+
 $userData = authenticate();
 $userId = $userData['user_id'];
 $db = Database::getConnection();
@@ -143,19 +157,39 @@ if ($method === 'POST') {
             }
         }
 
-        // Insertar la transacción con soporte multi-esquema
-        try {
-            $stmtInsert = $db->prepare("INSERT INTO transactions (user_id, account_id, category_id, type, amount, description, tags, date, receipt_url, installments_total, installments_current, transfer_to_account_id, workspace) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)");
-            $stmtInsert->execute([$userId, $accountId, $categoryId, $type, $amount, $description, $tags ?: null, $date, $receiptUrl ?: null, $installmentsTotal, $transferToAccountId, $workspace]);
-        } catch (Exception $e) {
-            try {
-                $stmtInsert = $db->prepare("INSERT INTO transactions (user_id, account_id, category_id, type, amount, description, date, receipt_url, installments_total, installments_current, transfer_to_account_id, workspace) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)");
-                $stmtInsert->execute([$userId, $accountId, $categoryId, $type, $amount, $description, $date, $receiptUrl ?: null, $installmentsTotal, $transferToAccountId, $workspace]);
-            } catch (Exception $e2) {
-                $stmtInsert = $db->prepare("INSERT INTO transactions (user_id, account_id, category_id, type, amount, description, date, receipt_url, installments_total, installments_current, transfer_to_account_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)");
-                $stmtInsert->execute([$userId, $accountId, $categoryId, $type, $amount, $description, $date, $receiptUrl ?: null, $installmentsTotal, $transferToAccountId]);
+        // Insertar dinámicamente según las columnas reales existentes en la base de datos
+        $dataToInsert = [
+            'user_id' => $userId,
+            'account_id' => $accountId,
+            'category_id' => $categoryId,
+            'type' => $type,
+            'amount' => $amount,
+            'description' => $description,
+            'tags' => $tags ?: null,
+            'date' => $date,
+            'receipt_url' => $receiptUrl ?: null,
+            'installments_total' => $installmentsTotal,
+            'installments_current' => 1,
+            'transfer_to_account_id' => $transferToAccountId,
+            'workspace' => $workspace
+        ];
+
+        $dbCols = get_db_columns($db, 'transactions');
+        $fields = [];
+        $values = [];
+        $placeholders = [];
+
+        foreach ($dataToInsert as $colName => $colValue) {
+            if (empty($dbCols) || in_array(strtolower($colName), $dbCols)) {
+                $fields[] = $colName;
+                $values[] = $colValue;
+                $placeholders[] = '?';
             }
         }
+
+        $sqlInsert = "INSERT INTO transactions (" . implode(', ', $fields) . ") VALUES (" . implode(', ', $placeholders) . ")";
+        $stmtInsert = $db->prepare($sqlInsert);
+        $stmtInsert->execute($values);
         $newTransactionId = $db->lastInsertId();
 
         // Actualizar los saldos de las cuentas involucradas
@@ -309,9 +343,36 @@ if ($method === 'PUT') {
             }
         }
 
-        // Actualizar registro original
-        $stmtUpdate = $db->prepare("UPDATE transactions SET account_id = ?, category_id = ?, type = ?, amount = ?, description = ?, date = ?, receipt_url = ?, installments_total = ?, transfer_to_account_id = ? WHERE id = ? AND user_id = ?");
-        $stmtUpdate->execute([$accountId, $categoryId, $type, $amount, $description, $date, $receiptUrl ?: null, $installmentsTotal, $transferToAccountId, $id, $userId]);
+        // Actualizar registro original dinámicamente según las columnas reales
+        $dataToUpdate = [
+            'account_id' => $accountId,
+            'category_id' => $categoryId,
+            'type' => $type,
+            'amount' => $amount,
+            'description' => $description,
+            'date' => $date,
+            'receipt_url' => $receiptUrl ?: null,
+            'installments_total' => $installmentsTotal,
+            'transfer_to_account_id' => $transferToAccountId
+        ];
+
+        $dbCols = get_db_columns($db, 'transactions');
+        $setClauses = [];
+        $updateValues = [];
+
+        foreach ($dataToUpdate as $colName => $colValue) {
+            if (empty($dbCols) || in_array(strtolower($colName), $dbCols)) {
+                $setClauses[] = "{$colName} = ?";
+                $updateValues[] = $colValue;
+            }
+        }
+
+        $updateValues[] = $id;
+        $updateValues[] = $userId;
+
+        $sqlUpdate = "UPDATE transactions SET " . implode(', ', $setClauses) . " WHERE id = ? AND user_id = ?";
+        $stmtUpdate = $db->prepare($sqlUpdate);
+        $stmtUpdate->execute($updateValues);
 
         // 4. APLICACIÓN: Aplicar nuevos impactos de saldo
         if ($type === 'ingreso') {

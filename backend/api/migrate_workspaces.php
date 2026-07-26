@@ -30,6 +30,42 @@ try {
         }
     }
 
+    // Definir columnas adicionales requeridas por cada tabla
+    $extraColumns = [
+        'transactions' => [
+            'tags' => "VARCHAR(255) NULL",
+            'receipt_url' => "VARCHAR(255) NULL",
+            'installments_total' => "INT NOT NULL DEFAULT 1",
+            'installments_current' => "INT NOT NULL DEFAULT 1",
+            'transfer_to_account_id' => "INT NULL"
+        ],
+        'accounts' => [
+            'bank_name' => "VARCHAR(100) NULL",
+            'account_number' => "VARCHAR(50) NULL",
+            'tax_exempt' => "TINYINT(1) NOT NULL DEFAULT 0",
+            'credit_limit' => "DECIMAL(15,2) NOT NULL DEFAULT 0.00",
+            'billing_day' => "INT NULL",
+            'due_day' => "INT NULL",
+            'interest_rate' => "VARCHAR(20) NULL",
+            'term_months' => "INT NULL",
+            'payment_conditions' => "TEXT NULL"
+        ]
+    ];
+
+    foreach ($extraColumns as $tbl => $cols) {
+        $stmtTable = $db->query("SHOW TABLES LIKE '{$tbl}'");
+        if ($stmtTable->fetch()) {
+            foreach ($cols as $colName => $colDef) {
+                $stmtC = $db->prepare("SHOW COLUMNS FROM {$tbl} LIKE '{$colName}'");
+                $stmtC->execute();
+                if (!$stmtC->fetch()) {
+                    $db->exec("ALTER TABLE {$tbl} ADD COLUMN {$colName} {$colDef}");
+                    $migrated[] = "{$tbl} ({$colName})";
+                }
+            }
+        }
+    }
+
     // Verificar si existe la columna business_name en users
     $stmtUser = $db->prepare("SHOW COLUMNS FROM users LIKE 'business_name'");
     $stmtUser->execute();
