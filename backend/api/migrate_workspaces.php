@@ -63,8 +63,20 @@ try {
                     $migrated[] = "{$tbl} ({$colName})";
                 }
             }
+    // Modificar category_id para que sea NULLable en transactions
+    try {
+        $db->exec("ALTER TABLE transactions MODIFY category_id INT NULL DEFAULT NULL");
+        $migrated[] = "transactions (category_id NULLable)";
+    } catch (Exception $e) {}
+
+    // Asegurar existencia de la categoría por defecto 'Gastos Bancarios'
+    try {
+        $stmtCheckG = $db->query("SELECT id FROM categories WHERE name = 'Gastos Bancarios' LIMIT 1");
+        if (!$stmtCheckG->fetch()) {
+            $db->exec("INSERT INTO categories (name, icon, color, type, is_default) VALUES ('Gastos Bancarios', 'fa-building-columns', '#64748b', 'egreso', 1)");
+            $migrated[] = "category (Gastos Bancarios)";
         }
-    }
+    } catch (Exception $e) {}
 
     // Verificar si existe la columna business_name en users
     $stmtUser = $db->prepare("SHOW COLUMNS FROM users LIKE 'business_name'");

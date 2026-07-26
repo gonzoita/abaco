@@ -1083,16 +1083,16 @@ export default {
         })
 
         const responseText = await response.text()
-        let data
+        let data = null
         try {
           data = JSON.parse(responseText)
         } catch (e) {
           const cleanMsg = responseText.replace(/<[^>]*>?/gm, '').trim()
-          throw new Error(cleanMsg.length > 0 ? cleanMsg.substring(0, 150) : 'Error inesperado en el servidor.')
+          throw new Error(cleanMsg.length > 0 ? cleanMsg.substring(0, 200) : 'Error al comunicar con el servidor.')
         }
 
-        if (!response.ok) {
-          throw new Error(data.error || 'Error al guardar la transacción.')
+        if (!response.ok || (data && data.error)) {
+          throw new Error(data && data.error ? data.error : 'Error al guardar la transacción.')
         }
 
         closeModal()
