@@ -35,6 +35,23 @@ if ($method === 'GET') {
         $stmt->execute([$userId, $month, $year]);
         $budgets = $stmt->fetchAll();
 
+        // Si no hay presupuestos creados para este mes específico, heredar los del último mes configurado
+        if (empty($budgets) && !isset($_GET['month'])) {
+            $stmtLatest = $db->prepare("
+                SELECT year, month 
+                FROM budgets b 
+                WHERE b.user_id = ? AND {$bWsCond} 
+                ORDER BY year DESC, month DESC 
+                LIMIT 1
+            ");
+            $stmtLatest->execute([$userId]);
+            $latest = $stmtLatest->fetch();
+            if ($latest) {
+                $stmt->execute([$userId, intval($latest['month']), intval($latest['year'])]);
+                $budgets = $stmt->fetchAll();
+            }
+        }
+
         // Convertir montos a float y decodificar items_json
         foreach ($budgets as &$b) {
             $b['amount'] = floatval($b['amount']);

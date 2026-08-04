@@ -113,17 +113,35 @@ if ($method === 'GET') {
         }
 
         // 5. Comparativa de Presupuestos vs Gastos Reales por workspace
+        $bMonth = $startDate ? intval(date('m', strtotime($startDate))) : $month;
+        $bYear = $startDate ? intval(date('Y', strtotime($startDate))) : $year;
+
         $stmtBudgets = $db->prepare("
              SELECT b.id, b.category_id, b.amount, b.items_json, c.name as category_name, c.color as category_color, c.icon as category_icon
              FROM budgets b
              LEFT JOIN categories c ON b.category_id = c.id
              WHERE b.user_id = ? AND {$bWsCond} AND b.month = ? AND b.year = ?
         ");
-        $bMonth = $startDate ? intval(date('m', strtotime($startDate))) : $month;
-        $bYear = $startDate ? intval(date('Y', strtotime($startDate))) : $year;
-
         $stmtBudgets->execute([$userId, $bMonth, $bYear]);
         $budgetsRaw = $stmtBudgets->fetchAll();
+
+        // Si el usuario no ha configurado presupuestos para este mes en particular, buscar los últimos presupuestos vigentes configurados en meses anteriores
+        if (empty($budgetsRaw)) {
+            $stmtLatestPeriod = $db->prepare("
+                SELECT year, month 
+                FROM budgets b 
+                WHERE b.user_id = ? AND {$bWsCond} 
+                ORDER BY year DESC, month DESC 
+                LIMIT 1
+            ");
+            $stmtLatestPeriod->execute([$userId]);
+            $latestPeriod = $stmtLatestPeriod->fetch();
+
+            if ($latestPeriod) {
+                $stmtBudgets->execute([$userId, intval($latestPeriod['month']), intval($latestPeriod['year'])]);
+                $budgetsRaw = $stmtBudgets->fetchAll();
+            }
+        }
 
         if ($startDate && $endDate) {
             $stmtSpent = $db->prepare("
