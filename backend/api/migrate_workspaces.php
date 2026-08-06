@@ -63,6 +63,9 @@ try {
                     $migrated[] = "{$tbl} ({$colName})";
                 }
             }
+        }
+    }
+
     // Modificar category_id para que sea NULLable en transactions
     try {
         $db->exec("ALTER TABLE transactions MODIFY category_id INT NULL DEFAULT NULL");
