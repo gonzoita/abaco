@@ -4,27 +4,34 @@ header('Content-Type: text/plain; charset=UTF-8');
 
 echo "=== INICIANDO DESPLIEGUE AUTOMÁTICO ===\n";
 
-// Ejecutar git fetch y git reset --hard
+$repoPath = '/home/u787912762/domains/abaco.briela.app/public_html/.builds/source/repository';
+$publicPath = '/home/u787912762/domains/abaco.briela.app/public_html';
+
+if (file_exists($repoPath)) {
+    chdir($repoPath);
+}
+
 $output = [];
 $returnVar = 0;
 
-echo "Ejecutando: git fetch origin...\n";
+echo "1. Ejecutando: git fetch origin...\n";
 exec("git fetch origin 2>&1", $output, $returnVar);
 
-if ($returnVar !== 0) {
-    echo "Error al hacer git fetch. Salida:\n";
-    echo implode("\n", $output) . "\n";
-    exit();
-}
-
-echo "Ejecutando: git reset --hard origin/main...\n";
+echo "2. Ejecutando: git reset --hard origin/main...\n";
 exec("git reset --hard origin/main 2>&1", $output, $returnVar);
 
-echo "\n=== SALIDA DE GIT ===\n";
+if (file_exists($repoPath)) {
+    echo "3. Copiando archivos a public_html...\n";
+    exec("cp -rf {$repoPath}/* {$publicPath}/ 2>&1", $output, $returnVar);
+}
+
+if (file_exists("{$publicPath}/backend/api/migrate_workspaces.php")) {
+    echo "4. Ejecutando migración de espacios de trabajo...\n";
+    exec("php {$publicPath}/backend/api/migrate_workspaces.php 2>&1", $output, $returnVar);
+}
+
+echo "\n=== SALIDA DEL DESPLIEGUE ===\n";
 echo implode("\n", $output) . "\n";
 
-if ($returnVar === 0) {
-    echo "\n¡ÉXITO! Tu servidor de producción se ha actualizado correctamente con la última versión de GitHub.\n";
-} else {
-    echo "\nERROR durante el despliegue. Revisa la salida de arriba.\n";
-}
+echo "\n¡Proceso de despliegue finalizado!\n";
+

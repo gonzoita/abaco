@@ -94,14 +94,50 @@ if ($method === 'PUT') {
     try {
         if ($action === 'add_funds') {
             $amount = floatval($input['amount'] ?? 0.00);
-            if ($amount <= 0) {
-                throw new Exception("Monto a abonar debe ser mayor a cero.");
-            }
+            $sourceAccountId = isset($input['source_account_id']) && $input['source_account_id'] !== '' ? intval($input['source_account_id']) : null;
             
+            if ($amount <= 0) {
+                throw new Exception("El monto a abonar debe ser mayor a cero.");
+            }
+            if (!$sourceAccountId) {
+                throw new Exception("Debe seleccionar la cuenta de origen de los fondos.");
+            }
+
+            // Verificar la cuenta origen
+            $stmtAcc = $db->prepare("SELECT name, balance FROM accounts WHERE id = ? AND user_id = ?");
+            $stmtAcc->execute([$sourceAccountId, $userId]);
+            $acc = $stmtAcc->fetch();
+            if (!$acc) {
+                throw new Exception("La cuenta de origen no es válida o no existe.");
+            }
+
+            // Obtener el nombre de la meta
+            $stmtGoal = $db->prepare("SELECT name FROM savings_goals WHERE id = ? AND user_id = ?");
+            $stmtGoal->execute([$id, $userId]);
+            $goal = $stmtGoal->fetch();
+            if (!$goal) {
+                throw new Exception("La meta de ahorro no fue encontrada.");
+            }
+
+            $db->beginTransaction();
+
+            // 1. Sumar a la meta de ahorro
             $stmt = $db->prepare("UPDATE savings_goals SET current_amount = current_amount + ? WHERE id = ? AND user_id = ?");
             $stmt->execute([$amount, $id, $userId]);
-            
-            echo json_encode(["message" => "Fondos agregados a la meta exitosamente."]);
+
+            // 2. Restar del saldo de la cuenta origen
+            $stmtSub = $db->prepare("UPDATE accounts SET balance = balance - ? WHERE id = ? AND user_id = ?");
+            $stmtSub->execute([$amount, $sourceAccountId, $userId]);
+
+            // 3. Registrar la transacción de egreso
+            $desc = "Abono a meta de ahorro: " . $goal['name'];
+            $date = date('Y-m-d');
+            $stmtTx = $db->prepare("INSERT INTO transactions (user_id, account_id, type, amount, description, date, workspace) VALUES (?, ?, 'egreso', ?, ?, ?, ?)");
+            $stmtTx->execute([$userId, $sourceAccountId, $amount, $desc, $date, $workspace]);
+
+            $db->commit();
+
+            echo json_encode(["message" => "Fondos abonados y descontados de tu cuenta exitosamente."]);
         } else {
             // Actualización general
             $name = trim($input['name'] ?? '');

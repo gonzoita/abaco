@@ -10,6 +10,25 @@
       </button>
     </div>
 
+    <!-- Banner de Copia de Presupuesto Anterior (Carry-Over) -->
+    <div v-if="showCarryOverBanner" class="budget-alert-banner warning" style="display: flex; justify-content: space-between; align-items: center; padding: 14px 18px; border-radius: 12px; background: rgba(59, 130, 246, 0.15); border: 1px solid rgba(59, 130, 246, 0.3); margin-bottom: 8px;">
+      <div style="display: flex; align-items: center; gap: 12px;">
+        <i class="fa-solid fa-calendar-plus" style="font-size: 24px; color: #60a5fa;"></i>
+        <div>
+          <strong style="color: #60a5fa; font-size: 14.5px;">¿Deseas reutilizar tus presupuestos del mes anterior?</strong>
+          <p style="margin: 2px 0 0 0; font-size: 12.5px; color: var(--text-secondary);">Hemos detectado presupuestos configurados en tu historial. Puedes copiarlos a este mes con un solo clic.</p>
+        </div>
+      </div>
+      <div style="display: flex; gap: 10px; align-items: center;">
+        <button class="btn-primary" @click="copyLastMonthBudgets" :disabled="copyingBudgets" style="padding: 8px 16px; font-size: 13px;">
+          <i class="fa-solid fa-copy"></i> {{ copyingBudgets ? 'Copiando...' : 'Copiar Presupuestos' }}
+        </button>
+        <button class="btn-secondary" @click="showCarryOverBanner = false" style="padding: 8px 12px; font-size: 13px;">
+          Descartar
+        </button>
+      </div>
+    </div>
+
     <!-- Panel de presupuesto global -->
     <div class="global-budget-card glass-card" v-if="globalBudget && globalBudget.limit > 0">
       <div class="budget-meta">
@@ -374,6 +393,9 @@ export default {
       }
     }
 
+    const showCarryOverBanner = ref(false)
+    const copyingBudgets = ref(false)
+
     const fetchReports = async () => {
       const token = localStorage.getItem('token')
       try {
@@ -384,9 +406,47 @@ export default {
         if (response.ok) {
           globalBudget.value = data.global_budget
           categoryBudgets.value = data.category_budgets || []
+
+          // Si el reporte devuelve presupuestos pero queremos verificar si son heredados o si el usuario quiere clonarlos
+          if (categoryBudgets.value.length > 0) {
+            // Verificar si corresponden al mes actual de forma explícita consultando directamente a budgets.php
+            const checkRes = await fetch(`${API_BASE}/budgets.php?month=${new Date().getMonth() + 1}&year=${new Date().getFullYear()}`, {
+              headers: { 'Authorization': `Bearer ${token}` }
+            })
+            const currentMonthBudgets = await checkRes.json()
+            if (Array.isArray(currentMonthBudgets) && currentMonthBudgets.length === 0) {
+              showCarryOverBanner.value = true
+            } else {
+              showCarryOverBanner.value = false
+            }
+          } else {
+            showCarryOverBanner.value = false
+          }
         }
       } catch (err) {
         console.error(err)
+      }
+    }
+
+    const copyLastMonthBudgets = async () => {
+      copyingBudgets.value = true
+      const token = localStorage.getItem('token')
+      try {
+        const response = await fetch(`${API_BASE}/budgets.php?action=copy_from_last_month`, {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${token}` }
+        })
+        const data = await response.json()
+        if (!response.ok) {
+          throw new Error(data.error || 'Error al copiar los presupuestos.')
+        }
+
+        showCarryOverBanner.value = false
+        await fetchReports()
+      } catch (err) {
+        alert(err.message)
+      } finally {
+        copyingBudgets.value = false
       }
     }
 
@@ -635,6 +695,9 @@ export default {
     })
 
     return {
+      showCarryOverBanner,
+      copyingBudgets,
+      copyLastMonthBudgets,
       budgetCatSearch,
       searchedExpenseCategories,
       addBudgetItem,

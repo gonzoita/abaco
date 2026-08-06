@@ -146,11 +146,19 @@
           </div>
 
           <!-- Acción rápida: Ahorrar dinero -->
-          <div class="save-action-form">
-            <input type="number" placeholder="Monto a abonar" v-model.number="fundAmount[goal.id]" class="input-inline" min="1" />
-            <button class="btn-success btn-inline" @click="addFunds(goal.id)" :disabled="btnFunding[goal.id]">
-              Abonar
-            </button>
+          <div class="save-action-form" style="display: flex; flex-direction: column; gap: 8px;">
+            <select v-model="fundSourceAccount[goal.id]" class="input-inline" style="width: 100%; height: 36px;">
+              <option value="">-- Selecciona cuenta origen --</option>
+              <option v-for="acc in accounts" :key="acc.id" :value="acc.id">
+                {{ acc.name }} ({{ formatCurrency(acc.balance) }})
+              </option>
+            </select>
+            <div style="display: flex; gap: 8px;">
+              <input type="number" placeholder="Monto a abonar" v-model.number="fundAmount[goal.id]" class="input-inline" min="1" style="flex: 1;" />
+              <button class="btn-success btn-inline" @click="addFunds(goal.id)" :disabled="btnFunding[goal.id]">
+                Abonar
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -398,6 +406,7 @@ export default {
 
     // Inputs dinámicos para abonos
     const fundAmount = ref({})
+    const fundSourceAccount = ref({})
     const btnFunding = ref({})
 
     const fetchAccounts = async () => {
@@ -475,7 +484,15 @@ export default {
 
     const addFunds = async (id) => {
       const amount = fundAmount.value[id]
-      if (!amount || amount <= 0) return
+      const sourceAccountId = fundSourceAccount.value[id]
+      if (!amount || amount <= 0) {
+        alert('Por favor ingresa un monto válido a abonar.')
+        return
+      }
+      if (!sourceAccountId) {
+        alert('Por favor selecciona la cuenta de la cual saldrá el dinero del abono.')
+        return
+      }
 
       btnFunding.value[id] = true
       const token = localStorage.getItem('token')
@@ -487,7 +504,7 @@ export default {
             'Content-Type': 'application/json',
             'Authorization': `Bearer ${token}`
           },
-          body: JSON.stringify({ amount })
+          body: JSON.stringify({ amount, source_account_id: sourceAccountId })
         })
 
         if (!response.ok) {
@@ -496,6 +513,8 @@ export default {
         }
 
         fundAmount.value[id] = ''
+        fundSourceAccount.value[id] = ''
+        await fetchAccounts() // Recargar cuentas para actualizar saldos
         await fetchGoals()
       } catch (err) {
         alert(err.message)
@@ -794,6 +813,7 @@ Dame un análisis financiero y 3 o 4 consejos específicos sobre cómo puedo pag
       accountForm,
       goalForm,
       fundAmount,
+      fundSourceAccount,
       btnFunding,
       openAccountModal,
       closeAccountModal,

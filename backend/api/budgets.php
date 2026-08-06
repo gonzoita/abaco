@@ -67,6 +67,70 @@ if ($method === 'GET') {
 }
 
 if ($method === 'POST') {
+    $action = isset($_GET['action']) ? $_GET['action'] : '';
+
+    if ($action === 'copy_from_last_month') {
+        try {
+            $bWsCond = get_workspace_sql_clause('b.workspace');
+            $currentMonth = intval(date('m'));
+            $currentYear = intval(date('Y'));
+
+            // Buscar el último período que contenga presupuestos
+            $stmtLatest = $db->prepare("
+                SELECT year, month 
+                FROM budgets b 
+                WHERE b.user_id = ? AND {$bWsCond} 
+                ORDER BY year DESC, month DESC 
+                LIMIT 1
+            ");
+            $stmtLatest->execute([$userId]);
+            $latest = $stmtLatest->fetch();
+
+            if (!$latest) {
+                http_response_code(404);
+                echo json_encode(["error" => "No se encontraron presupuestos anteriores para copiar."]);
+                exit();
+            }
+
+            // Obtener los presupuestos de ese período
+            $stmtOld = $db->prepare("
+                SELECT category_id, amount, items_json 
+                FROM budgets b 
+                WHERE b.user_id = ? AND {$bWsCond} AND b.month = ? AND b.year = ?
+            ");
+            $stmtOld->execute([$userId, intval($latest['month']), intval($latest['year'])]);
+            $oldBudgets = $stmtOld->fetchAll();
+
+            $copiedCount = 0;
+            foreach ($oldBudgets as $ob) {
+                // Verificar si ya existe para este mes
+                $catId = $ob['category_id'] !== null ? intval($ob['category_id']) : null;
+                if ($catId === null) {
+                    $stmtCheck = $db->prepare("SELECT id FROM budgets WHERE user_id = ? AND (workspace IS NULL OR workspace = ?) AND category_id IS NULL AND month = ? AND year = ?");
+                    $stmtCheck->execute([$userId, $workspace, $currentMonth, $currentYear]);
+                } else {
+                    $stmtCheck = $db->prepare("SELECT id FROM budgets WHERE user_id = ? AND (workspace IS NULL OR workspace = ?) AND category_id = ? AND month = ? AND year = ?");
+                    $stmtCheck->execute([$userId, $workspace, $catId, $currentMonth, $currentYear]);
+                }
+
+                if (!$stmtCheck->fetch()) {
+                    $stmtInsert = $db->prepare("INSERT INTO budgets (user_id, category_id, amount, month, year, workspace, items_json) VALUES (?, ?, ?, ?, ?, ?, ?)");
+                    $stmtInsert->execute([$userId, $catId, $ob['amount'], $currentMonth, $currentYear, $workspace, $ob['items_json']]);
+                    $copiedCount++;
+                }
+            }
+
+            echo json_encode([
+                "message" => "Se han copiado {$copiedCount} presupuestos del período {$latest['month']}/{$latest['year']} al mes actual.",
+                "copied_count" => $copiedCount
+            ]);
+        } catch (Exception $e) {
+            http_response_code(500);
+            echo json_encode(["error" => "Error al copiar presupuestos: " . $e->getMessage()]);
+        }
+        exit();
+    }
+
     $categoryId = isset($input['category_id']) && $input['category_id'] !== '' ? intval($input['category_id']) : null;
     $amount = floatval($input['amount'] ?? 0.00);
     $month = isset($input['month']) ? intval($input['month']) : intval(date('m'));
