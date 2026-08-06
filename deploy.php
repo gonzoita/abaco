@@ -1,5 +1,6 @@
 <?php
 // deploy.php
+// (verificación de webhook real de GitHub — ver conversación del 2026-08-06)
 // Disparado por el webhook "push" de GitHub. Verifica la firma HMAC-SHA256
 // antes de tocar nada: sin esto, cualquiera que conozca la URL podría forzar
 // un despliegue (y la migración) sobre producción.
