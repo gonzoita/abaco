@@ -13,8 +13,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     exit();
 }
 
-// Capturar cualquier error o excepción de PHP y retornarlo en formato JSON seguro
+// Capturar cualquier error o excepción de PHP, dejar rastro en un log local
+// (para poder revisar qué falló sin depender de que el usuario avise) y
+// retornarlo en formato JSON seguro sin exponer detalles internos al cliente.
 set_exception_handler(function ($e) {
+    $logLine = sprintf(
+        "[%s] %s %s -> %s: %s in %s:%d\n",
+        date('Y-m-d H:i:s'),
+        $_SERVER['REQUEST_METHOD'] ?? 'CLI',
+        $_SERVER['REQUEST_URI'] ?? basename(__FILE__),
+        get_class($e),
+        $e->getMessage(),
+        $e->getFile(),
+        $e->getLine()
+    );
+    $logDir = __DIR__ . '/../logs';
+    if (!is_dir($logDir)) {
+        @mkdir($logDir, 0755, true);
+    }
+    @file_put_contents($logDir . '/error.log', $logLine, FILE_APPEND);
+
     if (!headers_sent()) {
         http_response_code(500);
     }

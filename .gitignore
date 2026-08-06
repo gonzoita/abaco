@@ -12,6 +12,8 @@ frontend/node_modules/
 Thumbs.db
 *.log
 .gemini/
+backend/logs/
+graphify-out/
 
 # IDEs
 .vscode/
