@@ -111,6 +111,12 @@
         <span>Tutoriales</span>
       </router-link>
 
+      <!-- Reportes & Suscripciones -->
+      <router-link to="/reports" class="nav-item">
+        <i class="fa-solid fa-file-invoice-dollar" style="font-size:18px;"></i>
+        <span>Reportes</span>
+      </router-link>
+
       <!-- Configuración (Solo Desktop) -->
       <router-link to="/settings" class="nav-item">
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -215,6 +221,14 @@
               <i class="fa-solid fa-film"></i>
             </span>
             <span>Tutoriales en Video</span>
+            <i class="fa-solid fa-chevron-right arrow-icon"></i>
+          </router-link>
+
+          <router-link to="/reports" class="settings-menu-item" @click="showMobileSettings = false">
+            <span class="item-icon" style="background:#5e5ce6;">
+              <i class="fa-solid fa-file-invoice-dollar"></i>
+            </span>
+            <span>Reportes & Suscripciones</span>
             <i class="fa-solid fa-chevron-right arrow-icon"></i>
           </router-link>
 

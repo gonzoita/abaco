@@ -170,7 +170,7 @@
 
     <!-- SECCIÓN DE INTELIGENCIA FINANCIERA (Health Score + Autonomía + Exportación) -->
     <div v-if="insightsData" class="insights-container" style="margin-bottom: 20px;">
-      <div class="insights-grid-row" style="display:grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap:16px;">
+      <div class="insights-grid-row">
         <!-- Tarjeta 1: Score de Salud Financiera -->
         <div class="glass-card insight-card" style="padding:18px; display:flex; flex-direction:column; justify-content:space-between; position:relative; overflow:hidden;">
           <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
@@ -225,30 +225,6 @@
             <strong :style="{ color: insightsData.forecast.projected_savings >= 0 ? 'var(--color-success)' : 'var(--color-danger)' }">
               {{ insightsData.forecast.projected_savings >= 0 ? '+' : '' }}{{ formatCurrency(insightsData.forecast.projected_savings) }}
             </strong>
-          </div>
-        </div>
-
-        <!-- Tarjeta 3: Suscripciones & Exportación de Reportes -->
-        <div class="glass-card insight-card" style="padding:18px; display:flex; flex-direction:column; justify-content:space-between;">
-          <div>
-            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
-              <h4 style="margin:0; font-size:13px; text-transform:uppercase; letter-spacing:0.5px; color:var(--text-secondary); font-weight:700;">
-                <i class="fa-solid fa-file-invoice-dollar" style="color:var(--color-accent); margin-right:6px;"></i> Reporte & Suscripciones
-              </h4>
-            </div>
-
-            <div style="font-size:13px; color:var(--text-primary); margin-bottom:12px;">
-              Suscripciones activas: <strong>{{ insightsData.subscriptions.items.length }}</strong> ({{ formatCurrency(insightsData.subscriptions.monthly_total) }}/mes)
-            </div>
-          </div>
-
-          <div style="display:flex; gap:8px;">
-            <button @click="downloadReport('html')" class="btn-primary" style="flex:1; height:36px; font-size:12px; border-radius:8px; display:flex; align-items:center; justify-content:center; gap:6px;">
-              <i class="fa-solid fa-file-pdf"></i> Reporte PDF
-            </button>
-            <button @click="downloadReport('csv')" class="btn-secondary" style="flex:1; height:36px; font-size:12px; border-radius:8px; display:flex; align-items:center; justify-content:center; gap:6px;">
-              <i class="fa-solid fa-file-excel"></i> Excel / CSV
-            </button>
           </div>
         </div>
       </div>
@@ -600,13 +576,14 @@
 
 <script>
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { API_BASE } from '../config.js'
 
 export default {
   name: 'DashboardView',
   setup() {
     const route = useRoute()
+    const router = useRouter()
     const receiptInput = ref(null)
     const user = ref({})
     const activeWorkspace = ref(localStorage.getItem('active_workspace') || 'personal')
@@ -1330,10 +1307,22 @@ export default {
       } else if (action === 'expense') {
         openTransactionModal('egreso')
       }
+      // Limpiar ?action=...&t=... de la URL una vez manejada, para que un
+      // refresh de página no vuelva a abrir el mismo modal solo.
+      if (action) {
+        router.replace({ path: route.path })
+      }
     }
 
-    watch(() => route.query.action, () => {
-      handleUrlAction()
+    // Se observa route.fullPath (no solo route.query.action) porque App.vue
+    // agrega un timestamp único (?t=...) en cada clic. Si solo observáramos
+    // "action", pulsar el mismo botón dos veces seguidas (p.ej. "Gasto" y
+    // luego "Gasto" otra vez) no dispara el watcher porque el valor de
+    // "action" no cambió, aunque sí cambió la navegación.
+    watch(() => route.fullPath, () => {
+      if (route.query.action) {
+        handleUrlAction()
+      }
     })
 
     const handleWorkspaceChanged = () => {
@@ -1722,16 +1711,62 @@ body.light-theme .trial-badge {
   height: 18px;
 }
 
-/* Acciones rápidas */
+/* Acciones rápidas: 2 columnas por defecto (móvil) para no ocupar tanto
+   espacio vertical; en pantallas más anchas pasan a una sola fila. */
 .actions-container {
   display: grid;
-  grid-template-columns: 1fr;
-  gap: 12px;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.actions-container > .btn-primary,
+.actions-container > .btn-success,
+.actions-container > .btn-ai-scan {
+  padding: 10px 8px;
+  font-size: 12.5px;
+  text-align: center;
+  white-space: normal;
+  line-height: 1.2;
+}
+
+.actions-container .btn-icon,
+.actions-container .fa-microphone,
+.actions-container svg {
+  flex-shrink: 0;
 }
 
 @media (min-width: 576px) {
   .actions-container {
-    grid-template-columns: 1fr 1fr 1.2fr;
+    grid-template-columns: 1fr 1fr 1.2fr 1.2fr;
+  }
+
+  .actions-container > .btn-primary,
+  .actions-container > .btn-success,
+  .actions-container > .btn-ai-scan {
+    padding: 10px 20px;
+    font-size: 15px;
+    white-space: nowrap;
+  }
+}
+
+/* Tarjetas de Salud/Autonomía Financiera: 2 columnas incluso en móvil para
+   ahorrar espacio vertical (antes usaban auto-fit con minmax(280px,1fr),
+   que en pantallas angostas colapsaba a 1 sola columna). */
+.insights-grid-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+@media (max-width: 480px) {
+  .insights-grid-row .insight-card {
+    padding: 14px !important;
+  }
+}
+
+@media (min-width: 768px) {
+  .insights-grid-row {
+    gap: 16px;
   }
 }
 
