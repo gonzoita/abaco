@@ -328,25 +328,33 @@ export default {
     }
 
     // Interceptor global de fetch para inyectar automáticamente la cabecera X-Workspace y parámetro ?workspace=...
+    // SOLO debe tocar peticiones a NUESTRO backend (contienen /api/ o .php):
+    // agregarle X-Workspace a peticiones externas (p.ej. googleapis.com para
+    // el respaldo en Google Drive) hace que el preflight CORS de esos
+    // servicios la rechace por ser una cabecera no permitida, y el fetch
+    // falla con el genérico "Failed to fetch" sin más detalle.
     if (!window._fetchPatched) {
       const originalFetch = window.fetch
       window.fetch = function(url, options = {}) {
         options = options || {}
-        options.headers = options.headers || {}
-        const ws = localStorage.getItem('active_workspace') || 'personal'
+        const isOwnBackend = typeof url === 'string' && (url.includes('/api/') || url.includes('.php'))
 
-        if (options.headers instanceof Headers) {
-          options.headers.set('X-Workspace', ws)
-        } else if (Array.isArray(options.headers)) {
-          options.headers.push(['X-Workspace', ws])
-        } else {
-          options.headers['X-Workspace'] = ws
-        }
+        if (isOwnBackend) {
+          options.headers = options.headers || {}
+          const ws = localStorage.getItem('active_workspace') || 'personal'
 
-        // Garantizar el envío del parámetro URL workspace a los endpoints del backend
-        if (typeof url === 'string' && (url.includes('/api/') || url.includes('.php')) && !url.includes('workspace=')) {
-          const sep = url.includes('?') ? '&' : '?'
-          url = `${url}${sep}workspace=${ws}`
+          if (options.headers instanceof Headers) {
+            options.headers.set('X-Workspace', ws)
+          } else if (Array.isArray(options.headers)) {
+            options.headers.push(['X-Workspace', ws])
+          } else {
+            options.headers['X-Workspace'] = ws
+          }
+
+          if (!url.includes('workspace=')) {
+            const sep = url.includes('?') ? '&' : '?'
+            url = `${url}${sep}workspace=${ws}`
+          }
         }
 
         return originalFetch(url, options)
