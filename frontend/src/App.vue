@@ -17,14 +17,6 @@
         <button class="theme-toggle-btn-mobile" @click="toggleTheme" title="Cambiar tema" style="background:none; border:none; color:var(--text-primary); font-size:18px; cursor:pointer;">
           <i :class="currentTheme === 'dark' ? 'fa-solid fa-sun' : 'fa-solid fa-moon'"></i>
         </button>
-        <button class="settings-toggle-btn-mobile" @click="showMobileSettings = true" title="Menú de opciones" style="background:none; border:none; padding:0; margin-left: 14px; cursor:pointer;">
-          <div class="header-menu-pill">
-            <i class="fa-solid fa-bars menu-icon-bar"></i>
-            <div class="header-profile-avatar">
-              {{ userInitials }}
-            </div>
-          </div>
-        </button>
       </div>
     </div>
 
@@ -86,6 +78,12 @@
         </svg>
         <span>Asesor IA</span>
       </router-link>
+
+      <!-- Menú de Ajustes y Perfil (Solo Móvil - antes vivía arriba en el header) -->
+      <button class="nav-item mobile-only-menu mobile-visible" @click="showMobileSettings = true">
+        <div class="nav-menu-avatar">{{ userInitials }}</div>
+        <span>Menú</span>
+      </button>
 
       <!-- Presupuestos (Solo Desktop) -->
       <router-link to="/budgets" class="nav-item">
@@ -658,47 +656,23 @@ body.light-theme .logout-color { background: #ff3b30; }
   color: var(--color-danger);
 }
 
-.header-profile-avatar {
-  width: 30px;
-  height: 30px;
+/* Avatar del ítem "Menú" en la barra inferior móvil (mismo estilo que el
+   avatar que antes vivía en el header de arriba, ahora reubicado abajo) */
+.nav-menu-avatar {
+  width: 22px;
+  height: 22px;
   border-radius: 50%;
   background: var(--color-primary);
   color: #fff;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 11px;
+  font-size: 9.5px;
   font-weight: 700;
-  box-shadow: 0 2px 8px rgba(0, 122, 255, 0.25);
-  transition: transform 0.2s ease;
 }
-.header-profile-avatar:active {
-  transform: scale(0.95);
-}
-
-.header-menu-pill {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid var(--card-border);
-  padding: 3px 3px 3px 10px;
-  border-radius: 30px;
-  transition: all 0.2s ease;
-}
-body.light-theme .header-menu-pill {
-  background: rgba(0, 0, 0, 0.03);
-}
-.header-menu-pill:hover, .header-menu-pill:active {
-  background: rgba(255, 255, 255, 0.1);
-  border-color: rgba(255, 255, 255, 0.15);
-}
-body.light-theme .header-menu-pill:hover, body.light-theme .header-menu-pill:active {
-  background: rgba(0, 0, 0, 0.06);
-}
-.menu-icon-bar {
-  font-size: 13px;
-  color: var(--text-secondary);
+.nav-item.router-link-active .nav-menu-avatar,
+.nav-item.active .nav-menu-avatar {
+  box-shadow: 0 0 0 2px var(--color-primary);
 }
 
 @media (max-width: 768px) {
