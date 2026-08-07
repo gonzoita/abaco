@@ -193,10 +193,53 @@
       <div class="tools-buttons" style="margin-top: 15px; display: flex; flex-direction: column; gap: 16px;">
         <div class="tool-action-group">
           <h4 style="font-size: 14.5px; font-weight: 500; margin-bottom: 4px;">Copia de Seguridad (SaaS Backup)</h4>
-          <p style="font-size: 12px; color: var(--text-secondary); margin-bottom: 8px;">Descarga toda tu información financiera (transacciones, presupuestos, cuentas) en formato JSON estructurado.</p>
-          <button class="btn-primary btn-tool" @click="exportData" style="width: 100%;">
-            <i class="fa-solid fa-download"></i> Exportar Respaldo JSON
-          </button>
+          <p style="font-size: 12px; color: var(--text-secondary); margin-bottom: 8px;">Descarga o restaura toda tu información financiera (transacciones, presupuestos, cuentas, categorías) en formato JSON estructurado. Restaurar es aditivo: se suma a lo que ya tienes, no lo reemplaza.</p>
+
+          <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap:10px;">
+            <button class="btn-primary btn-tool" @click="exportData" style="width: 100%;">
+              <i class="fa-solid fa-download"></i> Exportar JSON
+            </button>
+            <button class="btn-secondary btn-tool" @click="triggerImportFile" :disabled="importing" style="width: 100%;">
+              <i class="fa-solid fa-upload"></i> {{ importing ? 'Restaurando...' : 'Cargar Respaldo' }}
+            </button>
+            <input ref="importFileInput" type="file" accept="application/json" style="display:none;" @change="handleImportFile" />
+          </div>
+
+          <div style="margin-top:10px; padding-top:10px; border-top:1px solid var(--card-border);">
+            <p style="font-size:11.5px; color:var(--text-muted); margin-bottom:8px; display:flex; align-items:center; gap:6px;">
+              <i class="fa-brands fa-google-drive" style="color:#34a853;"></i> Con tu misma cuenta de Google, sin subir archivos a mano:
+            </p>
+            <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap:10px;">
+              <button class="btn-secondary btn-tool" @click="backupToDrive" :disabled="driveBackingUp" style="width:100%;">
+                <i class="fa-brands fa-google-drive"></i> {{ driveBackingUp ? 'Subiendo...' : 'Respaldar en Drive' }}
+              </button>
+              <button class="btn-secondary btn-tool" @click="restoreFromDrive" :disabled="driveRestoring" style="width:100%;">
+                <i class="fa-brands fa-google-drive"></i> {{ driveRestoring ? 'Buscando...' : 'Restaurar desde Drive' }}
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Selector de respaldo encontrado en Google Drive -->
+        <div v-if="driveFilesModal" class="modal-overlay" @click.self="driveFilesModal = false" style="position:fixed; inset:0; background:rgba(0,0,0,0.75); backdrop-filter:blur(6px); display:flex; align-items:center; justify-content:center; z-index:9999; padding:16px;">
+          <div class="glass-card" style="width:100%; max-width:420px; padding:20px; max-height:70vh; overflow-y:auto;">
+            <h3 style="margin:0 0 14px 0; font-size:16px; display:flex; align-items:center; gap:8px;">
+              <i class="fa-brands fa-google-drive" style="color:#34a853;"></i> Respaldos en Drive
+            </h3>
+            <div style="display:flex; flex-direction:column; gap:8px;">
+              <button
+                v-for="f in driveFiles"
+                :key="f.id"
+                class="btn-secondary"
+                style="width:100%; text-align:left; display:flex; flex-direction:column; gap:2px; padding:10px 12px; border-radius:8px;"
+                @click="importFromDriveFile(f.id, f.name)"
+              >
+                <strong style="font-size:13px;">{{ f.name }}</strong>
+                <span style="font-size:11px; color:var(--text-muted);">{{ f.createdTime ? new Date(f.createdTime).toLocaleString('es-CO') : '' }}</span>
+              </button>
+            </div>
+            <button class="btn-secondary" @click="driveFilesModal = false" style="width:100%; margin-top:14px; height:38px; border-radius:8px;">Cancelar</button>
+          </div>
         </div>
 
         <div class="tool-action-group danger-zone" style="border-top: 1px solid var(--card-border); padding-top: 12px;">
@@ -355,7 +398,7 @@
 
 <script>
 import { ref, onMounted } from 'vue'
-import { API_BASE } from '../config.js'
+import { API_BASE, GOOGLE_CLIENT_ID } from '../config.js'
 
 export default {
   name: 'SettingsView',
@@ -649,6 +692,212 @@ export default {
       }
     }
 
+    // Restaurar datos (aplica el resultado de import_data en el backend y
+    // recarga la app para reflejar los nuevos registros en todas las vistas)
+    const importing = ref(false)
+    const sendImport = async (backupData) => {
+      importing.value = true
+      const token = localStorage.getItem('token')
+      try {
+        const response = await fetch(`${API_BASE}/settings.php?action=import_data`, {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify(backupData)
+        })
+        const data = await response.json()
+        if (!response.ok) {
+          throw new Error(data.error || 'Error al restaurar el respaldo.')
+        }
+        const s = data.imported || {}
+        alert(
+          `Respaldo restaurado con éxito:\n` +
+          `- ${s.accounts || 0} cuentas\n` +
+          `- ${s.transactions || 0} transacciones\n` +
+          `- ${s.categories || 0} categorías\n` +
+          `- ${s.budgets || 0} presupuestos\n` +
+          `- ${s.savings_goals || 0} metas de ahorro\n` +
+          `- ${s.reminders || 0} recordatorios`
+        )
+        window.location.reload()
+      } catch (err) {
+        alert(err.message)
+      } finally {
+        importing.value = false
+      }
+    }
+
+    // Cargar respaldo desde un archivo JSON local
+    const importFileInput = ref(null)
+    const triggerImportFile = () => {
+      if (importFileInput.value) importFileInput.value.click()
+    }
+    const handleImportFile = (event) => {
+      const file = event.target.files[0]
+      event.target.value = '' // permitir volver a elegir el mismo archivo después
+      if (!file) return
+
+      const reader = new FileReader()
+      reader.onload = (e) => {
+        let backupData
+        try {
+          backupData = JSON.parse(e.target.result)
+        } catch (err) {
+          alert('El archivo seleccionado no es un JSON válido.')
+          return
+        }
+        if (!confirm('¿Restaurar este respaldo? Se agregará a tu cuenta actual, no reemplaza lo que ya tienes.')) return
+        sendImport(backupData)
+      }
+      reader.readAsText(file)
+    }
+
+    // ===== Respaldo en Google Drive (misma cuenta con la que inicias sesión) =====
+    // Reutiliza el mismo Client ID del login con Google, pidiendo permiso
+    // adicional (incremental) sólo para el scope 'drive.file': la app únicamente
+    // puede ver/editar los archivos que ella misma crea en el Drive del
+    // usuario, nunca el resto de su Drive.
+    const driveAccessToken = ref('')
+    const driveTokenExpiry = ref(0)
+    const driveBackingUp = ref(false)
+    const driveRestoring = ref(false)
+    const driveFilesModal = ref(false)
+    const driveFiles = ref([])
+    const DRIVE_FOLDER_NAME = 'Ábaco Backups'
+
+    const getDriveAccessToken = () => {
+      return new Promise((resolve, reject) => {
+        if (driveAccessToken.value && Date.now() < driveTokenExpiry.value) {
+          resolve(driveAccessToken.value)
+          return
+        }
+        if (!window.google || !window.google.accounts || !window.google.accounts.oauth2) {
+          reject(new Error('El SDK de Google todavía no cargó. Recarga la página e intenta de nuevo.'))
+          return
+        }
+        try {
+          const client = window.google.accounts.oauth2.initTokenClient({
+            client_id: GOOGLE_CLIENT_ID,
+            scope: 'https://www.googleapis.com/auth/drive.file',
+            callback: (response) => {
+              if (response.error) {
+                reject(new Error('No se pudo conectar con Google Drive: ' + response.error))
+                return
+              }
+              driveAccessToken.value = response.access_token
+              driveTokenExpiry.value = Date.now() + (response.expires_in * 1000) - 60000
+              resolve(response.access_token)
+            },
+            error_callback: (err) => {
+              reject(new Error(err && err.message ? err.message : 'Autorización de Google Drive cancelada.'))
+            }
+          })
+          client.requestAccessToken()
+        } catch (err) {
+          reject(err)
+        }
+      })
+    }
+
+    const ensureDriveFolder = async (token) => {
+      const query = `name='${DRIVE_FOLDER_NAME}' and mimeType='application/vnd.google-apps.folder' and trashed=false`
+      const searchRes = await fetch(
+        `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(query)}&fields=files(id,name)`,
+        { headers: { 'Authorization': `Bearer ${token}` } }
+      )
+      const searchData = await searchRes.json()
+      if (searchData.files && searchData.files.length > 0) {
+        return searchData.files[0].id
+      }
+      const createRes = await fetch('https://www.googleapis.com/drive/v3/files', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: DRIVE_FOLDER_NAME, mimeType: 'application/vnd.google-apps.folder' })
+      })
+      if (!createRes.ok) throw new Error('No se pudo crear la carpeta de respaldos en Drive.')
+      const createData = await createRes.json()
+      return createData.id
+    }
+
+    const backupToDrive = async () => {
+      driveBackingUp.value = true
+      try {
+        const token = await getDriveAccessToken()
+
+        const appToken = localStorage.getItem('token')
+        const res = await fetch(`${API_BASE}/settings.php?action=export_data`, {
+          headers: { 'Authorization': `Bearer ${appToken}` }
+        })
+        if (!res.ok) throw new Error('No se pudo generar el respaldo desde Ábaco.')
+        const data = await res.json()
+
+        const folderId = await ensureDriveFolder(token)
+        const fileName = `abaco_respaldo_${new Date().toISOString().split('T')[0]}_${Date.now()}.json`
+        const metadata = { name: fileName, parents: [folderId], mimeType: 'application/json' }
+        const boundary = 'abaco_boundary_' + Date.now()
+        const fileContent = JSON.stringify(data, null, 2)
+        const multipartBody =
+          `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify(metadata)}\r\n` +
+          `--${boundary}\r\nContent-Type: application/json\r\n\r\n${fileContent}\r\n--${boundary}--`
+
+        const uploadRes = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': `multipart/related; boundary=${boundary}`
+          },
+          body: multipartBody
+        })
+        if (!uploadRes.ok) {
+          const errData = await uploadRes.json().catch(() => ({}))
+          throw new Error((errData.error && errData.error.message) || 'Error al subir el archivo a Drive.')
+        }
+        alert(`Respaldo subido a Google Drive como "${fileName}" en la carpeta "${DRIVE_FOLDER_NAME}".`)
+      } catch (err) {
+        alert(err.message)
+      } finally {
+        driveBackingUp.value = false
+      }
+    }
+
+    const restoreFromDrive = async () => {
+      driveRestoring.value = true
+      try {
+        const token = await getDriveAccessToken()
+        const folderId = await ensureDriveFolder(token)
+        const listRes = await fetch(
+          `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(`'${folderId}' in parents and trashed=false`)}&orderBy=createdTime desc&fields=files(id,name,createdTime)`,
+          { headers: { 'Authorization': `Bearer ${token}` } }
+        )
+        const listData = await listRes.json()
+        driveFiles.value = listData.files || []
+        if (driveFiles.value.length === 0) {
+          alert(`No se encontraron respaldos en tu carpeta "${DRIVE_FOLDER_NAME}" de Google Drive.`)
+          return
+        }
+        driveFilesModal.value = true
+      } catch (err) {
+        alert(err.message)
+      } finally {
+        driveRestoring.value = false
+      }
+    }
+
+    const importFromDriveFile = async (fileId, fileName) => {
+      if (!confirm(`¿Restaurar el respaldo "${fileName}"? Se agregará a tu cuenta actual, no reemplaza lo que ya tienes.`)) return
+      driveFilesModal.value = false
+      try {
+        const token = await getDriveAccessToken()
+        const fileRes = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        })
+        if (!fileRes.ok) throw new Error('No se pudo descargar el archivo desde Drive.')
+        const backupData = await fileRes.json()
+        await sendImport(backupData)
+      } catch (err) {
+        alert(err.message)
+      }
+    }
+
     // Restablecer base de datos
     const resetDatabase = async () => {
       const confirm1 = confirm('¿ATENCIÓN! ¿Estás seguro de que deseas restablecer la base de datos? Se borrarán todas las transacciones, cuentas y presupuestos creados.')
@@ -746,6 +995,17 @@ export default {
       cancelEdit,
       deleteCategory,
       exportData,
+      importing,
+      importFileInput,
+      triggerImportFile,
+      handleImportFile,
+      driveBackingUp,
+      driveRestoring,
+      driveFilesModal,
+      driveFiles,
+      backupToDrive,
+      restoreFromDrive,
+      importFromDriveFile,
       resetDatabase,
       currentTheme,
       toggleTheme,

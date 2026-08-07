@@ -24,6 +24,11 @@ if ($method === 'GET') {
             $stmtUser->execute([$userId]);
             $user = $stmtUser->fetch();
 
+            // Obtener categorías personalizadas (las del sistema son globales, user_id NULL, y siempre existen)
+            $stmtCats = $db->prepare("SELECT * FROM categories WHERE user_id = ?");
+            $stmtCats->execute([$userId]);
+            $categories = $stmtCats->fetchAll();
+
             // Obtener cuentas
             $stmtAcc = $db->prepare("SELECT * FROM accounts WHERE user_id = ?");
             $stmtAcc->execute([$userId]);
@@ -51,7 +56,9 @@ if ($method === 'GET') {
 
             echo json_encode([
                 "export_date" => date('Y-m-d H:i:s'),
+                "backup_version" => 1,
                 "user" => $user,
+                "categories" => $categories,
                 "accounts" => $accounts,
                 "transactions" => $transactions,
                 "budgets" => $budgets,
@@ -126,7 +133,115 @@ if ($method === 'PUT') {
     exit();
 }
 
+/**
+ * Inserta una fila (array asociativo tomado del JSON de respaldo) en $table,
+ * quitando 'id' para dejar que el AUTO_INCREMENT asigne uno nuevo. Devuelve
+ * el nuevo ID insertado. Usa columnas dinámicas (no una lista fija) porque
+ * el export también usa SELECT *, así que ambos lados quedan en sincro
+ * aunque el esquema gane columnas nuevas más adelante.
+ */
+function import_insert_row($db, $table, $row) {
+    unset($row['id']);
+    if (empty($row)) return null;
+    $cols = array_keys($row);
+    $placeholders = implode(',', array_fill(0, count($cols), '?'));
+    $sql = "INSERT INTO {$table} (" . implode(',', $cols) . ") VALUES ({$placeholders})";
+    $stmt = $db->prepare($sql);
+    $stmt->execute(array_values($row));
+    return $db->lastInsertId();
+}
+
 if ($method === 'POST') {
+    // Restaurar/cargar un respaldo JSON previamente exportado con export_data.
+    // Es aditivo: NO borra lo que ya existe, inserta todo como registros
+    // nuevos (con IDs nuevos) y remapea las referencias entre categorías,
+    // cuentas y transacciones para que sigan apuntando correctamente.
+    if ($action === 'import_data') {
+        $backup = json_decode(file_get_contents('php://input'), true);
+
+        if (!$backup || !is_array($backup) || (!isset($backup['accounts']) && !isset($backup['transactions']))) {
+            http_response_code(400);
+            echo json_encode(["error" => "El archivo de respaldo no es válido o está corrupto."]);
+            exit();
+        }
+
+        try {
+            $db->beginTransaction();
+
+            $categoryMap = [];
+            $accountMap = [];
+            $imported = ["categories" => 0, "accounts" => 0, "transactions" => 0, "budgets" => 0, "savings_goals" => 0, "reminders" => 0];
+
+            foreach (($backup['categories'] ?? []) as $cat) {
+                $oldId = $cat['id'] ?? null;
+                $cat['user_id'] = $userId;
+                $newId = import_insert_row($db, 'categories', $cat);
+                if ($oldId !== null && $newId !== null) $categoryMap[$oldId] = $newId;
+                $imported['categories']++;
+            }
+
+            foreach (($backup['accounts'] ?? []) as $acc) {
+                $oldId = $acc['id'] ?? null;
+                $acc['user_id'] = $userId;
+                $newId = import_insert_row($db, 'accounts', $acc);
+                if ($oldId !== null && $newId !== null) $accountMap[$oldId] = $newId;
+                $imported['accounts']++;
+            }
+
+            foreach (($backup['budgets'] ?? []) as $b) {
+                $b['user_id'] = $userId;
+                if (!empty($b['category_id']) && isset($categoryMap[$b['category_id']])) {
+                    $b['category_id'] = $categoryMap[$b['category_id']];
+                }
+                import_insert_row($db, 'budgets', $b);
+                $imported['budgets']++;
+            }
+
+            foreach (($backup['transactions'] ?? []) as $tx) {
+                $tx['user_id'] = $userId;
+                if (!empty($tx['account_id']) && isset($accountMap[$tx['account_id']])) {
+                    $tx['account_id'] = $accountMap[$tx['account_id']];
+                }
+                if (!empty($tx['category_id']) && isset($categoryMap[$tx['category_id']])) {
+                    $tx['category_id'] = $categoryMap[$tx['category_id']];
+                }
+                if (!empty($tx['transfer_to_account_id'])) {
+                    $tx['transfer_to_account_id'] = $accountMap[$tx['transfer_to_account_id']] ?? null;
+                }
+                // Las recurrencias no forman parte del respaldo; se limpia el
+                // vínculo para no dejarlo apuntando a un ID que no existe.
+                if (array_key_exists('recurrence_id', $tx)) {
+                    $tx['recurrence_id'] = null;
+                }
+                import_insert_row($db, 'transactions', $tx);
+                $imported['transactions']++;
+            }
+
+            foreach (($backup['savings_goals'] ?? []) as $g) {
+                $g['user_id'] = $userId;
+                if (!empty($g['account_id']) && isset($accountMap[$g['account_id']])) {
+                    $g['account_id'] = $accountMap[$g['account_id']];
+                }
+                import_insert_row($db, 'savings_goals', $g);
+                $imported['savings_goals']++;
+            }
+
+            foreach (($backup['reminders'] ?? []) as $r) {
+                $r['user_id'] = $userId;
+                import_insert_row($db, 'reminders', $r);
+                $imported['reminders']++;
+            }
+
+            $db->commit();
+            echo json_encode(["message" => "Respaldo restaurado con éxito.", "imported" => $imported]);
+        } catch (Exception $e) {
+            if ($db->inTransaction()) $db->rollBack();
+            http_response_code(500);
+            echo json_encode(["error" => "Error al restaurar el respaldo: " . $e->getMessage()]);
+        }
+        exit();
+    }
+
     if ($action === 'reset_db') {
         try {
             $db->beginTransaction();
