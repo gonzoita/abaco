@@ -744,23 +744,17 @@ export default {
     const fetchAllData = async () => {
       loading.value = true
       const token = localStorage.getItem('token')
+      const authHeaders = { headers: { 'Authorization': `Bearer ${token}` } }
       try {
-        // Clientes
-        const resClients = await fetch(`${API_BASE}/loans.php?action=get_clients`, {
-          headers: { 'Authorization': `Bearer ${token}` }
-        })
+        // Las 3 peticiones son independientes entre sí: se disparan en
+        // paralelo en vez de esperar cada una por turno.
+        const [resClients, resLoans, resTxs] = await Promise.all([
+          fetch(`${API_BASE}/loans.php?action=get_clients`, authHeaders),
+          fetch(`${API_BASE}/loans.php?action=get_loans`, authHeaders),
+          fetch(`${API_BASE}/loans.php?action=get_transactions`, authHeaders)
+        ])
         clients.value = await resClients.json()
-
-        // Préstamos
-        const resLoans = await fetch(`${API_BASE}/loans.php?action=get_loans`, {
-          headers: { 'Authorization': `Bearer ${token}` }
-        })
         loans.value = await resLoans.json()
-
-        // Historial recaudos
-        const resTxs = await fetch(`${API_BASE}/loans.php?action=get_transactions`, {
-          headers: { 'Authorization': `Bearer ${token}` }
-        })
         transactions.value = await resTxs.json()
       } catch (e) {
         console.error('Error al sincronizar datos:', e)

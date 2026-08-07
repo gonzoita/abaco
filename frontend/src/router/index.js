@@ -69,6 +69,12 @@ const routes = [
     meta: { requiresAuth: true }
   },
   {
+    path: '/financial-health',
+    name: 'financial-health',
+    component: () => import('../views/FinancialHealthView.vue'),
+    meta: { requiresAuth: true }
+  },
+  {
     path: '/admin',
     name: 'admin',
     component: () => import('../views/AdminView.vue'),

@@ -332,32 +332,58 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         $historyInput = isset($input['history']) && is_array($input['history']) ? $input['history'] : [];
-        
+
+        // NOTA: get_active_workspace() debe llamarse ANTES de usar $workspace
+        // en las consultas de abajo (antes se llamaba después de usarlo, lo
+        // que dejaba $workspace indefinido y rompía el filtro de espacio de
+        // trabajo para estas consultas).
+        $workspace = get_active_workspace();
+
         // Obtener resumen de las finanzas del usuario (para contextualizar)
         $accounts = [];
         $recentTransactions = [];
         $loans = [];
+        $totalLiquid = 0;
+        $monthIncome = 0;
+        $monthExpense = 0;
 
         try {
             $stmtAccounts = $db->prepare("SELECT name, type, balance, currency FROM accounts WHERE user_id = ? AND (workspace IS NULL OR workspace = ?)");
             $stmtAccounts->execute([$userId, $workspace]);
             $accounts = $stmtAccounts->fetchAll();
+            foreach ($accounts as $acc) {
+                if (in_array($acc['type'], ['efectivo', 'banco', 'ahorro'])) {
+                    $totalLiquid += floatval($acc['balance']);
+                }
+            }
         } catch (Exception $e) {}
-        
+
         try {
-            $stmtTx = $db->prepare("SELECT t.type, t.amount, t.description, t.date, c.name as category 
-                                    FROM transactions t 
-                                    LEFT JOIN categories c ON t.category_id = c.id 
-                                    WHERE t.user_id = ? AND (t.workspace IS NULL OR t.workspace = ?) 
+            $stmtTx = $db->prepare("SELECT t.type, t.amount, t.description, t.date, c.name as category
+                                    FROM transactions t
+                                    LEFT JOIN categories c ON t.category_id = c.id
+                                    WHERE t.user_id = ? AND (t.workspace IS NULL OR t.workspace = ?)
                                     ORDER BY t.date DESC LIMIT 10");
             $stmtTx->execute([$userId, $workspace]);
             $recentTransactions = $stmtTx->fetchAll();
         } catch (Exception $e) {}
 
         try {
-            $stmtLoans = $db->prepare("SELECT l.amount, l.type, c.name as person_name 
-                                       FROM loans l 
-                                       LEFT JOIN loan_clients c ON l.client_id = c.id 
+            $stmtMonth = $db->prepare("SELECT type, SUM(amount) as total FROM transactions
+                                       WHERE user_id = ? AND (workspace IS NULL OR workspace = ?)
+                                       AND MONTH(date) = MONTH(CURRENT_DATE()) AND YEAR(date) = YEAR(CURRENT_DATE())
+                                       GROUP BY type");
+            $stmtMonth->execute([$userId, $workspace]);
+            foreach ($stmtMonth->fetchAll() as $row) {
+                if ($row['type'] === 'ingreso') $monthIncome = floatval($row['total']);
+                if ($row['type'] === 'egreso') $monthExpense = floatval($row['total']);
+            }
+        } catch (Exception $e) {}
+
+        try {
+            $stmtLoans = $db->prepare("SELECT l.amount, l.type, c.name as person_name
+                                       FROM loans l
+                                       LEFT JOIN loan_clients c ON l.client_id = c.id
                                        WHERE l.user_id = ? AND (l.workspace IS NULL OR l.workspace = ?) AND l.status != 'finalizado'");
             $stmtLoans->execute([$userId, $workspace]);
             $loans = $stmtLoans->fetchAll();
@@ -368,6 +394,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         foreach ($accounts as $acc) {
             $summary .= "- {$acc['name']} ({$acc['type']}): {$acc['balance']} {$acc['currency']}\n";
         }
+        $summary .= "\nSaldo líquido total (efectivo + banco + ahorro): {$totalLiquid}\n";
+        $summary .= "Ingresos de este mes: {$monthIncome} | Gastos de este mes: {$monthExpense} | Ahorro neto del mes: " . ($monthIncome - $monthExpense) . "\n";
         $summary .= "\nÚltimos movimientos:\n";
         foreach ($recentTransactions as $tx) {
             $summary .= "- {$tx['date']} | {$tx['type']} | {$tx['amount']} | {$tx['description']} ({$tx['category']})\n";
@@ -378,8 +406,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $summary .= "- Préstamo a/de {$l['person_name']}: Monto inicial {$l['amount']}\n";
             }
         }
-
-        $workspace = get_active_workspace();
 
         if ($workspace === 'business') {
             $systemPrompt = "Eres 'Ábaco Business', el mentor de negocios, consultor financiero de PYMEs y asesor táctico de emprendimientos oficiales de la aplicación Ábaco.\n"
@@ -399,6 +425,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } else {
             $systemPrompt = "Eres 'Ábaco', el asesor financiero personal inteligente, mentor de ahorro, guía de inversión y tutor interactivo oficial de la aplicación Ábaco.\n"
                           . "Tu tono es inspirador, sabio, profesional, cercano y muy práctico. Tu misión principal es enseñar a las personas a ahorrar más dinero, invertir de forma inteligente, multiplicar sus ingresos y dominar al 100% todas las herramientas de la aplicación.\n\n"
+                          . "PRIORIDAD #1 (LO MÁS IMPORTANTE, POR ENCIMA DE EXPLICAR LA APP): tu función principal NO es enseñar a usar el software — es asesorar sobre el dinero REAL del usuario. Cada vez que el usuario pregunte algo relacionado con su situación financiera (aunque no lo pida explícitamente), usa las cifras exactas del resumen de abajo (saldo líquido, ingresos/gastos del mes, cuentas, deudas) para decirle, en números concretos y con instrucciones accionables, QUÉ HACER: cuánto debería ahorrar esta semana (monto exacto, no porcentaje vago), qué gasto específico reducir, si puede o no permitirse algo, o cuál debería ser su próximo paso. Nunca respondas solo con teoría genérica si puedes calcular la respuesta específica con sus propios datos. Solo explica el funcionamiento del software cuando el usuario pregunte explícitamente 'cómo uso X' o similar.\n\n"
                           . "PRINCIPIOS DE AHORRO E INVERSIÓN QUE DEBES ENSEÑAR (Habla como tu propio conocimiento de experto, sin citar libros ni nombres de autores):\n"
                           . "1. La Regla del Ahorro Sagrado (Págate a ti mismo primero): Antes de pagar cualquier factura o gasto, separa de forma inamovible al menos el 10% de todo lo que ingrese a tus manos y guárdalo en una cuenta de reserva.\n"
                           . "2. Control Estratégico de Gastos vs Inversión en Activos: Diferencia siempre entre un Activo (algo que pone dinero en tu bolsillo de forma recurrente) y un Pasivo (algo que saca dinero de tu bolsillo). Elimina los gastos hormiga que no generan valor.\n"
@@ -413,7 +440,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                           . "- Escáner de Recibos con IA & Presupuestos: Al presionar el icono de la cámara, la IA lee la foto de tu recibo físico y llena el formulario automáticamente. En Presupuestos puedes fijar topes mensuales por categoría.\n\n"
                           . "Aquí está el resumen del estado financiero actual del usuario:\n"
                           . $summary . "\n"
-                          . "INSTRUCCIÓN DE RESPUESTA (OBLIGATORIA): Responde de forma CONCRETA, DIRECTA Y CORTA (máximo 2 párrafos breves o 3 viñetas concisas). Sé conversacional, ve al grano sin rodeos y sin textos extensos.";
+                          . "INSTRUCCIÓN DE RESPUESTA (OBLIGATORIA): Responde de forma CONCRETA, DIRECTA Y CORTA (máximo 2 párrafos breves o 3 viñetas concisas). Sé conversacional, ve al grano sin rodeos y sin textos extensos. Da siempre una recomendación prescriptiva (di exactamente qué hacer con montos reales), no una explicación teórica.";
         }
 
         $contextualHistory = "";

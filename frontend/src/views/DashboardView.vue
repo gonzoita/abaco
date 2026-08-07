@@ -168,67 +168,19 @@
       </div>
     </div>
 
-    <!-- SECCIÓN DE INTELIGENCIA FINANCIERA (Health Score + Autonomía + Exportación) -->
-    <div v-if="insightsData" class="insights-container" style="margin-bottom: 20px;">
-      <div class="insights-grid-row">
-        <!-- Tarjeta 1: Score de Salud Financiera -->
-        <div class="glass-card insight-card" style="padding:18px; display:flex; flex-direction:column; justify-content:space-between; position:relative; overflow:hidden;">
-          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
-            <div>
-              <h4 style="margin:0; font-size:13px; text-transform:uppercase; letter-spacing:0.5px; color:var(--text-secondary); font-weight:700;">
-                <i class="fa-solid fa-heart-pulse" style="color:var(--color-danger); margin-right:6px;"></i> Salud Financiera
-              </h4>
-              <span style="font-size:11px; color:var(--text-muted);">Índice de bienestar económico</span>
-            </div>
-            <div class="health-badge" :style="{ backgroundColor: insightsData.health_color + '20', color: insightsData.health_color, border: '1px solid ' + insightsData.health_color }" style="padding:4px 12px; border-radius:20px; font-weight:700; font-size:12px;">
-              {{ insightsData.health_status }}
-            </div>
-          </div>
-
-          <div style="display:flex; align-items:baseline; gap:8px; margin-bottom:10px;">
-            <div style="font-size:38px; font-weight:800; line-height:1;" :style="{ color: insightsData.health_color }">
-              {{ insightsData.health_score }}
-            </div>
-            <div style="font-size:14px; color:var(--text-muted); font-weight:600;">/ 100 pts</div>
-          </div>
-
-          <div style="background:rgba(255,255,255,0.04); padding:10px 12px; border-radius:10px; border:1px solid var(--card-border); font-size:12px; line-height:1.4; color:var(--text-primary);">
-            <i class="fa-solid fa-lightbulb" style="color:var(--color-warning); margin-right:6px;"></i>
-            {{ insightsData.recommendation }}
-          </div>
-        </div>
-
-        <!-- Tarjeta 2: Autonomía Financiera & Fondo de Emergencia -->
-        <div class="glass-card insight-card" style="padding:18px; display:flex; flex-direction:column; justify-content:space-between;">
-          <div>
-            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
-              <h4 style="margin:0; font-size:13px; text-transform:uppercase; letter-spacing:0.5px; color:var(--text-secondary); font-weight:700;">
-                <i class="fa-solid fa-shield-halved" style="color:var(--color-primary); margin-right:6px;"></i> Autonomía Financiera
-              </h4>
-              <span style="font-size:11px; font-weight:600; background:rgba(10,132,255,0.15); color:var(--color-primary); padding:3px 8px; border-radius:6px;">
-                Reserva
-              </span>
-            </div>
-
-            <div style="font-size:24px; font-weight:800; color:var(--text-primary); margin-bottom:4px;">
-              {{ insightsData.runway.months }} Meses
-              <span style="font-size:13px; font-weight:500; color:var(--text-secondary);">({{ insightsData.runway.days }} días cubiertos)</span>
-            </div>
-
-            <p style="font-size:11.5px; color:var(--text-muted); margin-bottom:10px;">
-              Tus saldos líquidos ({{ formatCurrency(insightsData.runway.liquid_balance) }}) sostienen tus gastos promedio ({{ formatCurrency(insightsData.runway.avg_monthly_expense) }}/mes).
-            </p>
-          </div>
-
-          <div style="display:flex; justify-content:space-between; align-items:center; background:rgba(255,255,255,0.04); padding:8px 12px; border-radius:8px; border:1px solid var(--card-border); font-size:12px;">
-            <span>Predicción Fin de Mes:</span>
-            <strong :style="{ color: insightsData.forecast.projected_savings >= 0 ? 'var(--color-success)' : 'var(--color-danger)' }">
-              {{ insightsData.forecast.projected_savings >= 0 ? '+' : '' }}{{ formatCurrency(insightsData.forecast.projected_savings) }}
-            </strong>
-          </div>
-        </div>
+    <!-- Acceso a Salud & Autonomía Financiera (análisis con IA en su propio módulo) -->
+    <router-link v-if="insightsData" to="/financial-health" class="glass-card financial-health-cta">
+      <div class="fh-cta-icon" :style="{ background: insightsData.health_color + '20', color: insightsData.health_color }">
+        <i class="fa-solid fa-heart-pulse"></i>
       </div>
-    </div>
+      <div class="fh-cta-body">
+        <strong>Salud & Autonomía Financiera</strong>
+        <span>
+          Score {{ insightsData.health_score }}/100 ({{ insightsData.health_status }}) · {{ insightsData.runway.months }} meses de reserva
+        </span>
+      </div>
+      <i class="fa-solid fa-chevron-right fh-cta-arrow"></i>
+    </router-link>
 
     <!-- Recordatorios de Pago -->
     <div class="glass-card reminders-panel" v-if="reminders.length > 0">
@@ -854,14 +806,6 @@ export default {
       }
 
       try {
-        // 1. Cargar Cuentas
-        const resAcc = await fetch(`${API_BASE}/accounts.php`, { headers })
-        accounts.value = await resAcc.json()
-
-        // 2. Cargar Categorías
-        const resCat = await fetch(`${API_BASE}/categories.php`, { headers })
-        categories.value = await resCat.json()
-
         // Calcular fechas según el rango de filtrado seleccionado
         let start = ''
         let end = ''
@@ -873,7 +817,7 @@ export default {
           start = `${filterYear.value}-${formattedMonth}-01`
           const lastDay = new Date(filterYear.value, filterMonth.value, 0).getDate()
           end = `${filterYear.value}-${formattedMonth}-${String(lastDay).padStart(2, '0')}`
-          
+
           repUrl = `${API_BASE}/reports.php?month=${filterMonth.value}&year=${filterYear.value}`
           txUrl += `&start_date=${start}&end_date=${end}`
         } else if (filterRangeMode.value === 'week') {
@@ -881,34 +825,41 @@ export default {
           const sevenDaysAgo = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000)
           start = sevenDaysAgo.toISOString().split('T')[0]
           end = today.toISOString().split('T')[0]
-          
+
           repUrl = `${API_BASE}/reports.php?start_date=${start}&end_date=${end}`
           txUrl += `&start_date=${start}&end_date=${end}`
         } else if (filterRangeMode.value === 'custom') {
           start = filterStartDate.value
           end = filterEndDate.value
-          
+
           repUrl = `${API_BASE}/reports.php?start_date=${start}&end_date=${end}`
           txUrl += `&start_date=${start}&end_date=${end}`
         }
 
-        // 3. Cargar Transacciones
-        const resTx = await fetch(txUrl, { headers })
+        // Ninguna de estas 6 peticiones depende del resultado de otra, así que
+        // se disparan todas en paralelo en vez de esperarlas una por una
+        // (antes tardaba la suma de las 6; ahora tarda lo que tarde la más
+        // lenta de todas).
+        const [resAcc, resCat, resTx, resRep, resRem, resIns] = await Promise.all([
+          fetch(`${API_BASE}/accounts.php`, { headers }),
+          fetch(`${API_BASE}/categories.php`, { headers }),
+          fetch(txUrl, { headers }),
+          fetch(repUrl, { headers }),
+          fetch(`${API_BASE}/reminders.php`, { headers }),
+          fetch(`${API_BASE}/insights.php`, { headers })
+        ])
+
+        accounts.value = await resAcc.json()
+        categories.value = await resCat.json()
         transactions.value = await resTx.json()
 
-        // 4. Cargar Reportes
-        const resRep = await fetch(repUrl, { headers })
         const repData = await resRep.json()
         if (repData.totals) totals.value = repData.totals
         if (repData.categories) categoriesReport.value = repData.categories
         categoryBudgets.value = repData.category_budgets || []
 
-        // 5. Cargar Recordatorios
-        const resRem = await fetch(`${API_BASE}/reminders.php`, { headers })
         reminders.value = await resRem.json()
 
-        // 6. Cargar Analítica Financiera (Insights)
-        const resIns = await fetch(`${API_BASE}/insights.php`, { headers })
         if (resIns.ok) {
           insightsData.value = await resIns.json()
         }
@@ -1606,10 +1557,23 @@ export default {
   100% { transform: rotate(0); }
 }
 
+/* En móvil, el título ("Hola, Nombre Apellido") y la insignia de prueba
+   gratuita competían por el mismo renglón y ambos terminaban partidos en
+   2 líneas. Se apilan en columna en pantallas angostas; en >=640px vuelven
+   a ir lado a lado como antes. */
 .dashboard-header {
   display: flex;
-  justify-content: space-between;
-  align-items: center;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+@media (min-width: 640px) {
+  .dashboard-header {
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+  }
 }
 
 .trial-badge {
@@ -1749,25 +1713,55 @@ body.light-theme .trial-badge {
   }
 }
 
-/* Tarjetas de Salud/Autonomía Financiera: 2 columnas incluso en móvil para
-   ahorrar espacio vertical (antes usaban auto-fit con minmax(280px,1fr),
-   que en pantallas angostas colapsaba a 1 sola columna). */
-.insights-grid-row {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
+/* Botón de acceso a Salud & Autonomía Financiera: reemplaza las dos
+   tarjetas detalladas que antes vivían en el dashboard (ahora en su propio
+   módulo /financial-health con análisis automático de IA). */
+.financial-health-cta {
+  display: flex;
+  align-items: center;
   gap: 12px;
+  padding: 14px 16px;
+  margin-bottom: 20px;
+  text-decoration: none;
+  color: inherit;
+  transition: var(--transition-smooth);
 }
-
-@media (max-width: 480px) {
-  .insights-grid-row .insight-card {
-    padding: 14px !important;
-  }
+.financial-health-cta:hover {
+  transform: scale(1.005);
+  border-color: var(--color-primary);
 }
-
-@media (min-width: 768px) {
-  .insights-grid-row {
-    gap: 16px;
-  }
+.fh-cta-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 17px;
+  flex-shrink: 0;
+}
+.fh-cta-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+.fh-cta-body strong {
+  font-size: 14px;
+  color: var(--text-primary);
+}
+.fh-cta-body span {
+  font-size: 12px;
+  color: var(--text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.fh-cta-arrow {
+  color: var(--text-muted);
+  font-size: 13px;
+  flex-shrink: 0;
 }
 
 .btn-icon {
