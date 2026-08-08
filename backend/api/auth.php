@@ -280,6 +280,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $user['subscription_status'] = 'expired';
         }
 
+        // Registrar la fecha de este inicio de sesión (para ver actividad real de uso en el panel de Admin)
+        try {
+            $db->prepare("UPDATE users SET last_login_at = NOW() WHERE id = ?")->execute([$user['id']]);
+        } catch (Exception $e) {}
+
         // Generar JWT
         $payload = [
             "user_id" => $user['id'],
@@ -409,6 +414,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $stmtExp->execute([$user['id']]);
             $user['subscription_status'] = 'expired';
         }
+
+        // Registrar la fecha de este inicio de sesión (para ver actividad real de uso en el panel de Admin)
+        try {
+            $db->prepare("UPDATE users SET last_login_at = NOW() WHERE id = ?")->execute([$user['id']]);
+        } catch (Exception $e) {}
 
         // Generar JWT y retornar sesión
         $payload = [

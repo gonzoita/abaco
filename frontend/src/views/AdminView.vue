@@ -34,6 +34,19 @@
       </div>
 
       <div class="kpi-card glass-card">
+        <div class="kpi-icon-wrapper green">
+          <i class="fa-solid fa-bolt"></i>
+        </div>
+        <div class="kpi-details">
+          <span class="kpi-label" title="Basado en inicios de sesión reales, no en verificación de correo">Uso Real (7 / 30 días)</span>
+          <h2 class="kpi-value">
+            {{ metrics.active_last_7_days }} <span class="kpi-subvalue">/ {{ metrics.active_last_30_days }}</span>
+          </h2>
+          <span v-if="metrics.never_logged_in > 0" style="font-size:11px; color:var(--text-muted);">{{ metrics.never_logged_in }} nunca han iniciado sesión</span>
+        </div>
+      </div>
+
+      <div class="kpi-card glass-card">
         <div class="kpi-icon-wrapper blue">
           <i class="fa-solid fa-star"></i>
         </div>
@@ -94,6 +107,8 @@
             <tr>
               <th>Usuario</th>
               <th>Fecha Registro</th>
+              <th>Última Conexión</th>
+              <th style="text-align:center;">Transacciones</th>
               <th>Rol</th>
               <th>Suscripción</th>
               <th>Vencimiento</th>
@@ -119,6 +134,20 @@
               <!-- Fecha Registro -->
               <td>
                 <span class="date-cell">{{ formatDate(user.created_at) }}</span>
+              </td>
+
+              <!-- Última Conexión (actividad real, no solo verificación de correo) -->
+              <td>
+                <span class="date-cell" :style="!user.last_login_at ? { color: 'var(--color-danger)' } : {}">
+                  {{ user.last_login_at ? formatDate(user.last_login_at) : 'Nunca' }}
+                </span>
+              </td>
+
+              <!-- Transacciones registradas -->
+              <td style="text-align:center;">
+                <span :title="user.last_transaction_date ? ('Última: ' + formatDate(user.last_transaction_date)) : 'Sin transacciones'">
+                  {{ user.transaction_count }}
+                </span>
               </td>
 
               <!-- Rol -->

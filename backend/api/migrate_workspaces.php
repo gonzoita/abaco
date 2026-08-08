@@ -135,6 +135,18 @@ try {
         mark_migration_done($db, 'budgets_items_json');
     }
 
+    // Verificar si existe la columna last_login_at en users (para ver
+    // actividad real de uso, no solo si el correo está verificado)
+    if (!migration_done($db, 'users_last_login_at')) {
+        $stmtLogin = $db->prepare("SHOW COLUMNS FROM users LIKE 'last_login_at'");
+        $stmtLogin->execute();
+        if (!$stmtLogin->fetch()) {
+            $db->exec("ALTER TABLE users ADD COLUMN last_login_at DATETIME NULL");
+            $migrated[] = 'users (last_login_at)';
+        }
+        mark_migration_done($db, 'users_last_login_at');
+    }
+
     echo json_encode([
         "success" => true,
         "message" => "Migración de espacios de trabajo (workspaces) completada con éxito.",

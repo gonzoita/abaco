@@ -54,12 +54,27 @@ if ($method === 'GET') {
             $stmt = $db->query("SELECT COUNT(*) FROM transactions");
             $totalTransactions = intval($stmt->fetchColumn());
 
+            // Actividad REAL de uso (distinto de is_active, que solo indica si
+            // verificaron el correo): cuántos han iniciado sesión en los
+            // últimos 7 y 30 días, y cuántos nunca han entrado.
+            $stmt = $db->query("SELECT COUNT(*) FROM users WHERE last_login_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)");
+            $activeLast7Days = intval($stmt->fetchColumn());
+
+            $stmt = $db->query("SELECT COUNT(*) FROM users WHERE last_login_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)");
+            $activeLast30Days = intval($stmt->fetchColumn());
+
+            $stmt = $db->query("SELECT COUNT(*) FROM users WHERE last_login_at IS NULL");
+            $neverLoggedIn = intval($stmt->fetchColumn());
+
             echo json_encode([
                 "total_users" => $totalUsers,
                 "active_users" => $activeUsers,
                 "inactive_users" => $inactiveUsers,
                 "subscriptions" => $subs,
-                "total_transactions" => $totalTransactions
+                "total_transactions" => $totalTransactions,
+                "active_last_7_days" => $activeLast7Days,
+                "active_last_30_days" => $activeLast30Days,
+                "never_logged_in" => $neverLoggedIn
             ]);
         } catch (Exception $e) {
             http_response_code(500);
@@ -70,28 +85,39 @@ if ($method === 'GET') {
 
     if ($action === 'users') {
         try {
+            // Subconsultas de actividad real: cuántas transacciones tiene cada
+            // usuario y cuándo fue la última, para distinguir quién realmente
+            // usa la herramienta de quién solo se registró.
+            $activitySelect = "
+                (SELECT COUNT(*) FROM transactions t WHERE t.user_id = u.id) as transaction_count,
+                (SELECT MAX(t.date) FROM transactions t WHERE t.user_id = u.id) as last_transaction_date
+            ";
+
             $search = isset($_GET['search']) ? trim($_GET['search']) : '';
             if ($search !== '') {
                 $stmt = $db->prepare("
-                    SELECT id, name, email, subscription_status, subscription_expires_at, is_active, role, created_at 
-                    FROM users 
-                    WHERE name LIKE ? OR email LIKE ?
-                    ORDER BY created_at DESC
+                    SELECT u.id, u.name, u.email, u.subscription_status, u.subscription_expires_at, u.is_active, u.role, u.created_at, u.last_login_at,
+                           {$activitySelect}
+                    FROM users u
+                    WHERE u.name LIKE ? OR u.email LIKE ?
+                    ORDER BY u.created_at DESC
                 ");
                 $stmt->execute(["%$search%", "%$search%"]);
             } else {
                 $stmt = $db->query("
-                    SELECT id, name, email, subscription_status, subscription_expires_at, is_active, role, created_at 
-                    FROM users 
-                    ORDER BY created_at DESC
+                    SELECT u.id, u.name, u.email, u.subscription_status, u.subscription_expires_at, u.is_active, u.role, u.created_at, u.last_login_at,
+                           {$activitySelect}
+                    FROM users u
+                    ORDER BY u.created_at DESC
                 ");
             }
             $users = $stmt->fetchAll();
-            
+
             // Cast types
             foreach ($users as &$u) {
                 $u['id'] = intval($u['id']);
                 $u['is_active'] = intval($u['is_active']);
+                $u['transaction_count'] = intval($u['transaction_count']);
             }
 
             echo json_encode($users);
