@@ -303,6 +303,15 @@ export default {
     const showQuickActions = ref(false)
     const showMobileSettings = ref(false)
 
+    // Bloquear el scroll de la página de fondo mientras cualquiera de las
+    // hojas emergentes (Nuevo / Menú) está abierta. Sin esto, al arrastrar
+    // dentro de la hoja para bajar hasta el final, el gesto se lo queda la
+    // página de fondo (que es más larga) en vez del propio menú, y se
+    // siente como que no deja desplazarse del todo.
+    watch([showQuickActions, showMobileSettings], ([quick, settings]) => {
+      document.body.style.overflow = (quick || settings) ? 'hidden' : ''
+    })
+
     const checkAuth = () => {
       isAuthenticated.value = !!localStorage.getItem('token')
       const userData = JSON.parse(localStorage.getItem('user') || '{}')
@@ -516,6 +525,7 @@ body.light-theme .sidebar-logo .logo-light {
 .mobile-settings-sheet {
   width: 100%;
   max-height: 85vh;
+  max-height: 85dvh; /* dvh: alto real visible en móvil, sin la barra de direcciones */
   border-radius: var(--radius-lg) var(--radius-lg) 0 0;
   background: var(--card-bg);
   border: 1px solid var(--card-border);
@@ -525,6 +535,11 @@ body.light-theme .sidebar-logo .logo-light {
   flex-direction: column;
   animation: slideUpMobile 0.4s cubic-bezier(0.16, 1, 0.3, 1);
   overflow-y: auto;
+  /* Sin esto, al llegar al final del menú el gesto de arrastre "se pasa" a
+     la página de fondo (que sigue siendo más larga) en vez de quedarse
+     quieto - se sentía como que el menú no dejaba bajar del todo. */
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
 }
 
 .settings-sheet-header {
