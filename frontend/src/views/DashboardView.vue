@@ -16,6 +16,16 @@
       </div>
     </div>
 
+    <!-- Aviso cuando alguna parte de la carga falló (p. ej. pico de carga del hosting) -->
+    <div v-if="loadError" class="glass-card" style="display:flex; justify-content:space-between; align-items:center; gap:12px; padding:12px 16px; margin-bottom:16px; border:1px solid rgba(255,159,10,0.3); background:rgba(255,159,10,0.08);">
+      <span style="font-size:12.5px; color:var(--color-warning); display:flex; align-items:center; gap:8px;">
+        <i class="fa-solid fa-triangle-exclamation"></i> Algunos datos no cargaron. Puede ser un pico momentáneo del servidor.
+      </span>
+      <button @click="fetchData" class="btn-secondary" style="height:32px; padding:0 14px; font-size:12px; border-radius:8px; flex-shrink:0;">
+        <i class="fa-solid fa-rotate"></i> Reintentar
+      </button>
+    </div>
+
     <!-- Grid de Balances Principales -->
     <div class="balance-grid" :class="{ 'business-grid': activeWorkspace === 'business' }">
       <div class="glass-card balance-card total" :style="activeWorkspace === 'business' ? { borderTop: '3px solid #38bdf8' } : {}">
@@ -796,79 +806,112 @@ export default {
       }
     }
 
+    // Carga tolerante a fallos: en hosting compartido una petición suelta
+    // puede fallar por un pico de carga aunque las otras 5 respondan bien.
+    // Reintenta 1 vez (con una pequeña espera) antes de darse por vencida,
+    // y exige response.ok para no confundir un error del servidor con datos
+    // vacíos válidos.
+    const fetchJsonSafe = async (url, headers, retries = 1) => {
+      for (let attempt = 0; attempt <= retries; attempt++) {
+        try {
+          const res = await fetch(url, { headers })
+          if (!res.ok) throw new Error(`HTTP ${res.status} en ${url}`)
+          return await res.json()
+        } catch (err) {
+          if (attempt === retries) throw err
+          await new Promise(resolve => setTimeout(resolve, 700))
+        }
+      }
+    }
+
+    const loadError = ref(false)
+
     const fetchData = async () => {
       loading.value = true
+      loadError.value = false
       const token = localStorage.getItem('token')
       const ws = localStorage.getItem('active_workspace') || 'personal'
-      const headers = { 
+      const headers = {
         'Authorization': `Bearer ${token}`,
         'X-Workspace': ws
       }
 
-      try {
-        // Calcular fechas según el rango de filtrado seleccionado
-        let start = ''
-        let end = ''
-        let repUrl = ''
-        let txUrl = `${API_BASE}/transactions.php?limit=100`
+      // Calcular fechas según el rango de filtrado seleccionado
+      let start = ''
+      let end = ''
+      let repUrl = ''
+      let txUrl = `${API_BASE}/transactions.php?limit=100`
 
-        if (filterRangeMode.value === 'month') {
-          const formattedMonth = String(filterMonth.value).padStart(2, '0')
-          start = `${filterYear.value}-${formattedMonth}-01`
-          const lastDay = new Date(filterYear.value, filterMonth.value, 0).getDate()
-          end = `${filterYear.value}-${formattedMonth}-${String(lastDay).padStart(2, '0')}`
+      if (filterRangeMode.value === 'month') {
+        const formattedMonth = String(filterMonth.value).padStart(2, '0')
+        start = `${filterYear.value}-${formattedMonth}-01`
+        const lastDay = new Date(filterYear.value, filterMonth.value, 0).getDate()
+        end = `${filterYear.value}-${formattedMonth}-${String(lastDay).padStart(2, '0')}`
 
-          repUrl = `${API_BASE}/reports.php?month=${filterMonth.value}&year=${filterYear.value}`
-          txUrl += `&start_date=${start}&end_date=${end}`
-        } else if (filterRangeMode.value === 'week') {
-          const today = new Date()
-          const sevenDaysAgo = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000)
-          start = sevenDaysAgo.toISOString().split('T')[0]
-          end = today.toISOString().split('T')[0]
+        repUrl = `${API_BASE}/reports.php?month=${filterMonth.value}&year=${filterYear.value}`
+        txUrl += `&start_date=${start}&end_date=${end}`
+      } else if (filterRangeMode.value === 'week') {
+        const today = new Date()
+        const sevenDaysAgo = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000)
+        start = sevenDaysAgo.toISOString().split('T')[0]
+        end = today.toISOString().split('T')[0]
 
-          repUrl = `${API_BASE}/reports.php?start_date=${start}&end_date=${end}`
-          txUrl += `&start_date=${start}&end_date=${end}`
-        } else if (filterRangeMode.value === 'custom') {
-          start = filterStartDate.value
-          end = filterEndDate.value
+        repUrl = `${API_BASE}/reports.php?start_date=${start}&end_date=${end}`
+        txUrl += `&start_date=${start}&end_date=${end}`
+      } else if (filterRangeMode.value === 'custom') {
+        start = filterStartDate.value
+        end = filterEndDate.value
 
-          repUrl = `${API_BASE}/reports.php?start_date=${start}&end_date=${end}`
-          txUrl += `&start_date=${start}&end_date=${end}`
-        }
+        repUrl = `${API_BASE}/reports.php?start_date=${start}&end_date=${end}`
+        txUrl += `&start_date=${start}&end_date=${end}`
+      }
 
-        // Ninguna de estas 6 peticiones depende del resultado de otra, así que
-        // se disparan todas en paralelo en vez de esperarlas una por una
-        // (antes tardaba la suma de las 6; ahora tarda lo que tarde la más
-        // lenta de todas).
-        const [resAcc, resCat, resTx, resRep, resRem, resIns] = await Promise.all([
-          fetch(`${API_BASE}/accounts.php`, { headers }),
-          fetch(`${API_BASE}/categories.php`, { headers }),
-          fetch(txUrl, { headers }),
-          fetch(repUrl, { headers }),
-          fetch(`${API_BASE}/reminders.php`, { headers }),
-          fetch(`${API_BASE}/insights.php`, { headers })
-        ])
+      // Ninguna de estas 6 peticiones depende del resultado de otra, así que
+      // se disparan todas en paralelo (allSettled: si UNA falla, las otras 5
+      // igual se aplican, en vez de dejar todo en blanco como con Promise.all).
+      const results = await Promise.allSettled([
+        fetchJsonSafe(`${API_BASE}/accounts.php`, headers),
+        fetchJsonSafe(`${API_BASE}/categories.php`, headers),
+        fetchJsonSafe(txUrl, headers),
+        fetchJsonSafe(repUrl, headers),
+        fetchJsonSafe(`${API_BASE}/reminders.php`, headers),
+        fetchJsonSafe(`${API_BASE}/insights.php`, headers)
+      ])
+      const [rAcc, rCat, rTx, rRep, rRem, rIns] = results
+      let anyFailed = false
 
-        accounts.value = await resAcc.json()
-        categories.value = await resCat.json()
-        transactions.value = await resTx.json()
+      if (rAcc.status === 'fulfilled') accounts.value = rAcc.value
+      else anyFailed = true
 
-        const repData = await resRep.json()
+      if (rCat.status === 'fulfilled') categories.value = rCat.value
+      else anyFailed = true
+
+      if (rTx.status === 'fulfilled') transactions.value = rTx.value
+      else anyFailed = true
+
+      if (rRep.status === 'fulfilled') {
+        const repData = rRep.value
         if (repData.totals) totals.value = repData.totals
         if (repData.categories) categoriesReport.value = repData.categories
         categoryBudgets.value = repData.category_budgets || []
-
-        reminders.value = await resRem.json()
-
-        if (resIns.ok) {
-          insightsData.value = await resIns.json()
-        }
-
-      } catch (err) {
-        console.error('Error al cargar datos del dashboard:', err)
-      } finally {
-        loading.value = false
+      } else {
+        anyFailed = true
       }
+
+      if (rRem.status === 'fulfilled') reminders.value = rRem.value
+      else anyFailed = true
+
+      if (rIns.status === 'fulfilled') insightsData.value = rIns.value
+      else anyFailed = true
+
+      if (anyFailed) {
+        results.forEach((r, i) => {
+          if (r.status === 'rejected') console.error(`Error al cargar dato #${i} del dashboard:`, r.reason)
+        })
+        loadError.value = true
+      }
+
+      loading.value = false
     }
 
     const completeReminder = async (id) => {
@@ -1369,6 +1412,8 @@ export default {
       modalType,
       form,
       loading,
+      loadError,
+      fetchData,
       formLoading,
       modalError,
       aiLoading,

@@ -745,17 +745,36 @@ export default {
       loading.value = true
       const token = localStorage.getItem('token')
       const authHeaders = { headers: { 'Authorization': `Bearer ${token}` } }
+
+      // fetchJsonSafe: 1 reintento automático + exige response.ok, para que
+      // un pico de carga puntual del hosting no deje la vista en blanco.
+      const fetchJsonSafe = async (url, retries = 1) => {
+        for (let attempt = 0; attempt <= retries; attempt++) {
+          try {
+            const res = await fetch(url, authHeaders)
+            if (!res.ok) throw new Error(`HTTP ${res.status} en ${url}`)
+            return await res.json()
+          } catch (err) {
+            if (attempt === retries) throw err
+            await new Promise(resolve => setTimeout(resolve, 700))
+          }
+        }
+      }
+
       try {
         // Las 3 peticiones son independientes entre sí: se disparan en
-        // paralelo en vez de esperar cada una por turno.
-        const [resClients, resLoans, resTxs] = await Promise.all([
-          fetch(`${API_BASE}/loans.php?action=get_clients`, authHeaders),
-          fetch(`${API_BASE}/loans.php?action=get_loans`, authHeaders),
-          fetch(`${API_BASE}/loans.php?action=get_transactions`, authHeaders)
+        // paralelo (allSettled: si una falla, las otras 2 igual se aplican).
+        const [rClients, rLoans, rTxs] = await Promise.allSettled([
+          fetchJsonSafe(`${API_BASE}/loans.php?action=get_clients`),
+          fetchJsonSafe(`${API_BASE}/loans.php?action=get_loans`),
+          fetchJsonSafe(`${API_BASE}/loans.php?action=get_transactions`)
         ])
-        clients.value = await resClients.json()
-        loans.value = await resLoans.json()
-        transactions.value = await resTxs.json()
+        if (rClients.status === 'fulfilled') clients.value = rClients.value
+        if (rLoans.status === 'fulfilled') loans.value = rLoans.value
+        if (rTxs.status === 'fulfilled') transactions.value = rTxs.value
+        if ([rClients, rLoans, rTxs].some(r => r.status === 'rejected')) {
+          console.error('Algunos datos de préstamos no cargaron:', { rClients, rLoans, rTxs })
+        }
       } catch (e) {
         console.error('Error al sincronizar datos:', e)
       } finally {
