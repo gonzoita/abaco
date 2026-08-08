@@ -60,6 +60,21 @@ function authenticate() {
         exit();
     }
 
+    // Marcar "última actividad" en cada petición autenticada, no solo al
+    // hacer login: el JWT dura 30 días, así que un usuario activo a diario
+    // puede no volver a pasar por /auth.php?action=login en semanas, y con
+    // solo el evento de login se veía como "Nunca" aunque estuviera usando
+    // la app en ese momento. Con guard de 1 hora en el propio UPDATE para
+    // no escribir en cada una de las peticiones (el dashboard solo dispara 6
+    // seguidas).
+    if (isset($decoded['user_id'])) {
+        try {
+            $db = Database::getConnection();
+            $db->prepare("UPDATE users SET last_login_at = NOW() WHERE id = ? AND (last_login_at IS NULL OR last_login_at < DATE_SUB(NOW(), INTERVAL 1 HOUR))")
+               ->execute([$decoded['user_id']]);
+        } catch (Exception $e) {}
+    }
+
     return $decoded; // Contiene user_id, email, name, etc.
 }
 

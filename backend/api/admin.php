@@ -55,8 +55,9 @@ if ($method === 'GET') {
             $totalTransactions = intval($stmt->fetchColumn());
 
             // Actividad REAL de uso (distinto de is_active, que solo indica si
-            // verificaron el correo): cuántos han iniciado sesión en los
-            // últimos 7 y 30 días, y cuántos nunca han entrado.
+            // verificaron el correo): last_login_at se actualiza en cada
+            // petición autenticada (ver auth_helper.php), no solo al hacer
+            // login, así que refleja uso real de la app.
             $stmt = $db->query("SELECT COUNT(*) FROM users WHERE last_login_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)");
             $activeLast7Days = intval($stmt->fetchColumn());
 

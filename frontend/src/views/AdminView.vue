@@ -38,7 +38,7 @@
           <i class="fa-solid fa-bolt"></i>
         </div>
         <div class="kpi-details">
-          <span class="kpi-label" title="Basado en inicios de sesión reales, no en verificación de correo">Uso Real (7 / 30 días)</span>
+          <span class="kpi-label" title="Basado en actividad real (cualquier uso de la app), no en verificación de correo">Uso Real (7 / 30 días)</span>
           <h2 class="kpi-value">
             {{ metrics.active_last_7_days }} <span class="kpi-subvalue">/ {{ metrics.active_last_30_days }}</span>
           </h2>
@@ -107,7 +107,7 @@
             <tr>
               <th>Usuario</th>
               <th>Fecha Registro</th>
-              <th>Última Conexión</th>
+              <th>Última Actividad</th>
               <th style="text-align:center;">Transacciones</th>
               <th>Rol</th>
               <th>Suscripción</th>
@@ -136,7 +136,7 @@
                 <span class="date-cell">{{ formatDate(user.created_at) }}</span>
               </td>
 
-              <!-- Última Conexión (actividad real, no solo verificación de correo) -->
+              <!-- Última Actividad (cualquier uso de la app, no solo el evento de login) -->
               <td>
                 <span class="date-cell" :style="!user.last_login_at ? { color: 'var(--color-danger)' } : {}">
                   {{ user.last_login_at ? formatDate(user.last_login_at) : 'Nunca' }}
@@ -629,24 +629,32 @@ body.light-theme .search-box input:focus {
 }
 
 .users-table {
+  /* Con 9 columnas, forzar width:100% obligaba al navegador a comprimir
+     los <select> hasta recortar su texto ("Trial (" sin el resto, el rol
+     sin texto visible). Con min-width la tabla mantiene su ancho natural
+     y .table-container (overflow-x:auto) se encarga del scroll horizontal
+     en vez de aplastar las columnas. */
   width: 100%;
+  min-width: 1020px;
   border-collapse: collapse;
   text-align: left;
 }
 
 .users-table th {
-  padding: 12px 16px;
-  font-size: 12px;
+  padding: 10px 12px;
+  font-size: 11.5px;
   font-weight: 600;
   color: var(--text-muted);
   text-transform: uppercase;
   border-bottom: 1px solid var(--card-border);
+  white-space: nowrap;
 }
 
 .users-table td {
-  padding: 16px;
+  padding: 12px;
   border-bottom: 1px solid var(--card-border);
   font-size: 14px;
+  white-space: nowrap;
 }
 
 .user-info-cell {
@@ -696,6 +704,15 @@ body.light-theme .search-box input:focus {
   font-weight: 500;
   cursor: pointer;
   transition: var(--transition-smooth);
+  min-width: 100px;
+}
+
+.select-role {
+  min-width: 90px;
+}
+
+.admin-select:not(.select-role) {
+  min-width: 150px;
 }
 
 .admin-select.active {
