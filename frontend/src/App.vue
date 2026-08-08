@@ -186,7 +186,7 @@
 
     <!-- Menú de Ajustes y Perfil Móvil (Estilo Apple iOS HIG) -->
     <div class="mobile-settings-overlay" v-if="showMobileSettings" @click.self="showMobileSettings = false">
-      <div class="mobile-settings-sheet glass-card">
+      <div class="mobile-settings-sheet glass-card" :style="{ maxHeight: sheetMaxHeight }">
         <div class="sheet-indicator"></div>
         <div class="settings-sheet-header">
           <h3>Menú</h3>
@@ -310,6 +310,24 @@ export default {
     // siente como que no deja desplazarse del todo.
     watch([showQuickActions, showMobileSettings], ([quick, settings]) => {
       document.body.style.overflow = (quick || settings) ? 'hidden' : ''
+    })
+
+    // Alto máximo del menú calculado con window.innerHeight en vez de
+    // unidades vh/dvh: en una PWA instalada en pantalla de inicio (iOS
+    // standalone), vh/dvh a veces se calculan mal y dejan contenido
+    // inalcanzable aunque el scroll interno funcione bien. innerHeight
+    // siempre refleja el alto real visible. Se recalcula cada vez que se
+    // abre el menú (por si giró la pantalla o cambió el teclado) y al
+    // rotar/redimensionar mientras está abierto.
+    const sheetMaxHeight = ref('85vh')
+    const recalcSheetMaxHeight = () => {
+      sheetMaxHeight.value = Math.round(window.innerHeight * 0.85) + 'px'
+    }
+    watch(showMobileSettings, (open) => {
+      if (open) recalcSheetMaxHeight()
+    })
+    window.addEventListener('resize', () => {
+      if (showMobileSettings.value) recalcSheetMaxHeight()
     })
 
     const checkAuth = () => {
@@ -440,6 +458,7 @@ export default {
       toggleTheme,
       showQuickActions,
       showMobileSettings,
+      sheetMaxHeight,
       triggerQuickAction
     }
   }
