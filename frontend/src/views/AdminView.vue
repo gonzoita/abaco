@@ -109,6 +109,7 @@
               <th>Fecha Registro</th>
               <th>Última Actividad</th>
               <th style="text-align:center;">Transacciones</th>
+              <th>Últ. Transacción</th>
               <th>Rol</th>
               <th>Suscripción</th>
               <th>Vencimiento</th>
@@ -136,18 +137,23 @@
                 <span class="date-cell">{{ formatDate(user.created_at) }}</span>
               </td>
 
-              <!-- Última Actividad (cualquier uso de la app, no solo el evento de login) -->
+              <!-- Última Actividad: la más reciente entre "vista en la app" (desde
+                   que agregamos el seguimiento) y su última transacción (útil
+                   para usuarios con historial previo a ese seguimiento) -->
               <td>
-                <span class="date-cell" :style="!user.last_login_at ? { color: 'var(--color-danger)' } : {}">
-                  {{ user.last_login_at ? formatDate(user.last_login_at) : 'Nunca' }}
+                <span class="date-cell" :style="!lastActivity(user) ? { color: 'var(--color-danger)' } : {}">
+                  {{ lastActivity(user) ? formatDate(lastActivity(user)) : 'Nunca' }}
                 </span>
               </td>
 
               <!-- Transacciones registradas -->
               <td style="text-align:center;">
-                <span :title="user.last_transaction_date ? ('Última: ' + formatDate(user.last_transaction_date)) : 'Sin transacciones'">
-                  {{ user.transaction_count }}
-                </span>
+                {{ user.transaction_count }}
+              </td>
+
+              <!-- Fecha de su última transacción específicamente -->
+              <td>
+                <span class="date-cell">{{ user.last_transaction_date ? formatDate(user.last_transaction_date) : '-' }}</span>
               </td>
 
               <!-- Rol -->
@@ -424,6 +430,17 @@ export default {
       return name[0].toUpperCase()
     }
 
+    // La señal más confiable de "última vez que usó la herramienta": la más
+    // reciente entre last_login_at (actividad en la app desde que se agregó
+    // el seguimiento) y last_transaction_date (útil para usuarios con
+    // historial de antes de ese seguimiento, que si no aparecerían como
+    // "Nunca" pese a tener transacciones).
+    const lastActivity = (user) => {
+      const dates = [user.last_login_at, user.last_transaction_date].filter(Boolean)
+      if (dates.length === 0) return null
+      return dates.reduce((latest, d) => (new Date(d) > new Date(latest) ? d : latest))
+    }
+
     const formatDate = (dateStr) => {
       if (!dateStr) return '-'
       const date = new Date(dateStr)
@@ -458,7 +475,8 @@ export default {
       confirmDeleteUser,
       deleteUser,
       getInitials,
-      formatDate
+      formatDate,
+      lastActivity
     }
   }
 }
@@ -635,7 +653,7 @@ body.light-theme .search-box input:focus {
      y .table-container (overflow-x:auto) se encarga del scroll horizontal
      en vez de aplastar las columnas. */
   width: 100%;
-  min-width: 1020px;
+  min-width: 1140px;
   border-collapse: collapse;
   text-align: left;
 }
