@@ -134,8 +134,18 @@ if (!empty($lintErrors)) {
 echo "   OK - " . count($phpFiles) . " archivos PHP sin errores de sintaxis.\n";
 
 if (file_exists($repoPath)) {
-    echo "3. Copiando archivos a public_html...\n";
-    list($out, $code) = run_cmd("cp -rf {$repoPath}/* {$publicPath}/");
+    echo "3. Sincronizando archivos a public_html (con borrado de lo que ya no está en el repo)...\n";
+    // cp -rf solo copia/sobreescribe, nunca borra: un archivo eliminado del
+    // repo (ej. un script sin autenticación que ya no debía existir) se
+    // quedaba vivo en producción para siempre. rsync --delete espeja de
+    // verdad. Se excluye lo que NO viene del repo y no debe tocarse:
+    // .env (secretos), .git y .builds (symlink que usa el propio Hostinger
+    // para el auto-pull) y deploy.log (bitácora acumulada).
+    list($out, $code) = run_cmd(
+        "rsync -a --delete " .
+        "--exclude='.env' --exclude='.git' --exclude='.builds' --exclude='deploy.log' " .
+        escapeshellarg(rtrim($repoPath, '/') . '/') . ' ' . escapeshellarg(rtrim($publicPath, '/') . '/')
+    );
     $output = array_merge($output, $out);
 }
 
