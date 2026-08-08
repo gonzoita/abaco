@@ -540,6 +540,13 @@ body.light-theme .sidebar-logo .logo-light {
      quieto - se sentía como que el menú no dejaba bajar del todo. */
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
+  /* Bug clásico de flexbox: un contenedor flex con overflow-y:auto que es a
+     su vez hijo de otro flex (aquí, .mobile-settings-overlay) puede no
+     encogerse por debajo del tamaño de su contenido si no se fuerza
+     min-height:0 - en algunos navegadores eso deja el overflow "atascado"
+     aunque overflow-y:auto esté puesto. */
+  min-height: 0;
 }
 
 .settings-sheet-header {
