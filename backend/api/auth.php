@@ -8,6 +8,59 @@ require_once __DIR__ . '/auth_helper.php';
 $action = isset($_GET['action']) ? $_GET['action'] : '';
 $db = Database::getConnection();
 
+/**
+ * Protección contra fuerza bruta en /auth.php?action=login: 5 intentos
+ * fallidos en una ventana de 15 minutos bloquean ese correo por 15 minutos.
+ * Se guarda por 'identifier' (el correo en minúsculas) en vez de por IP,
+ * ya que en hosting compartido/redes móviles muchos usuarios legítimos
+ * pueden compartir la misma IP saliente.
+ */
+function check_login_lockout($db, $identifier) {
+    try {
+        $stmt = $db->prepare("SELECT locked_until FROM login_attempts WHERE identifier = ?");
+        $stmt->execute([$identifier]);
+        $row = $stmt->fetch();
+        if ($row && $row['locked_until'] && strtotime($row['locked_until']) > time()) {
+            return (int) ceil((strtotime($row['locked_until']) - time()) / 60);
+        }
+    } catch (Exception $e) {}
+    return null;
+}
+
+function register_failed_login($db, $identifier) {
+    try {
+        $stmt = $db->prepare("SELECT attempts, first_attempt_at FROM login_attempts WHERE identifier = ?");
+        $stmt->execute([$identifier]);
+        $row = $stmt->fetch();
+        $now = date('Y-m-d H:i:s');
+
+        if (!$row) {
+            $db->prepare("INSERT INTO login_attempts (identifier, attempts, first_attempt_at) VALUES (?, 1, ?)")->execute([$identifier, $now]);
+            return;
+        }
+
+        // Ventana de 15 minutos: si el primer intento fue hace más de 15 min, reiniciar el contador
+        if (strtotime($row['first_attempt_at']) < strtotime('-15 minutes')) {
+            $db->prepare("UPDATE login_attempts SET attempts = 1, first_attempt_at = ?, locked_until = NULL WHERE identifier = ?")->execute([$now, $identifier]);
+            return;
+        }
+
+        $newAttempts = intval($row['attempts']) + 1;
+        if ($newAttempts >= 5) {
+            $lockedUntil = date('Y-m-d H:i:s', strtotime('+15 minutes'));
+            $db->prepare("UPDATE login_attempts SET attempts = ?, locked_until = ? WHERE identifier = ?")->execute([$newAttempts, $lockedUntil, $identifier]);
+        } else {
+            $db->prepare("UPDATE login_attempts SET attempts = ? WHERE identifier = ?")->execute([$newAttempts, $identifier]);
+        }
+    } catch (Exception $e) {}
+}
+
+function clear_login_attempts($db, $identifier) {
+    try {
+        $db->prepare("DELETE FROM login_attempts WHERE identifier = ?")->execute([$identifier]);
+    } catch (Exception $e) {}
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'GET') {
     if ($action === 'activate') {
         $token = isset($_GET['token']) ? trim($_GET['token']) : '';
@@ -158,6 +211,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             exit();
         }
 
+        if (strlen($password) < 8) {
+            http_response_code(400);
+            echo json_encode(["error" => "La contraseña debe tener al menos 8 caracteres."]);
+            exit();
+        }
+
         if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
             http_response_code(400);
             echo json_encode(["error" => "El correo electrónico no es válido."]);
@@ -256,15 +315,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             exit();
         }
 
+        $identifier = mb_strtolower($email);
+        $lockMinutes = check_login_lockout($db, $identifier);
+        if ($lockMinutes !== null) {
+            http_response_code(429);
+            echo json_encode(["error" => "Demasiados intentos fallidos. Intenta de nuevo en {$lockMinutes} minuto(s)."]);
+            exit();
+        }
+
         $stmt = $db->prepare("SELECT id, name, email, password_hash, currency, subscription_status, subscription_expires_at, is_active, role FROM users WHERE email = ?");
         $stmt->execute([$email]);
         $user = $stmt->fetch();
 
         if (!$user || !password_verify($password, $user['password_hash'])) {
+            register_failed_login($db, $identifier);
             http_response_code(401);
             echo json_encode(["error" => "Credenciales incorrectas."]);
             exit();
         }
+
+        clear_login_attempts($db, $identifier);
 
         if (isset($user['is_active']) && intval($user['is_active']) === 0) {
             http_response_code(403);

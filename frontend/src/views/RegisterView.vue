@@ -20,6 +20,11 @@
         <div id="google-btn-container"></div>
       </div>
 
+      <p style="text-align:center; font-size:11.5px; color:var(--text-muted); margin-bottom:16px;">
+        Al registrarte aceptas nuestros
+        <router-link to="/legal" style="color:var(--color-primary);">Términos y la Política de Privacidad</router-link>.
+      </p>
+
       <div class="auth-footer" style="margin-bottom: 24px;">
         <p>¿Ya tienes cuenta? <router-link to="/login" class="auth-link">Inicia sesión</router-link></p>
       </div>

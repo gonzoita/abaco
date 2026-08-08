@@ -1,6 +1,15 @@
 <?php
 // C:\laragon\www\control-finanzas\backend\config\database.php
 
+// Nunca mostrar errores/warnings de PHP en la respuesta (podrían filtrar
+// rutas del servidor, consultas SQL o credenciales); sí queda registrado en
+// el log del servidor para poder depurar. Este archivo lo cargan todos los
+// endpoints del backend, así que endurece la configuración para toda la API.
+ini_set('display_errors', '0');
+ini_set('display_startup_errors', '0');
+ini_set('log_errors', '1');
+error_reporting(E_ALL);
+
 // Intentar cargar variables de entorno desde un archivo .env en varias ubicaciones posibles
 $envPaths = [
     __DIR__ . '/../../.env',

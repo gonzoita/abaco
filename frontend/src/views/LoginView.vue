@@ -19,6 +19,11 @@
         <div id="google-btn-container"></div>
       </div>
 
+      <p style="text-align:center; font-size:11.5px; color:var(--text-muted); margin-bottom:20px;">
+        Al continuar aceptas nuestros
+        <router-link to="/legal" style="color:var(--color-primary);">Términos y la Política de Privacidad</router-link>.
+      </p>
+
       <!-- Instrucciones de Instalación PWA (Apple HIG) -->
       <div class="pwa-install-guide">
         <h4 class="guide-title">

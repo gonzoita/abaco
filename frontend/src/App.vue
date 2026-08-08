@@ -124,6 +124,12 @@
         <span>Ajustes</span>
       </router-link>
 
+      <!-- Privacidad y Términos (Solo Desktop; en móvil vive en el ☰ Menú) -->
+      <router-link to="/legal" class="nav-item">
+        <i class="fa-solid fa-file-contract" style="font-size:18px;"></i>
+        <span>Legal</span>
+      </router-link>
+
       <!-- Administración (Solo Desktop) -->
       <router-link v-if="isAdmin" to="/admin" class="nav-item">
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -243,6 +249,14 @@
               <i class="fa-solid fa-shield-halved"></i>
             </span>
             <span>Administración</span>
+            <i class="fa-solid fa-chevron-right arrow-icon"></i>
+          </router-link>
+
+          <router-link to="/legal" class="settings-menu-item" @click="showMobileSettings = false">
+            <span class="item-icon" style="background:#64748b;">
+              <i class="fa-solid fa-file-contract"></i>
+            </span>
+            <span>Privacidad y Términos</span>
             <i class="fa-solid fa-chevron-right arrow-icon"></i>
           </router-link>
 

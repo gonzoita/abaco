@@ -1,5 +1,15 @@
 <?php
 // C:\laragon\www\control-finanzas\backend\api\migrate_workspaces.php
+// Solo deploy.php lo invoca (por CLI, vía run_cmd) justo después de cada
+// despliegue. No necesita quedar accesible por HTTP sin autenticación, así
+// que se bloquea cualquier ejecución que no venga de la línea de comandos.
+if (php_sapi_name() !== 'cli') {
+    http_response_code(403);
+    header('Content-Type: application/json; charset=utf-8');
+    echo json_encode(["error" => "Este script solo puede ejecutarse desde el proceso de despliegue."]);
+    exit();
+}
+
 require_once __DIR__ . '/cors.php';
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../config/migrations.php';
@@ -145,6 +155,22 @@ try {
             $migrated[] = 'users (last_login_at)';
         }
         mark_migration_done($db, 'users_last_login_at');
+    }
+
+    // Tabla de control de intentos de login fallidos (protección contra
+    // fuerza bruta): 5 intentos fallidos en 15 minutos bloquea el correo
+    // por 15 minutos.
+    if (!migration_done($db, 'login_attempts_table')) {
+        $db->exec("CREATE TABLE IF NOT EXISTS login_attempts (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            identifier VARCHAR(191) NOT NULL,
+            attempts INT NOT NULL DEFAULT 1,
+            first_attempt_at DATETIME NOT NULL,
+            locked_until DATETIME NULL,
+            UNIQUE KEY identifier_unique (identifier)
+        ) ENGINE=InnoDB");
+        $migrated[] = 'login_attempts (tabla nueva)';
+        mark_migration_done($db, 'login_attempts_table');
     }
 
     echo json_encode([
