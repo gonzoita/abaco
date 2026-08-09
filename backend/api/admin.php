@@ -84,6 +84,44 @@ if ($method === 'GET') {
         exit();
     }
 
+    // Últimas líneas del log de errores del servidor (backend/logs/error.log,
+    // el que escribe el manejador global de excepciones en cors.php). Así se
+    // pueden ver errores 500 en producción sin necesitar acceso SSH.
+    if ($action === 'error_log') {
+        $logPath = __DIR__ . '/../logs/error.log';
+        if (!file_exists($logPath)) {
+            echo json_encode(["lines" => [], "message" => "Sin errores registrados todavía."]);
+            exit();
+        }
+
+        $maxLines = isset($_GET['lines']) ? max(1, min(500, intval($_GET['lines']))) : 100;
+
+        // Leer solo las últimas N líneas sin cargar archivos gigantes enteros
+        // a memoria: se lee el archivo desde el final en bloques.
+        $lines = [];
+        $fp = fopen($logPath, 'r');
+        if ($fp) {
+            $buffer = '';
+            $chunkSize = 8192;
+            fseek($fp, 0, SEEK_END);
+            $pos = ftell($fp);
+            while ($pos > 0 && count($lines) <= $maxLines) {
+                $readSize = min($chunkSize, $pos);
+                $pos -= $readSize;
+                fseek($fp, $pos);
+                $buffer = fread($fp, $readSize) . $buffer;
+                $lines = explode("\n", $buffer);
+            }
+            fclose($fp);
+        }
+        $lines = array_filter($lines, fn($l) => trim($l) !== '');
+        $lines = array_slice($lines, -$maxLines);
+        $lines = array_reverse($lines); // más reciente primero
+
+        echo json_encode(["lines" => array_values($lines)]);
+        exit();
+    }
+
     if ($action === 'users') {
         try {
             // Subconsultas de actividad real: cuántas transacciones tiene cada

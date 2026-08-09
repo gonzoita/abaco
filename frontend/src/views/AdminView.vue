@@ -238,6 +238,32 @@
       </div>
     </div>
 
+    <!-- Log de Errores del Servidor -->
+    <div class="glass-card" style="margin-top:24px; padding:20px;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; flex-wrap:wrap; gap:10px;">
+        <h2 class="panel-title" style="margin:0;">
+          <i class="fa-solid fa-bug" style="color:var(--color-danger); margin-right:8px;"></i> Log de Errores del Servidor
+        </h2>
+        <button class="btn-secondary" @click="fetchErrorLog" :disabled="loadingErrorLog" style="height:34px; padding:0 14px; font-size:12.5px; border-radius:8px; display:flex; align-items:center; gap:6px;">
+          <i class="fa-solid fa-rotate" :class="{ 'fa-spin': loadingErrorLog }"></i> Actualizar
+        </button>
+      </div>
+
+      <div v-if="loadingErrorLog" class="loading-state-table">
+        <i class="fa-solid fa-circle-notch fa-spin"></i>
+        <span>Consultando el log...</span>
+      </div>
+
+      <div v-else-if="errorLogLines.length === 0" style="text-align:center; padding:30px; color:var(--text-muted); font-size:13px;">
+        <i class="fa-solid fa-circle-check" style="color:var(--color-success); font-size:20px; display:block; margin-bottom:8px;"></i>
+        Sin errores registrados. Todo tranquilo.
+      </div>
+
+      <div v-else class="error-log-list">
+        <div v-for="(line, idx) in errorLogLines" :key="idx" class="error-log-line">{{ line }}</div>
+      </div>
+    </div>
+
     <!-- Modal de Confirmación de Borrado Definitivo -->
     <div class="modal-overlay" v-if="userToDelete" @click.self="userToDelete = null">
       <div class="modal-card danger-alert glass-card">
@@ -455,12 +481,36 @@ export default {
       return usersList.value
     })
 
+    // Log de errores del servidor (backend/logs/error.log)
+    const errorLogLines = ref([])
+    const loadingErrorLog = ref(false)
+    const fetchErrorLog = async () => {
+      loadingErrorLog.value = true
+      try {
+        const response = await fetch(`${API_BASE}/admin.php?action=error_log&lines=100`, {
+          headers: getHeaders()
+        })
+        const data = await response.json()
+        if (response.ok) {
+          errorLogLines.value = data.lines || []
+        }
+      } catch (err) {
+        console.error('Error al cargar el log:', err)
+      } finally {
+        loadingErrorLog.value = false
+      }
+    }
+
     onMounted(() => {
       loadMetrics()
       loadUsers()
+      fetchErrorLog()
     })
 
     return {
+      errorLogLines,
+      loadingErrorLog,
+      fetchErrorLog,
       metrics,
       searchQuery,
       filteredUsers,
@@ -582,6 +632,27 @@ export default {
 .users-panel {
   padding: 24px;
   border-radius: var(--radius-md);
+}
+
+.error-log-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 420px;
+  overflow-y: auto;
+}
+
+.error-log-line {
+  font-family: 'SF Mono', Consolas, monospace;
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: var(--color-danger);
+  background: rgba(255, 69, 58, 0.06);
+  border: 1px solid rgba(255, 69, 58, 0.15);
+  border-radius: 6px;
+  padding: 8px 10px;
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 
 .panel-header {

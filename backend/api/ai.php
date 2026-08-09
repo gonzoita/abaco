@@ -19,13 +19,17 @@ if (isset($headers['X-Gemini-API-Key'])) {
     $userApiKey = trim($_SERVER['HTTP_X_GEMINI_API_KEY']);
 }
 
-$apiKeyToUse = !empty($userApiKey) ? $userApiKey : (defined('GEMINI_API_KEY') ? GEMINI_API_KEY : '');
+// Cada usuario usa exclusivamente SU PROPIA clave de Gemini (ver Ajustes ->
+// IA Personal). Ya no existe una clave compartida por defecto: con varios
+// usuarios activos, una sola clave se agota rápido y además mezclaría las
+// consultas de todos contra el mismo cupo/cuenta de Google.
+$apiKeyToUse = $userApiKey;
 
 if (empty($apiKeyToUse)) {
     http_response_code(400);
     echo json_encode([
-        "error" => "Clave de API de Gemini no configurada.",
-        "details" => "Por favor, ingresa tu propia API Key en los Ajustes del sistema (Ajustes de IA) para poder usar las funciones inteligentes."
+        "error" => "Necesitas vincular tu propia clave de Gemini para usar la IA.",
+        "details" => "Ve a Ajustes → IA Personal (Google Gemini) y sigue los 4 pasos para obtener tu clave gratis en Google AI Studio. Toma menos de un minuto."
     ]);
     exit();
 }

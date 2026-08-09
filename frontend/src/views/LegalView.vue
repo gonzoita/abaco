@@ -75,7 +75,7 @@
         <p>Conservamos tu información mientras tu cuenta esté activa. Si solicitas la eliminación de tu cuenta, tus datos financieros y personales se eliminan de forma permanente de nuestra base de datos en un plazo razonable, salvo que la ley exija conservar cierta información por más tiempo.</p>
 
         <h2>8. Contacto</h2>
-        <p>Para ejercer tus derechos o resolver dudas sobre esta política, escríbenos a <a href="mailto:soporte@briela.app">soporte@briela.app</a>.</p>
+        <p>Para ejercer tus derechos o resolver dudas sobre esta política, escríbenos a <a href="mailto:soporte@abaco.briela.app">soporte@abaco.briela.app</a>.</p>
       </div>
 
       <!-- ================= TÉRMINOS Y CONDICIONES ================= -->
@@ -115,7 +115,7 @@
         <p>Estos Términos se rigen por las leyes de la República de Colombia.</p>
 
         <h2>10. Contacto</h2>
-        <p>Para preguntas sobre estos Términos, escríbenos a <a href="mailto:soporte@briela.app">soporte@briela.app</a>.</p>
+        <p>Para preguntas sobre estos Términos, escríbenos a <a href="mailto:soporte@abaco.briela.app">soporte@abaco.briela.app</a>.</p>
       </div>
     </div>
   </div>

@@ -45,9 +45,6 @@ define('DB_NAME', getenv('DB_NAME') ?: 'control_finanzas');
 define('DB_USER', getenv('DB_USER') ?: 'root');
 define('DB_PASS', getenv('DB_PASS') !== false ? getenv('DB_PASS') : ''); // En Laragon la contraseña por defecto es vacía
 
-// Configuración de la API Key de Gemini
-define('GEMINI_API_KEY', getenv('GEMINI_API_KEY') ?: '');
-
 // JWT Secret Key para tokens de sesión
 define('JWT_SECRET', getenv('JWT_SECRET') ?: 'clave_secreta_por_defecto_123456');
 

@@ -82,11 +82,39 @@
           <h3 class="card-title text-gradient-purple">
             <i class="fa-solid fa-key"></i> IA Personal (Google Gemini)
           </h3>
-          <p class="card-subtitle" style="font-size: 13px; color: var(--text-secondary); margin-top: 4px;">
-            Vincula tu propia cuenta de Google para mayor privacidad y velocidad.
+
+          <!-- Estado actual: configurada o no -->
+          <div v-if="geminiApiKey" style="display:flex; align-items:center; gap:8px; margin-top:10px; padding:8px 12px; border-radius:8px; background:rgba(48,209,88,0.1); border:1px solid rgba(48,209,88,0.2); color:var(--color-success); font-size:12.5px; font-weight:600;">
+            <i class="fa-solid fa-circle-check"></i> Tu clave está configurada. El Asesor IA, el escaneo de recibos y el dictado por voz ya funcionan.
+          </div>
+          <div v-else style="display:flex; align-items:center; gap:8px; margin-top:10px; padding:8px 12px; border-radius:8px; background:rgba(255,159,10,0.1); border:1px solid rgba(255,159,10,0.25); color:var(--color-warning); font-size:12.5px; font-weight:600;">
+            <i class="fa-solid fa-triangle-exclamation"></i> Sin tu propia clave, las funciones de IA no van a funcionar. Sigue los pasos de abajo (toma 1 minuto y es gratis).
+          </div>
+
+          <p class="card-subtitle" style="font-size: 13px; color: var(--text-secondary); margin-top: 14px;">
+            Cada usuario usa su propia clave de Google Gemini — así tus consultas de IA son privadas y no dependen de un cupo compartido con otros usuarios.
           </p>
 
-          <div class="settings-form" style="margin-top: 15px;">
+          <div class="guide-step-list" style="margin-top:14px;">
+            <div class="step-item">
+              <span class="step-num">1</span>
+              <p>Entra a <a href="https://aistudio.google.com/apikey" target="_blank" class="auth-link" style="text-decoration:underline;">aistudio.google.com/apikey</a> e inicia sesión con cualquier cuenta de Google (puede ser distinta a la que usas para entrar a Ábaco).</p>
+            </div>
+            <div class="step-item">
+              <span class="step-num">2</span>
+              <p>Presiona el botón azul <strong>"Create API key"</strong> (Crear clave de API).</p>
+            </div>
+            <div class="step-item">
+              <span class="step-num">3</span>
+              <p>Google te muestra una clave que empieza con <code>AIzaSy...</code>. Presiona el ícono de copiar junto a ella.</p>
+            </div>
+            <div class="step-item">
+              <span class="step-num">4</span>
+              <p>Vuelve aquí, pégala en el campo de abajo y presiona <strong>"Vincular"</strong>. Listo.</p>
+            </div>
+          </div>
+
+          <div class="settings-form" style="margin-top: 18px;">
             <div class="form-group">
               <label for="gemini-key">Tu Gemini API Key</label>
               <div style="display: flex; gap: 8px;">
@@ -94,7 +122,7 @@
                 <button type="button" class="btn-primary" @click="saveGeminiKey" style="padding: 10px 16px;">Vincular</button>
               </div>
               <p class="input-help-text" style="font-size: 11.5px; color: var(--text-muted); margin-top: 8px; line-height: 1.45;">
-                Obtén tu clave gratis en <a href="https://aistudio.google.com/" target="_blank" class="auth-link" style="text-decoration: underline;">Google AI Studio</a>. Se almacena localmente en tu navegador.
+                Es gratis dentro del límite generoso de uso personal de Google. Tu clave se guarda solo en este navegador (localStorage), nunca en nuestros servidores.
               </p>
             </div>
             <div v-if="aiKeySuccessMsg" class="success-msg" style="margin-top: 10px; background: rgba(48, 209, 88, 0.1); color: var(--color-success); border: 1px solid rgba(48, 209, 88, 0.2); padding: 8px 12px; border-radius: var(--radius-sm); font-size: 13.5px; text-align: center;">
@@ -1030,6 +1058,58 @@ export default {
 </script>
 
 <style scoped>
+.guide-step-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.step-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.step-num {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: rgba(10, 132, 255, 0.15);
+  color: #0a84ff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10.5px;
+  font-weight: 700;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+body.light-theme .step-num {
+  background: rgba(0, 122, 255, 0.1);
+  color: #007aff;
+}
+
+.step-item p {
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--text-secondary);
+  line-height: 1.4;
+}
+
+.step-item p strong {
+  color: var(--text-primary);
+}
+
+.step-item p code {
+  background: rgba(255, 255, 255, 0.05);
+  padding: 2px 4px;
+  border-radius: 4px;
+  font-family: monospace;
+}
+body.light-theme .step-item p code {
+  background: rgba(0, 0, 0, 0.04);
+}
+
 .settings-container {
   display: flex;
   flex-direction: column;
