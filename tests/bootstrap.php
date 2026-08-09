@@ -9,3 +9,5 @@ require_once __DIR__ . '/../backend/config/database.php';
 require_once __DIR__ . '/../backend/config/migrations.php';
 require_once __DIR__ . '/../backend/api/auth_helper.php';
 require_once __DIR__ . '/../backend/lib/import_insert_row.php';
+require_once __DIR__ . '/../backend/lib/savings_logic.php';
+require_once __DIR__ . '/../backend/lib/budgets_logic.php';

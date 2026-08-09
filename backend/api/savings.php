@@ -3,6 +3,7 @@
 require_once __DIR__ . '/cors.php';
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/auth_helper.php';
+require_once __DIR__ . '/../lib/savings_logic.php';
 
 $userData = authenticate();
 $userId = $userData['user_id'];
@@ -21,23 +22,7 @@ $workspace = get_active_workspace();
 if ($method === 'GET') {
     try {
         $gWsCond = get_workspace_sql_clause('g.workspace');
-        // Obtener metas de ahorro con el nombre de la cuenta vinculada
-        $stmt = $db->prepare("
-            SELECT g.*, a.name as account_name, a.bank_name
-            FROM savings_goals g
-            LEFT JOIN accounts a ON g.account_id = a.id
-            WHERE g.user_id = ? AND {$gWsCond}
-            ORDER BY g.id DESC
-        ");
-        $stmt->execute([$userId]);
-        $goals = $stmt->fetchAll();
-        
-        foreach ($goals as &$goal) {
-            $goal['target_amount'] = floatval($goal['target_amount']);
-            $goal['current_amount'] = floatval($goal['current_amount']);
-            $goal['account_id'] = $goal['account_id'] ? intval($goal['account_id']) : null;
-        }
-        
+        $goals = savings_get_goals($db, $userId, $gWsCond);
         echo json_encode($goals);
     } catch (Exception $e) {
         http_response_code(500);
@@ -53,28 +38,15 @@ if ($method === 'POST') {
     $targetDate = !empty($input['target_date']) ? trim($input['target_date']) : null;
     $accountId = isset($input['account_id']) && $input['account_id'] !== '' ? intval($input['account_id']) : null;
 
-    if (empty($name) || $targetAmount <= 0) {
-        http_response_code(400);
-        echo json_encode(["error" => "El nombre de la meta y el monto objetivo mayor a cero son obligatorios."]);
-        exit();
-    }
-
     try {
-        $stmt = $db->prepare("INSERT INTO savings_goals (user_id, name, target_amount, current_amount, target_date, account_id, workspace) VALUES (?, ?, ?, ?, ?, ?, ?)");
-        $stmt->execute([$userId, $name, $targetAmount, $currentAmount, $targetDate, $accountId, $workspace]);
-        
-        $newId = $db->lastInsertId();
+        $goal = savings_create_goal($db, $userId, $workspace, $name, $targetAmount, $currentAmount, $targetDate, $accountId);
         echo json_encode([
             "message" => "Meta de ahorro creada con éxito.",
-            "goal" => [
-                "id" => $newId,
-                "name" => $name,
-                "target_amount" => $targetAmount,
-                "current_amount" => $currentAmount,
-                "target_date" => $targetDate,
-                "account_id" => $accountId
-            ]
+            "goal" => $goal
         ]);
+    } catch (InvalidArgumentException $e) {
+        http_response_code(400);
+        echo json_encode(["error" => $e->getMessage()]);
     } catch (Exception $e) {
         http_response_code(500);
         echo json_encode(["error" => "Error al crear la meta de ahorro: " . $e->getMessage()]);
@@ -95,47 +67,8 @@ if ($method === 'PUT') {
         if ($action === 'add_funds') {
             $amount = floatval($input['amount'] ?? 0.00);
             $sourceAccountId = isset($input['source_account_id']) && $input['source_account_id'] !== '' ? intval($input['source_account_id']) : null;
-            
-            if ($amount <= 0) {
-                throw new Exception("El monto a abonar debe ser mayor a cero.");
-            }
-            if (!$sourceAccountId) {
-                throw new Exception("Debe seleccionar la cuenta de origen de los fondos.");
-            }
 
-            // Verificar la cuenta origen
-            $stmtAcc = $db->prepare("SELECT name, balance FROM accounts WHERE id = ? AND user_id = ?");
-            $stmtAcc->execute([$sourceAccountId, $userId]);
-            $acc = $stmtAcc->fetch();
-            if (!$acc) {
-                throw new Exception("La cuenta de origen no es válida o no existe.");
-            }
-
-            // Obtener el nombre de la meta
-            $stmtGoal = $db->prepare("SELECT name FROM savings_goals WHERE id = ? AND user_id = ?");
-            $stmtGoal->execute([$id, $userId]);
-            $goal = $stmtGoal->fetch();
-            if (!$goal) {
-                throw new Exception("La meta de ahorro no fue encontrada.");
-            }
-
-            $db->beginTransaction();
-
-            // 1. Sumar a la meta de ahorro
-            $stmt = $db->prepare("UPDATE savings_goals SET current_amount = current_amount + ? WHERE id = ? AND user_id = ?");
-            $stmt->execute([$amount, $id, $userId]);
-
-            // 2. Restar del saldo de la cuenta origen
-            $stmtSub = $db->prepare("UPDATE accounts SET balance = balance - ? WHERE id = ? AND user_id = ?");
-            $stmtSub->execute([$amount, $sourceAccountId, $userId]);
-
-            // 3. Registrar la transacción de egreso
-            $desc = "Abono a meta de ahorro: " . $goal['name'];
-            $date = date('Y-m-d');
-            $stmtTx = $db->prepare("INSERT INTO transactions (user_id, account_id, type, amount, description, date, workspace) VALUES (?, ?, 'egreso', ?, ?, ?, ?)");
-            $stmtTx->execute([$userId, $sourceAccountId, $amount, $desc, $date, $workspace]);
-
-            $db->commit();
+            savings_add_funds($db, $userId, $id, $amount, $sourceAccountId, $workspace);
 
             echo json_encode(["message" => "Fondos abonados y descontados de tu cuenta exitosamente."]);
         } else {
@@ -146,9 +79,8 @@ if ($method === 'PUT') {
             $targetDate = !empty($input['target_date']) ? trim($input['target_date']) : null;
             $accountId = isset($input['account_id']) && $input['account_id'] !== '' ? intval($input['account_id']) : null;
 
-            $stmt = $db->prepare("UPDATE savings_goals SET name = ?, target_amount = ?, current_amount = ?, target_date = ?, account_id = ? WHERE id = ? AND user_id = ?");
-            $stmt->execute([$name, $targetAmount, $currentAmount, $targetDate, $accountId, $id, $userId]);
-            
+            savings_update_goal($db, $userId, $id, $name, $targetAmount, $currentAmount, $targetDate, $accountId);
+
             echo json_encode(["message" => "Meta de ahorro actualizada con éxito."]);
         }
     } catch (Exception $e) {
@@ -166,9 +98,7 @@ if ($method === 'DELETE') {
     }
 
     try {
-        $stmt = $db->prepare("DELETE FROM savings_goals WHERE id = ? AND user_id = ?");
-        $stmt->execute([$id, $userId]);
-        
+        savings_delete_goal($db, $userId, $id);
         echo json_encode(["message" => "Meta de ahorro eliminada con éxito."]);
     } catch (Exception $e) {
         http_response_code(500);

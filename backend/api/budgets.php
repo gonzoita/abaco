@@ -3,6 +3,7 @@
 require_once __DIR__ . '/cors.php';
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/auth_helper.php';
+require_once __DIR__ . '/../lib/budgets_logic.php';
 
 $userData = authenticate();
 $userId = $userData['user_id'];
@@ -24,39 +25,7 @@ if ($method === 'GET') {
         $year = isset($_GET['year']) ? intval($_GET['year']) : intval(date('Y'));
         $bWsCond = get_workspace_sql_clause('b.workspace');
 
-        // Obtener presupuestos del usuario para el mes, año y workspace dados
-        $stmt = $db->prepare("
-            SELECT b.*, c.name as category_name, c.color as category_color, c.icon as category_icon
-            FROM budgets b
-            LEFT JOIN categories c ON b.category_id = c.id
-            WHERE b.user_id = ? AND {$bWsCond} AND b.month = ? AND b.year = ?
-            ORDER BY b.category_id IS NULL DESC, c.name ASC
-        ");
-        $stmt->execute([$userId, $month, $year]);
-        $budgets = $stmt->fetchAll();
-
-        // Si no hay presupuestos creados para este mes específico, heredar los del último mes configurado
-        if (empty($budgets) && !isset($_GET['month'])) {
-            $stmtLatest = $db->prepare("
-                SELECT year, month 
-                FROM budgets b 
-                WHERE b.user_id = ? AND {$bWsCond} 
-                ORDER BY year DESC, month DESC 
-                LIMIT 1
-            ");
-            $stmtLatest->execute([$userId]);
-            $latest = $stmtLatest->fetch();
-            if ($latest) {
-                $stmt->execute([$userId, intval($latest['month']), intval($latest['year'])]);
-                $budgets = $stmt->fetchAll();
-            }
-        }
-
-        // Convertir montos a float y decodificar items_json
-        foreach ($budgets as &$b) {
-            $b['amount'] = floatval($b['amount']);
-            $b['items'] = !empty($b['items_json']) ? json_decode($b['items_json'], true) : [];
-        }
+        $budgets = budgets_get_for_period($db, $userId, $bWsCond, $month, $year, !isset($_GET['month']));
 
         echo json_encode($budgets);
     } catch (Exception $e) {
@@ -75,55 +44,15 @@ if ($method === 'POST') {
             $currentMonth = intval(date('m'));
             $currentYear = intval(date('Y'));
 
-            // Buscar el último período que contenga presupuestos
-            $stmtLatest = $db->prepare("
-                SELECT year, month 
-                FROM budgets b 
-                WHERE b.user_id = ? AND {$bWsCond} 
-                ORDER BY year DESC, month DESC 
-                LIMIT 1
-            ");
-            $stmtLatest->execute([$userId]);
-            $latest = $stmtLatest->fetch();
-
-            if (!$latest) {
-                http_response_code(404);
-                echo json_encode(["error" => "No se encontraron presupuestos anteriores para copiar."]);
-                exit();
-            }
-
-            // Obtener los presupuestos de ese período
-            $stmtOld = $db->prepare("
-                SELECT category_id, amount, items_json 
-                FROM budgets b 
-                WHERE b.user_id = ? AND {$bWsCond} AND b.month = ? AND b.year = ?
-            ");
-            $stmtOld->execute([$userId, intval($latest['month']), intval($latest['year'])]);
-            $oldBudgets = $stmtOld->fetchAll();
-
-            $copiedCount = 0;
-            foreach ($oldBudgets as $ob) {
-                // Verificar si ya existe para este mes
-                $catId = $ob['category_id'] !== null ? intval($ob['category_id']) : null;
-                if ($catId === null) {
-                    $stmtCheck = $db->prepare("SELECT id FROM budgets WHERE user_id = ? AND (workspace IS NULL OR workspace = ?) AND category_id IS NULL AND month = ? AND year = ?");
-                    $stmtCheck->execute([$userId, $workspace, $currentMonth, $currentYear]);
-                } else {
-                    $stmtCheck = $db->prepare("SELECT id FROM budgets WHERE user_id = ? AND (workspace IS NULL OR workspace = ?) AND category_id = ? AND month = ? AND year = ?");
-                    $stmtCheck->execute([$userId, $workspace, $catId, $currentMonth, $currentYear]);
-                }
-
-                if (!$stmtCheck->fetch()) {
-                    $stmtInsert = $db->prepare("INSERT INTO budgets (user_id, category_id, amount, month, year, workspace, items_json) VALUES (?, ?, ?, ?, ?, ?, ?)");
-                    $stmtInsert->execute([$userId, $catId, $ob['amount'], $currentMonth, $currentYear, $workspace, $ob['items_json']]);
-                    $copiedCount++;
-                }
-            }
+            $result = budgets_copy_from_last_month($db, $userId, $workspace, $bWsCond, $currentMonth, $currentYear);
 
             echo json_encode([
-                "message" => "Se han copiado {$copiedCount} presupuestos del período {$latest['month']}/{$latest['year']} al mes actual.",
-                "copied_count" => $copiedCount
+                "message" => "Se han copiado {$result['copied_count']} presupuestos del período {$result['from_month']}/{$result['from_year']} al mes actual.",
+                "copied_count" => $result['copied_count']
             ]);
+        } catch (RuntimeException $e) {
+            http_response_code(404);
+            echo json_encode(["error" => $e->getMessage()]);
         } catch (Exception $e) {
             http_response_code(500);
             echo json_encode(["error" => "Error al copiar presupuestos: " . $e->getMessage()]);
@@ -138,54 +67,15 @@ if ($method === 'POST') {
 
     $items = isset($input['items']) && is_array($input['items']) ? $input['items'] : [];
     $itemsJson = !empty($items) ? json_encode($items, JSON_UNESCAPED_UNICODE) : null;
-
-    // Si hay ítems definidos, el monto total puede calcularse automáticamente
-    if (!empty($items)) {
-        $sumItems = 0;
-        foreach ($items as $item) {
-            $sumItems += floatval($item['amount'] ?? 0);
-        }
-        if ($sumItems > 0) {
-            $amount = $sumItems;
-        }
-    }
-
-    if ($amount <= 0) {
-        http_response_code(400);
-        echo json_encode(["error" => "El monto del presupuesto debe ser mayor a cero."]);
-        exit();
-    }
+    $amount = budgets_calculate_amount_from_items($items, $amount);
 
     try {
-        // Verificar si ya existe un registro de presupuesto para ese período, workspace y categoría
-        if ($categoryId === null) {
-            $stmtCheck = $db->prepare("SELECT id FROM budgets WHERE user_id = ? AND (workspace IS NULL OR workspace = ?) AND category_id IS NULL AND month = ? AND year = ?");
-            $stmtCheck->execute([$userId, $workspace, $month, $year]);
-        } else {
-            $stmtCheck = $db->prepare("SELECT id FROM budgets WHERE user_id = ? AND (workspace IS NULL OR workspace = ?) AND category_id = ? AND month = ? AND year = ?");
-            $stmtCheck->execute([$userId, $workspace, $categoryId, $month, $year]);
-        }
-
-        $existing = $stmtCheck->fetch();
-
-        if ($existing) {
-            // Actualizar existente
-            $stmtUpdate = $db->prepare("UPDATE budgets SET amount = ?, items_json = ? WHERE id = ?");
-            $stmtUpdate->execute([$amount, $itemsJson, $existing['id']]);
-            $budgetId = $existing['id'];
-            $message = "Presupuesto actualizado con éxito.";
-        } else {
-            // Crear nuevo con workspace
-            $stmtInsert = $db->prepare("INSERT INTO budgets (user_id, category_id, amount, month, year, workspace, items_json) VALUES (?, ?, ?, ?, ?, ?, ?)");
-            $stmtInsert->execute([$userId, $categoryId, $amount, $month, $year, $workspace, $itemsJson]);
-            $budgetId = $db->lastInsertId();
-            $message = "Presupuesto creado con éxito.";
-        }
+        $result = budgets_upsert($db, $userId, $workspace, $categoryId, $amount, $month, $year, $itemsJson);
 
         echo json_encode([
-            "message" => $message,
+            "message" => $result['created'] ? "Presupuesto creado con éxito." : "Presupuesto actualizado con éxito.",
             "budget" => [
-                "id" => $budgetId,
+                "id" => $result['id'],
                 "category_id" => $categoryId,
                 "amount" => $amount,
                 "items" => $items,
@@ -193,6 +83,9 @@ if ($method === 'POST') {
                 "year" => $year
             ]
         ]);
+    } catch (InvalidArgumentException $e) {
+        http_response_code(400);
+        echo json_encode(["error" => $e->getMessage()]);
     } catch (Exception $e) {
         http_response_code(500);
         echo json_encode(["error" => "Error al guardar el presupuesto: " . $e->getMessage()]);
@@ -208,10 +101,9 @@ if ($method === 'DELETE') {
     }
 
     try {
-        $stmt = $db->prepare("DELETE FROM budgets WHERE id = ? AND user_id = ?");
-        $stmt->execute([$id, $userId]);
+        $deleted = budgets_delete($db, $userId, $id);
 
-        if ($stmt->rowCount() === 0) {
+        if ($deleted === 0) {
             http_response_code(404);
             echo json_encode(["error" => "Presupuesto no encontrado o no tienes permisos."]);
             exit();
