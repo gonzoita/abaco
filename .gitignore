@@ -7,6 +7,11 @@
 node_modules/
 frontend/node_modules/
 
+# Dependencias de Composer (solo se usan para correr pruebas en CI, no se
+# despliegan a producción)
+vendor/
+.phpunit.result.cache
+
 # Archivos del sistema y temporales
 .DS_Store
 Thumbs.db

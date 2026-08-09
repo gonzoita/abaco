@@ -289,6 +289,7 @@
 
 <script>
 import { ref, onMounted, computed } from 'vue'
+import { lastActivity } from '../utils/activity.js'
 
 export default {
   name: 'AdminView',
@@ -461,12 +462,6 @@ export default {
     // el seguimiento) y last_transaction_date (útil para usuarios con
     // historial de antes de ese seguimiento, que si no aparecerían como
     // "Nunca" pese a tener transacciones).
-    const lastActivity = (user) => {
-      const dates = [user.last_login_at, user.last_transaction_date].filter(Boolean)
-      if (dates.length === 0) return null
-      return dates.reduce((latest, d) => (new Date(d) > new Date(latest) ? d : latest))
-    }
-
     const formatDate = (dateStr) => {
       if (!dateStr) return '-'
       const date = new Date(dateStr)

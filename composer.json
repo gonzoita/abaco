@@ -1,0 +1,19 @@
+{
+    "name": "briela/abaco-backend",
+    "description": "Pruebas automatizadas para la lógica del backend de Ábaco (no se despliega a producción, solo se usa en CI)",
+    "type": "project",
+    "require-dev": {
+        "phpunit/phpunit": "^11.0"
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Tests\\": "tests/"
+        }
+    },
+    "scripts": {
+        "test": "phpunit"
+    },
+    "config": {
+        "sort-packages": true
+    }
+}

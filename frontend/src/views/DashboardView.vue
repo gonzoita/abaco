@@ -540,6 +540,7 @@
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { API_BASE } from '../config.js'
+import { fetchJsonSafe } from '../utils/fetchSafe.js'
 
 export default {
   name: 'DashboardView',
@@ -811,19 +812,6 @@ export default {
     // Reintenta 1 vez (con una pequeña espera) antes de darse por vencida,
     // y exige response.ok para no confundir un error del servidor con datos
     // vacíos válidos.
-    const fetchJsonSafe = async (url, headers, retries = 1) => {
-      for (let attempt = 0; attempt <= retries; attempt++) {
-        try {
-          const res = await fetch(url, { headers })
-          if (!res.ok) throw new Error(`HTTP ${res.status} en ${url}`)
-          return await res.json()
-        } catch (err) {
-          if (attempt === retries) throw err
-          await new Promise(resolve => setTimeout(resolve, 700))
-        }
-      }
-    }
-
     const loadError = ref(false)
 
     const fetchData = async () => {
@@ -870,12 +858,12 @@ export default {
       // se disparan todas en paralelo (allSettled: si UNA falla, las otras 5
       // igual se aplican, en vez de dejar todo en blanco como con Promise.all).
       const results = await Promise.allSettled([
-        fetchJsonSafe(`${API_BASE}/accounts.php`, headers),
-        fetchJsonSafe(`${API_BASE}/categories.php`, headers),
-        fetchJsonSafe(txUrl, headers),
-        fetchJsonSafe(repUrl, headers),
-        fetchJsonSafe(`${API_BASE}/reminders.php`, headers),
-        fetchJsonSafe(`${API_BASE}/insights.php`, headers)
+        fetchJsonSafe(`${API_BASE}/accounts.php`, { headers }),
+        fetchJsonSafe(`${API_BASE}/categories.php`, { headers }),
+        fetchJsonSafe(txUrl, { headers }),
+        fetchJsonSafe(repUrl, { headers }),
+        fetchJsonSafe(`${API_BASE}/reminders.php`, { headers }),
+        fetchJsonSafe(`${API_BASE}/insights.php`, { headers })
       ])
       const [rAcc, rCat, rTx, rRep, rRem, rIns] = results
       let anyFailed = false

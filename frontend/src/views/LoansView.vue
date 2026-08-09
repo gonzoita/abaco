@@ -677,6 +677,7 @@
 <script>
 import { ref, computed, onMounted, watch } from 'vue'
 import { API_BASE } from '../config.js'
+import { fetchJsonSafe } from '../utils/fetchSafe.js'
 
 export default {
   name: 'LoansView',
@@ -746,28 +747,13 @@ export default {
       const token = localStorage.getItem('token')
       const authHeaders = { headers: { 'Authorization': `Bearer ${token}` } }
 
-      // fetchJsonSafe: 1 reintento automático + exige response.ok, para que
-      // un pico de carga puntual del hosting no deje la vista en blanco.
-      const fetchJsonSafe = async (url, retries = 1) => {
-        for (let attempt = 0; attempt <= retries; attempt++) {
-          try {
-            const res = await fetch(url, authHeaders)
-            if (!res.ok) throw new Error(`HTTP ${res.status} en ${url}`)
-            return await res.json()
-          } catch (err) {
-            if (attempt === retries) throw err
-            await new Promise(resolve => setTimeout(resolve, 700))
-          }
-        }
-      }
-
       try {
         // Las 3 peticiones son independientes entre sí: se disparan en
         // paralelo (allSettled: si una falla, las otras 2 igual se aplican).
         const [rClients, rLoans, rTxs] = await Promise.allSettled([
-          fetchJsonSafe(`${API_BASE}/loans.php?action=get_clients`),
-          fetchJsonSafe(`${API_BASE}/loans.php?action=get_loans`),
-          fetchJsonSafe(`${API_BASE}/loans.php?action=get_transactions`)
+          fetchJsonSafe(`${API_BASE}/loans.php?action=get_clients`, authHeaders),
+          fetchJsonSafe(`${API_BASE}/loans.php?action=get_loans`, authHeaders),
+          fetchJsonSafe(`${API_BASE}/loans.php?action=get_transactions`, authHeaders)
         ])
         if (rClients.status === 'fulfilled') clients.value = rClients.value
         if (rLoans.status === 'fulfilled') loans.value = rLoans.value

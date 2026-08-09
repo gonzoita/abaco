@@ -1,4 +1,4 @@
-name: CI - lint PHP y compilar frontend
+name: CI - lint, pruebas y compilar frontend
 
 # Se dispara en cada push a main. El commit que este workflow hace al final
 # (con el frontend recompilado) incluye "[skip ci]" en el mensaje, así que
@@ -21,6 +21,7 @@ jobs:
         uses: shivammathur/setup-php@v2
         with:
           php-version: '8.3'
+          coverage: none
 
       - name: Verificar sintaxis de todos los .php
         run: |
@@ -35,6 +36,12 @@ jobs:
           fi
           echo "PHP OK - sin errores de sintaxis."
 
+      - name: Instalar dependencias de Composer (solo para correr las pruebas)
+        run: composer install --no-interaction --prefer-dist
+
+      - name: Pruebas del backend (PHPUnit)
+        run: vendor/bin/phpunit
+
       - name: Configurar Node
         uses: actions/setup-node@v4
         with:
@@ -45,6 +52,10 @@ jobs:
       - name: Instalar dependencias del frontend
         working-directory: frontend
         run: npm ci
+
+      - name: Pruebas del frontend (Vitest)
+        working-directory: frontend
+        run: npm test
 
       - name: Limpiar builds anteriores (assets/*.js, assets/*.css)
         run: rm -f assets/*.js assets/*.css
