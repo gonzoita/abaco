@@ -573,6 +573,7 @@ body.light-theme .sidebar-logo .logo-light {
   justify-content: space-between;
   align-items: center;
   margin-bottom: 24px;
+  flex-shrink: 0;
 }
 
 .settings-sheet-header h3 {
@@ -608,6 +609,7 @@ body.light-theme .close-sheet-btn {
   border-radius: var(--radius-md);
   border: 1px solid var(--card-border);
   margin-bottom: 24px;
+  flex-shrink: 0;
 }
 body.light-theme .user-profile-summary {
   background: rgba(0, 0, 0, 0.01);
@@ -650,6 +652,14 @@ body.light-theme .user-profile-summary {
   border-radius: var(--radius-md);
   border: 1px solid var(--card-border);
   overflow: hidden;
+  /* CAUSA REAL DEL BUG: .mobile-settings-sheet es flex-column con
+     overflow-y:auto, y por defecto TODOS sus hijos flex tienen
+     flex-shrink:1 - así que el layout comprimía esta lista para que todo
+     "cupiera" dentro de max-height, y como esta lista tiene overflow:hidden,
+     esa compresión recortaba/escondía los últimos ítems (Admin, Legal,
+     Cerrar Sesión) en vez de dejar que el padre entrara en scroll. Con
+     flex-shrink:0 la lista mantiene su alto real y el padre sí scrollea. */
+  flex-shrink: 0;
   margin-bottom: 20px;
 }
 body.light-theme .settings-menu-list {
