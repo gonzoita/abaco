@@ -36,9 +36,18 @@ if (empty($apiKeyToUse)) {
 
 /**
  * Función auxiliar para realizar peticiones HTTP a la API de Gemini con reintentos para picos de demanda
+ *
+ * IMPORTANTE: Google va retirando modelos de Gemini con el tiempo (Gemini
+ * 2.0 Flash se apagó el 1 de junio de 2026; toda la línea 1.5 ya estaba
+ * apagada desde antes de eso). Si esta lista queda desactualizada, TODAS
+ * las peticiones fallan con "not found" y la IA deja de funcionar por
+ * completo aunque el código esté bien. 'gemini-flash-latest' va primero
+ * porque es un alias que Google mantiene apuntando siempre al modelo
+ * Flash recomendado del momento, así que no depende de que nosotros
+ * actualicemos el número de versión a mano.
  */
 function callGemini($payload, $apiKey) {
-    $models = ['gemini-2.0-flash', 'gemini-1.5-flash-latest', 'gemini-1.5-flash', 'gemini-flash-latest'];
+    $models = ['gemini-flash-latest', 'gemini-3.7-flash', 'gemini-3.5-flash', 'gemini-3.1-flash-lite'];
     $lastDecoded = null;
 
     foreach ($models as $modelName) {

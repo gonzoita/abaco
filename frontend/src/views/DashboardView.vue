@@ -26,8 +26,18 @@
       </button>
     </div>
 
+    <!-- Mientras carga por primera vez, mostrar un indicador en vez de "$0"
+         (antes se veían montos en cero por un instante hasta que llegaban
+         los datos reales, y en un pico de carga del hosting ese instante
+         podía sentirse largo). En recargas posteriores (cambiar de mes,
+         reintentar) se conservan los datos anteriores en pantalla. -->
+    <div v-if="loading && !hasLoadedOnce" class="glass-card" style="padding:36px 20px; display:flex; flex-direction:column; align-items:center; gap:12px; margin-bottom:20px;">
+      <div class="spinner"></div>
+      <span style="font-size:13px; color:var(--text-secondary);">Cargando tus finanzas...</span>
+    </div>
+
     <!-- Grid de Balances Principales -->
-    <div class="balance-grid" :class="{ 'business-grid': activeWorkspace === 'business' }">
+    <div v-else class="balance-grid" :class="{ 'business-grid': activeWorkspace === 'business' }">
       <div class="glass-card balance-card total" :style="activeWorkspace === 'business' ? { borderTop: '3px solid #38bdf8' } : {}">
         <span class="card-label">{{ activeWorkspace === 'business' ? 'Caja & Liquidez del Negocio' : 'Balance Total' }}</span>
         <h2 class="amount">
@@ -36,7 +46,13 @@
         <p class="card-detail">{{ activeWorkspace === 'business' ? 'Disponible en caja chica y cuentas empresa' : 'Suma de todas tus cuentas' }}</p>
       </div>
 
-      <div class="glass-card balance-card income">
+      <div
+        class="glass-card balance-card income"
+        style="cursor:pointer;"
+        :style="{ outline: selectedTypeFilter === 'ingreso' ? '2px solid var(--color-success)' : 'none', outlineOffset: '-1px' }"
+        title="Ver el detalle de los ingresos de este período"
+        @click="toggleTypeFilter('ingreso')"
+      >
         <div class="card-header-icon">
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <line x1="12" y1="19" x2="12" y2="5"></line>
@@ -45,9 +61,16 @@
         </div>
         <span class="card-label">{{ activeWorkspace === 'business' ? 'Ventas del Mes' : 'Ingresos del Mes' }}</span>
         <h3 class="amount amount-positive">{{ formatCurrency(totals.ingresos) }}</h3>
+        <p class="card-detail" style="font-size:11px; margin-top:2px;">Toca para ver el detalle</p>
       </div>
 
-      <div class="glass-card balance-card expense">
+      <div
+        class="glass-card balance-card expense"
+        style="cursor:pointer;"
+        :style="{ outline: selectedTypeFilter === 'egreso' ? '2px solid var(--color-danger)' : 'none', outlineOffset: '-1px' }"
+        title="Ver el detalle de los gastos de este período"
+        @click="toggleTypeFilter('egreso')"
+      >
         <div class="card-header-icon">
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <line x1="12" y1="5" x2="12" y2="19"></line>
@@ -56,6 +79,7 @@
         </div>
         <span class="card-label">{{ activeWorkspace === 'business' ? 'Costos & Gastos Negocio' : 'Gastos del Mes' }}</span>
         <h3 class="amount amount-negative">{{ formatCurrency(totals.egresos) }}</h3>
+        <p class="card-detail" style="font-size:11px; margin-top:2px;">Toca para ver el detalle</p>
       </div>
 
       <!-- Tarjeta de Utilidad Neta (Exclusiva de Modo Negocio) -->
@@ -291,8 +315,19 @@
       <!-- Historial de Transacciones -->
       <div class="glass-card transactions-section">
         <div class="section-header">
-          <h3 class="section-title">Últimos Movimientos</h3>
+          <h3 class="section-title">
+            {{ selectedTypeFilter === 'ingreso' ? 'Detalle de Ingresos' : (selectedTypeFilter === 'egreso' ? 'Detalle de Gastos' : 'Últimos Movimientos') }}
+          </h3>
           <router-link to="/accounts" class="header-link">Ver Cuentas</router-link>
+        </div>
+
+        <!-- Banner de Filtro por Tipo (Ingresos/Gastos) Activo -->
+        <div v-if="selectedTypeFilter" class="category-filter-banner" :style="{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'10px 14px', borderRadius:'8px', marginBottom:'16px', fontSize:'13.5px', color:'var(--text-primary)', background: selectedTypeFilter === 'ingreso' ? 'rgba(48,209,88,0.15)' : 'rgba(255,69,58,0.15)', border: '1px solid ' + (selectedTypeFilter === 'ingreso' ? 'rgba(48,209,88,0.3)' : 'rgba(255,69,58,0.3)') }">
+          <span>
+            <i class="fa-solid fa-filter" :style="{ color: selectedTypeFilter === 'ingreso' ? 'var(--color-success)' : 'var(--color-danger)', marginRight:'6px' }"></i>
+            Mostrando solo: <strong>{{ selectedTypeFilter === 'ingreso' ? 'Ingresos' : 'Gastos' }}</strong> de este período ({{ filteredTransactions.length }})
+          </span>
+          <button @click="selectedTypeFilter = null" :style="{ background:'none', border:'none', color: selectedTypeFilter === 'ingreso' ? 'var(--color-success)' : 'var(--color-danger)', fontWeight:700, cursor:'pointer', fontSize:'12px', outline:'none' }">Quitar Filtro</button>
         </div>
 
         <!-- Banner de Filtro de Categoría Activo -->
@@ -781,6 +816,10 @@ export default {
     const filterEndDate = ref(new Date().toISOString().split('T')[0])
     
     const selectedCategoryFilter = ref(null)
+    const selectedTypeFilter = ref(null)
+    const toggleTypeFilter = (type) => {
+      selectedTypeFilter.value = selectedTypeFilter.value === type ? null : type
+    }
     const insightsData = ref(null)
 
     // Formulario de Transacción
@@ -813,6 +852,7 @@ export default {
     // y exige response.ok para no confundir un error del servidor con datos
     // vacíos válidos.
     const loadError = ref(false)
+    const hasLoadedOnce = ref(false)
 
     const fetchData = async () => {
       loading.value = true
@@ -900,6 +940,7 @@ export default {
       }
 
       loading.value = false
+      hasLoadedOnce.value = true
     }
 
     const completeReminder = async (id) => {
@@ -1358,13 +1399,20 @@ export default {
     })
 
     const filteredTransactions = computed(() => {
-      if (!selectedCategoryFilter.value) {
-        return transactions.value
+      let result = transactions.value
+
+      if (selectedTypeFilter.value) {
+        result = result.filter(tx => tx.type === selectedTypeFilter.value)
       }
-      return transactions.value.filter(tx => {
-        const catName = tx.category_name || 'Sin Categoría'
-        return catName.toLowerCase() === selectedCategoryFilter.value.toLowerCase()
-      })
+
+      if (selectedCategoryFilter.value) {
+        result = result.filter(tx => {
+          const catName = tx.category_name || 'Sin Categoría'
+          return catName.toLowerCase() === selectedCategoryFilter.value.toLowerCase()
+        })
+      }
+
+      return result
     })
 
     return {
@@ -1401,6 +1449,7 @@ export default {
       form,
       loading,
       loadError,
+      hasLoadedOnce,
       fetchData,
       formLoading,
       modalError,
@@ -1428,6 +1477,8 @@ export default {
       filterStartDate,
       filterEndDate,
       selectedCategoryFilter,
+      selectedTypeFilter,
+      toggleTypeFilter,
       toggleCategoryFilter,
       applyDateFilters,
       getActiveFilterLabel,
