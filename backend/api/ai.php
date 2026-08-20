@@ -106,7 +106,16 @@ function callGemini($payload, $apiKey) {
                     break;
                 }
                 if (strpos($errMsg, 'high demand') !== false || strpos($errMsg, 'overloaded') !== false || strpos($errMsg, '503') !== false || strpos($errMsg, 'resource_exhausted') !== false || strpos($errMsg, 'quota') !== false) {
-                    if ($deadline - microtime(true) > 1) usleep(300000);
+                    // Con "alta demanda"/cuota, un reintento casi inmediato
+                    // (antes 0.3s) casi nunca alcanza a ayudar -- es el
+                    // límite de peticiones por minuto de la clave gratuita,
+                    // no un problema de red puntual. Se espera más (2s en el
+                    // segundo intento del mismo modelo) siempre que quede
+                    // presupuesto de tiempo para hacerlo.
+                    $wait = $attempt === 1 ? 2.0 : 0.5;
+                    if ($deadline - microtime(true) > $wait + 1) {
+                        usleep((int) ($wait * 1000000));
+                    }
                     continue;
                 }
             }
@@ -115,6 +124,30 @@ function callGemini($payload, $apiKey) {
     }
 
     return $lastDecoded ?? ["error" => ["message" => "Google Gemini no pudo procesar la solicitud. Verifica tu clave de API."]];
+}
+
+/**
+ * Traduce los errores más comunes de la API de Gemini a un mensaje en
+ * español que explique qué está pasando de verdad y qué hacer, en vez de
+ * mostrarle al usuario el texto crudo en inglés de Google.
+ */
+function translate_gemini_error($rawMessage) {
+    $msg = mb_strtolower($rawMessage ?? '');
+
+    if (strpos($msg, 'high demand') !== false || strpos($msg, 'overloaded') !== false || strpos($msg, '503') !== false) {
+        return "Los servidores de Gemini están saturados en este momento (esto lo reporta Google, no es un error de la app). Espera unos 30-60 segundos y vuelve a intentar.";
+    }
+    if (strpos($msg, 'resource_exhausted') !== false || strpos($msg, 'quota') !== false || strpos($msg, 'rate limit') !== false) {
+        return "Tu clave gratuita de Gemini llegó a su límite de peticiones por minuto (es normal si probaste varias veces seguidas). Espera un minuto y vuelve a intentar.";
+    }
+    if (strpos($msg, 'api_key_invalid') !== false || strpos($msg, 'invalid api key') !== false || strpos($msg, 'api key not valid') !== false) {
+        return "Tu clave de Gemini no es válida. Ve a Ajustes → IA Personal y vuelve a vincularla (aistudio.google.com/apikey).";
+    }
+    if (strpos($msg, 'not found') !== false || strpos($msg, 'not supported') !== false) {
+        return "El modelo de IA solicitado ya no está disponible. Si esto persiste, avísale al administrador de la app.";
+    }
+
+    return $rawMessage;
 }
 
 function fallbackVoiceParser($transcript, $categoriesList, $accountsList, $defaultAccId) {
@@ -237,8 +270,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $result = callGemini($payload, $apiKeyToUse);
             
             if (isset($result['error'])) {
-                $googleError = $result['error']['message'] ?? 'Error de la API de Google.';
-                throw new Exception("Google API Error: " . $googleError);
+                $googleError = translate_gemini_error($result['error']['message'] ?? 'Error de la API de Google.');
+                throw new Exception($googleError);
             }
             
             // Extraer respuesta del texto
@@ -501,8 +534,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $result = callGemini($payload, $apiKeyToUse);
             
             if (isset($result['error'])) {
-                $googleError = $result['error']['message'] ?? 'Error de la API de Google.';
-                echo json_encode(["response" => "⚠️ Error de Google Gemini: " . $googleError]);
+                $googleError = translate_gemini_error($result['error']['message'] ?? 'Error de la API de Google.');
+                echo json_encode(["response" => "⚠️ " . $googleError]);
                 exit();
             }
             
@@ -577,8 +610,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $result = callGemini($payload, $apiKeyToUse);
             
             if (isset($result['error'])) {
-                $googleError = $result['error']['message'] ?? 'Error de la API de Google.';
-                throw new Exception("Google API Error: " . $googleError);
+                $googleError = translate_gemini_error($result['error']['message'] ?? 'Error de la API de Google.');
+                throw new Exception($googleError);
             }
             $jsonText = $result['candidates'][0]['content']['parts'][0]['text'] ?? '';
             
@@ -716,8 +749,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $result = callGemini($payload, $apiKeyToUse);
             
             if (isset($result['error'])) {
-                $googleError = $result['error']['message'] ?? 'Error de la API de Google.';
-                echo json_encode(["error" => "Error de la API de Google: " . $googleError]);
+                $googleError = translate_gemini_error($result['error']['message'] ?? 'Error de la API de Google.');
+                echo json_encode(["error" => $googleError]);
                 exit();
             }
             
