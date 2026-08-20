@@ -557,7 +557,7 @@ export default {
         try {
           data = JSON.parse(responseText)
         } catch (e) {
-          throw new Error('Servidor error (no JSON): ' + responseText.substring(0, 150))
+          throw new Error('La IA tardó demasiado en responder o tuvo un problema temporal. Intenta de nuevo.')
         }
 
         if (!response.ok) {

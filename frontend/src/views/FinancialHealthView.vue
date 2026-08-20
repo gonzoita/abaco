@@ -141,7 +141,15 @@ export default {
           headers,
           body: JSON.stringify({ user_notes: '' })
         })
-        const data = await response.json()
+        let data
+        try {
+          data = await response.json()
+        } catch (parseErr) {
+          // El servidor devolvió algo que no es JSON (p. ej. su propia
+          // página de error HTML si tardó demasiado): no mostrar el error
+          // crudo de parseo, dar un mensaje que se entienda.
+          throw new Error('El Asesor IA tardó demasiado en responder o tuvo un problema temporal. Intenta de nuevo en unos segundos.')
+        }
         if (!response.ok || data.error) {
           throw new Error(data.error || 'No se pudo generar el análisis.')
         }

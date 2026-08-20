@@ -756,7 +756,12 @@ export default {
           body: JSON.stringify({ transcript: textToProcess })
         })
 
-        const data = await res.json()
+        let data
+        try {
+          data = await res.json()
+        } catch (parseErr) {
+          throw new Error('La IA tardó demasiado en responder o tuvo un problema temporal. Intenta de nuevo.')
+        }
         if (!res.ok || data.error) {
           throw new Error(data.error || 'Error al procesar voz con IA')
         }
@@ -1180,12 +1185,16 @@ export default {
           body: formData
         })
 
-        if (!response.ok) {
-          const errData = await response.json()
-          throw new Error(errData.error || 'Error al procesar el recibo.')
+        let result
+        try {
+          result = await response.json()
+        } catch (parseErr) {
+          throw new Error('La IA tardó demasiado en responder o tuvo un problema temporal. Intenta de nuevo.')
         }
 
-        const result = await response.json()
+        if (!response.ok) {
+          throw new Error(result.error || 'Error al procesar el recibo.')
+        }
 
         // Mapear categoría sugerida al ID de la categoría correspondiente
         let matchedCatId = null

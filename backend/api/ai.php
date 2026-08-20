@@ -50,10 +50,24 @@ function callGemini($payload, $apiKey) {
     $models = ['gemini-flash-latest', 'gemini-3.7-flash', 'gemini-3.5-flash', 'gemini-3.1-flash-lite'];
     $lastDecoded = null;
 
+    // Límite de tiempo TOTAL duro para toda la función, no solo por petición.
+    // Antes, en el peor caso (4 modelos x 2 intentos x 20s + esperas), esto
+    // podía tardar más de dos minutos -- pero el servidor/proxy de por medio
+    // corta la conexión mucho antes (30-60s típico), y ahí es cuando el
+    // usuario veía la página de error HTML del propio servidor en vez de una
+    // respuesta de la app ("Unexpected token '<'... is not valid JSON").
+    // Con este límite, siempre respondemos (éxito o error real) antes de que
+    // el servidor decida cortar por nosotros.
+    $deadline = microtime(true) + 25;
+
     foreach ($models as $modelName) {
+        if (microtime(true) >= $deadline) break;
         $url = "https://generativelanguage.googleapis.com/v1beta/models/" . $modelName . ":generateContent?key=" . $apiKey;
 
         for ($attempt = 1; $attempt <= 2; $attempt++) {
+            $remaining = $deadline - microtime(true);
+            if ($remaining <= 1) break 2;
+
             $ch = curl_init($url);
             curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
             curl_setopt($ch, CURLOPT_POST, true);
@@ -62,14 +76,16 @@ function callGemini($payload, $apiKey) {
                 'Content-Type: application/json'
             ]);
             curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
-            curl_setopt($ch, CURLOPT_TIMEOUT, 20);
+            // Nunca más de 10s por intento (antes 20s), y nunca más del
+            // tiempo que le queda al presupuesto total.
+            curl_setopt($ch, CURLOPT_TIMEOUT, (int) max(1, min(10, $remaining)));
 
             $response = curl_exec($ch);
             $curlErr = curl_error($ch);
             curl_close($ch);
 
             if ($curlErr) {
-                sleep(1);
+                if ($deadline - microtime(true) > 1) usleep(300000);
                 continue;
             }
 
@@ -90,7 +106,7 @@ function callGemini($payload, $apiKey) {
                     break;
                 }
                 if (strpos($errMsg, 'high demand') !== false || strpos($errMsg, 'overloaded') !== false || strpos($errMsg, '503') !== false || strpos($errMsg, 'resource_exhausted') !== false || strpos($errMsg, 'quota') !== false) {
-                    sleep(1);
+                    if ($deadline - microtime(true) > 1) usleep(300000);
                     continue;
                 }
             }
