@@ -118,15 +118,21 @@
             <div class="form-group">
               <label for="gemini-key">Tu Gemini API Key</label>
               <div style="display: flex; gap: 8px;">
-                <input type="password" id="gemini-key" v-model="geminiApiKey" placeholder="AIzaSy..." style="flex: 1;" />
-                <button type="button" class="btn-primary" @click="saveGeminiKey" style="padding: 10px 16px;">Vincular</button>
+                <input type="password" id="gemini-key" v-model="geminiApiKey" placeholder="AIzaSy..." style="flex: 1;" :disabled="testingGeminiKey" />
+                <button type="button" class="btn-primary" @click="saveGeminiKey" :disabled="testingGeminiKey" style="padding: 10px 16px; display:flex; align-items:center; gap:6px; white-space:nowrap;">
+                  <i v-if="testingGeminiKey" class="fa-solid fa-circle-notch fa-spin"></i>
+                  {{ testingGeminiKey ? 'Verificando...' : 'Vincular' }}
+                </button>
               </div>
               <p class="input-help-text" style="font-size: 11.5px; color: var(--text-muted); margin-top: 8px; line-height: 1.45;">
-                Es gratis dentro del límite generoso de uso personal de Google. Tu clave se guarda solo en este navegador (localStorage), nunca en nuestros servidores.
+                Es gratis dentro del límite generoso de uso personal de Google. Tu clave se guarda solo en este navegador (localStorage), nunca en nuestros servidores. Al vincularla, hacemos una consulta real de prueba para confirmar que sí quedó conectada.
               </p>
             </div>
-            <div v-if="aiKeySuccessMsg" class="success-msg" style="margin-top: 10px; background: rgba(48, 209, 88, 0.1); color: var(--color-success); border: 1px solid rgba(48, 209, 88, 0.2); padding: 8px 12px; border-radius: var(--radius-sm); font-size: 13.5px; text-align: center;">
-              {{ aiKeySuccessMsg }}
+
+            <!-- Resultado de la verificación real contra Gemini al vincular -->
+            <div v-if="geminiTestResult" :style="{ marginTop:'10px', display:'flex', alignItems:'center', gap:'8px', padding:'8px 12px', borderRadius:'8px', fontSize:'13.5px', textAlign:'left', background: geminiTestResult.success ? 'rgba(48,209,88,0.1)' : 'rgba(255,69,58,0.1)', border: '1px solid ' + (geminiTestResult.success ? 'rgba(48,209,88,0.2)' : 'rgba(255,69,58,0.25)'), color: geminiTestResult.success ? 'var(--color-success)' : 'var(--color-danger)' }">
+              <i :class="geminiTestResult.success ? 'fa-solid fa-circle-check' : 'fa-solid fa-circle-exclamation'"></i>
+              <span>{{ geminiTestResult.message }}</span>
             </div>
           </div>
         </div>
@@ -433,7 +439,6 @@ export default {
   setup() {
     const currentTheme = ref(localStorage.getItem('theme') || 'dark')
     const geminiApiKey = ref(localStorage.getItem('gemini_api_key') || '')
-    const aiKeySuccessMsg = ref('')
 
     const toggleTheme = (theme) => {
       currentTheme.value = theme
@@ -582,12 +587,50 @@ export default {
       }
     }
 
-    const saveGeminiKey = () => {
-      localStorage.setItem('gemini_api_key', geminiApiKey.value.trim())
-      aiKeySuccessMsg.value = '¡Clave de API vinculada con éxito de forma local!'
-      setTimeout(() => {
-        aiKeySuccessMsg.value = ''
-      }, 3000)
+    const testingGeminiKey = ref(false)
+    const geminiTestResult = ref(null) // { success: true|false, message: string } | null
+
+    const saveGeminiKey = async () => {
+      const key = geminiApiKey.value.trim()
+      localStorage.setItem('gemini_api_key', key)
+      geminiTestResult.value = null
+
+      if (!key) return
+
+      // No basta con guardarla: se hace una consulta real y liviana a
+      // Gemini para confirmar que la clave sí quedó conectada y funcional,
+      // en vez de que el usuario se entere hasta la próxima vez que use el
+      // Asesor IA.
+      testingGeminiKey.value = true
+      try {
+        const token = localStorage.getItem('token')
+        const response = await fetch(`${API_BASE}/ai.php?action=test_key`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`,
+            'X-Gemini-API-Key': key
+          },
+          body: JSON.stringify({})
+        })
+
+        let data
+        try {
+          data = await response.json()
+        } catch (parseErr) {
+          throw new Error('No se pudo verificar la clave (el servidor tardó demasiado en responder). Intenta de nuevo.')
+        }
+
+        if (response.ok && data.success) {
+          geminiTestResult.value = { success: true, message: data.message || 'Conexión verificada correctamente.' }
+        } else {
+          geminiTestResult.value = { success: false, message: data.error || 'No se pudo verificar la clave.' }
+        }
+      } catch (err) {
+        geminiTestResult.value = { success: false, message: err.message }
+      } finally {
+        testingGeminiKey.value = false
+      }
     }
 
     // Guardar / Crear categoría
@@ -1041,8 +1084,9 @@ export default {
       openCategoryModal,
       closeCategoryModal,
       geminiApiKey,
-      aiKeySuccessMsg,
       saveGeminiKey,
+      testingGeminiKey,
+      geminiTestResult,
       monthNames,
       reportMonth,
       reportYear,

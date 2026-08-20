@@ -210,6 +210,44 @@ function fallbackVoiceParser($transcript, $categoriesList, $accountsList, $defau
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
+    // 0. VERIFICAR CLAVE (usada por Ajustes -> IA Personal al vincular una
+    // clave nueva, para confirmar de inmediato que sí quedó conectada y
+    // funcional en vez de solo guardarla a ciegas en el navegador).
+    if ($action === 'test_key') {
+        $payload = [
+            "contents" => [
+                [
+                    "role" => "user",
+                    "parts" => [["text" => "Responde únicamente con la palabra OK, sin nada más."]]
+                ]
+            ]
+        ];
+
+        try {
+            $result = callGemini($payload, $apiKeyToUse);
+
+            if (isset($result['error'])) {
+                $googleError = translate_gemini_error($result['error']['message'] ?? 'Error de la API de Google.');
+                http_response_code(400);
+                echo json_encode(["success" => false, "error" => $googleError]);
+                exit();
+            }
+
+            $text = trim($result['candidates'][0]['content']['parts'][0]['text'] ?? '');
+            if (empty($text)) {
+                http_response_code(500);
+                echo json_encode(["success" => false, "error" => "Gemini no devolvió ninguna respuesta. Intenta de nuevo."]);
+                exit();
+            }
+
+            echo json_encode(["success" => true, "message" => "Conexión verificada: tu clave de Gemini funciona correctamente."]);
+        } catch (Exception $e) {
+            http_response_code(500);
+            echo json_encode(["success" => false, "error" => $e->getMessage()]);
+        }
+        exit();
+    }
+
     // 1. ESCANEAR RECIBO (OCR + Categorización)
     if ($action === 'scan_receipt') {
         $imageData = null;
