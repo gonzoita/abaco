@@ -13,6 +13,13 @@
 // exec()/shell_exec() directamente.
 header('Content-Type: text/plain; charset=UTF-8');
 
+// GitHub cierra la conexión del webhook si no recibe respuesta rápido, y
+// eso puede matar el script a mitad de camino (ya se vio: el archivo
+// quedaba copiado bien pero la bitácora final nunca se escribía). Con esto
+// el despliegue sigue corriendo hasta el final aunque GitHub ya se haya
+// desconectado.
+ignore_user_abort(true);
+
 /**
  * Reemplazo de exec() basado en proc_open(), porque exec()/shell_exec()
  * están deshabilitadas en este hosting. Devuelve [líneas_de_salida, código].
