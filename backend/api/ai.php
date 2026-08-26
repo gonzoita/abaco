@@ -50,6 +50,26 @@ function callGemini($payload, $apiKey) {
     $models = ['gemini-flash-latest', 'gemini-3.7-flash', 'gemini-3.5-flash', 'gemini-3.1-flash-lite'];
     $lastDecoded = null;
 
+    // Los modelos Gemini 2.5+/3.x "piensan" antes de responder, y ese
+    // razonamiento interno consume el MISMO presupuesto de tokens de salida
+    // que la respuesta visible. Con prompts largos (asesor de IA, diagnóstico
+    // financiero, optimizar presupuesto) el modelo a veces gastaba todo el
+    // presupuesto pensando y devolvía `candidates` sin texto -- sin ningún
+    // error real de Google, así que la app mostraba "no pude procesar la
+    // consulta" mientras que el test rápido de la clave (un mensaje trivial
+    // que no necesita razonar) sí funcionaba. Se desactiva el "thinking" (no
+    // se necesita para estas tareas) y se da margen de tokens de salida,
+    // salvo que el payload ya traiga su propia configuración.
+    if (!isset($payload['generationConfig'])) {
+        $payload['generationConfig'] = [];
+    }
+    if (!isset($payload['generationConfig']['thinkingConfig'])) {
+        $payload['generationConfig']['thinkingConfig'] = ['thinkingBudget' => 0];
+    }
+    if (!isset($payload['generationConfig']['maxOutputTokens'])) {
+        $payload['generationConfig']['maxOutputTokens'] = 2048;
+    }
+
     // Límite de tiempo TOTAL duro para toda la función, no solo por petición.
     // Antes, en el peor caso (4 modelos x 2 intentos x 20s + esperas), esto
     // podía tardar más de dos minutos -- pero el servidor/proxy de por medio
@@ -780,18 +800,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         ["text" => $systemPrompt]
                     ]
                 ]
+            ],
+            // Respuesta de 5 secciones en markdown: necesita más margen que
+            // el default de callGemini() para no cortarse a mitad de camino.
+            "generationConfig" => [
+                "thinkingConfig" => ["thinkingBudget" => 0],
+                "maxOutputTokens" => 4096
             ]
         ];
 
         try {
             $result = callGemini($payload, $apiKeyToUse);
-            
+
             if (isset($result['error'])) {
                 $googleError = translate_gemini_error($result['error']['message'] ?? 'Error de la API de Google.');
                 echo json_encode(["error" => $googleError]);
                 exit();
             }
-            
+
             $analysis = $result['candidates'][0]['content']['parts'][0]['text'] ?? 'No se pudo generar el diagnóstico.';
             echo json_encode(["diagnosis" => $analysis, "summary" => $summaryData]);
         } catch (Exception $e) {
