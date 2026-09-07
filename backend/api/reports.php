@@ -52,7 +52,8 @@ if ($method === 'GET') {
 
         // 2. Gastos agrupados por Categoría (para gráficos circulares)
         $stmtCategories = $db->prepare("
-            SELECT COALESCE(c.name, 'Sin Categoría') as name, 
+            SELECT c.id as category_id,
+                   COALESCE(c.name, 'Sin Categoría') as name, 
                    COALESCE(c.color, '#64748b') as color, 
                    COALESCE(c.icon, 'fa-tag') as icon, 
                    SUM(t.amount) as total 
@@ -68,7 +69,13 @@ if ($method === 'GET') {
         // Convertir montos a float
         foreach ($categoriesData as &$cat) {
             $cat['total'] = floatval($cat['total']);
+            // El id se expone para que el Dashboard pueda pedirle al servidor
+            // TODOS los movimientos de esa categoría al filtrar (antes filtraba
+            // en el navegador sobre las últimas 100 filas cargadas y se perdían
+            // movimientos antiguos del mismo período).
+            $cat['category_id'] = $cat['category_id'] !== null ? intval($cat['category_id']) : null;
         }
+        unset($cat);
 
         // 3. Histórico diario de los últimos 30 días (para gráficos de tendencias)
         $stmtDaily = $db->prepare("

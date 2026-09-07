@@ -88,6 +88,13 @@ if ($method === 'GET') {
         $startDate = isset($_GET['start_date']) ? trim($_GET['start_date']) : null;
         $endDate = isset($_GET['end_date']) ? trim($_GET['end_date']) : null;
         $limit = isset($_GET['limit']) ? intval($_GET['limit']) : 50;
+        // Un limit de 0 o negativo generaba "LIMIT 0" (cero resultados) o un
+        // error de SQL. Y sin techo, un limit enorme podía tumbar la petición.
+        if ($limit <= 0) $limit = 50;
+        if ($limit > 2000) $limit = 2000;
+        // Los movimientos sin categoría no se pueden pedir con category_id
+        // (es NULL en la base de datos), así que llevan su propia bandera.
+        $uncategorized = isset($_GET['uncategorized']) && $_GET['uncategorized'] === '1';
 
         $sql = "SELECT t.*, COALESCE(a.name, 'Cuenta') as account_name, c.name as category_name, c.color as category_color, c.icon as category_icon
                 FROM transactions t 
@@ -101,7 +108,9 @@ if ($method === 'GET') {
             $sql .= " AND t.account_id = :account_id";
             $params[':account_id'] = $accountId;
         }
-        if ($categoryId) {
+        if ($uncategorized) {
+            $sql .= " AND t.category_id IS NULL";
+        } elseif ($categoryId) {
             $sql .= " AND t.category_id = :category_id";
             $params[':category_id'] = $categoryId;
         }
@@ -123,7 +132,7 @@ if ($method === 'GET') {
         $stmt = $db->prepare($sql);
         $stmt->bindValue(':user_id', $userId, PDO::PARAM_INT);
         if ($accountId) $stmt->bindValue(':account_id', $accountId, PDO::PARAM_INT);
-        if ($categoryId) $stmt->bindValue(':category_id', $categoryId, PDO::PARAM_INT);
+        if (!$uncategorized && $categoryId) $stmt->bindValue(':category_id', $categoryId, PDO::PARAM_INT);
         if ($type) $stmt->bindValue(':type', $type, PDO::PARAM_STR);
         if ($startDate) $stmt->bindValue(':start_date', $startDate, PDO::PARAM_STR);
         if ($endDate) $stmt->bindValue(':end_date', $endDate, PDO::PARAM_STR);

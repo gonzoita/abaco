@@ -272,7 +272,7 @@
                       :stroke-dashoffset="sector.strokeDashOffset"
                       @mouseenter="activeSector = sector"
                       @mouseleave="activeSector = null"
-                      @click="toggleCategoryFilter(sector.name)"
+                      @click="toggleCategoryFilter(sector)"
                       style="cursor:pointer;"
                       stroke-width="12"
                       fill="transparent" />
@@ -294,7 +294,7 @@
             <div v-for="cat in categoriesReport" 
                  :key="cat.name" 
                  class="category-progress-item" 
-                 @click="toggleCategoryFilter(cat.name)" 
+                 @click="toggleCategoryFilter(cat)" 
                  :style="{ cursor: 'pointer', padding: '6px', borderRadius: '8px', transition: 'all 0.2s', background: selectedCategoryFilter === cat.name ? 'rgba(255,255,255,0.05)' : 'transparent', opacity: selectedCategoryFilter && selectedCategoryFilter !== cat.name ? 0.4 : 1 }">
               <div class="category-meta">
                 <span class="category-name-badge">
@@ -325,18 +325,27 @@
         <div v-if="selectedTypeFilter" class="category-filter-banner" :style="{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'10px 14px', borderRadius:'8px', marginBottom:'16px', fontSize:'13.5px', color:'var(--text-primary)', background: selectedTypeFilter === 'ingreso' ? 'rgba(48,209,88,0.15)' : 'rgba(255,69,58,0.15)', border: '1px solid ' + (selectedTypeFilter === 'ingreso' ? 'rgba(48,209,88,0.3)' : 'rgba(255,69,58,0.3)') }">
           <span>
             <i class="fa-solid fa-filter" :style="{ color: selectedTypeFilter === 'ingreso' ? 'var(--color-success)' : 'var(--color-danger)', marginRight:'6px' }"></i>
-            Mostrando solo: <strong>{{ selectedTypeFilter === 'ingreso' ? 'Ingresos' : 'Gastos' }}</strong> de este período ({{ filteredTransactions.length }})
+            Mostrando solo: <strong>{{ selectedTypeFilter === 'ingreso' ? 'Ingresos' : 'Gastos' }}</strong> de este período<template v-if="filterLoading"> · <i class="fa-solid fa-circle-notch fa-spin"></i> cargando...</template><template v-else> ({{ filteredTransactions.length }})</template>
           </span>
           <button @click="selectedTypeFilter = null" :style="{ background:'none', border:'none', color: selectedTypeFilter === 'ingreso' ? 'var(--color-success)' : 'var(--color-danger)', fontWeight:700, cursor:'pointer', fontSize:'12px', outline:'none' }">Quitar Filtro</button>
         </div>
 
         <!-- Banner de Filtro de Categoría Activo -->
         <div v-if="selectedCategoryFilter" class="category-filter-banner" style="display:flex; justify-content:space-between; align-items:center; background:rgba(10,132,255,0.15); border:1px solid rgba(10,132,255,0.3); padding:10px 14px; border-radius:8px; margin-bottom:16px; font-size:13.5px; color:var(--text-primary);">
-          <span><i class="fa-solid fa-filter" style="color:#0a84ff; margin-right:6px;"></i> Filtrando categoría: <strong style="color:#0a84ff;">{{ selectedCategoryFilter }}</strong></span>
-          <button @click="selectedCategoryFilter = null" style="background:none; border:none; color:#0a84ff; font-weight:700; cursor:pointer; font-size:12px; outline:none;">Quitar Filtro</button>
+          <span>
+            <i class="fa-solid fa-filter" style="color:#0a84ff; margin-right:6px;"></i>
+            Filtrando categoría: <strong style="color:#0a84ff;">{{ selectedCategoryFilter }}</strong>
+            <template v-if="filterLoading"> · <i class="fa-solid fa-circle-notch fa-spin"></i> cargando movimientos...</template>
+            <template v-else> ({{ filteredTransactions.length }} movimientos)</template>
+          </span>
+          <button @click="clearCategoryFilter" style="background:none; border:none; color:#0a84ff; font-weight:700; cursor:pointer; font-size:12px; outline:none;">Quitar Filtro</button>
         </div>
 
-        <div v-if="filteredTransactions.length === 0" class="empty-state">
+        <div v-if="filterLoading && filteredTransactions.length === 0" class="empty-state">
+          <p><i class="fa-solid fa-circle-notch fa-spin"></i> Cargando movimientos...</p>
+        </div>
+
+        <div v-else-if="filteredTransactions.length === 0" class="empty-state">
           <p>No hay transacciones registradas en esta categoría.</p>
         </div>
 
@@ -821,7 +830,12 @@ export default {
     const filterEndDate = ref(new Date().toISOString().split('T')[0])
     
     const selectedCategoryFilter = ref(null)
+    const selectedCategoryId = ref(null)
     const selectedTypeFilter = ref(null)
+    // Movimientos del filtro activo, pedidos YA filtrados al servidor.
+    // null = no hay filtro activo (se muestra la lista normal).
+    const serverFilteredTx = ref(null)
+    const filterLoading = ref(false)
     const toggleTypeFilter = (type) => {
       selectedTypeFilter.value = selectedTypeFilter.value === type ? null : type
     }
@@ -859,6 +873,74 @@ export default {
     const loadError = ref(false)
     const hasLoadedOnce = ref(false)
 
+    // Rango de fechas del período seleccionado. Lo usan tanto la carga inicial
+    // como el filtro por categoría/tipo, para que ambos miren exactamente el
+    // mismo período y los totales cuadren con la lista de movimientos.
+    const currentPeriodRange = () => {
+      if (filterRangeMode.value === 'month') {
+        const formattedMonth = String(filterMonth.value).padStart(2, '0')
+        const lastDay = new Date(filterYear.value, filterMonth.value, 0).getDate()
+        return {
+          start: `${filterYear.value}-${formattedMonth}-01`,
+          end: `${filterYear.value}-${formattedMonth}-${String(lastDay).padStart(2, '0')}`
+        }
+      }
+      if (filterRangeMode.value === 'week') {
+        const today = new Date()
+        const sevenDaysAgo = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000)
+        return {
+          start: sevenDaysAgo.toISOString().split('T')[0],
+          end: today.toISOString().split('T')[0]
+        }
+      }
+      if (filterRangeMode.value === 'custom') {
+        return { start: filterStartDate.value, end: filterEndDate.value }
+      }
+      return { start: '', end: '' }
+    }
+
+    // Al filtrar por categoría o por tipo, los movimientos se piden al servidor
+    // YA filtrados en vez de filtrar en el navegador las 100 filas cargadas al
+    // inicio. El desglose por categoría se calcula en el servidor sobre TODO el
+    // período, así que filtrar sobre esa ventana de 100 filas dejaba fuera
+    // movimientos reales de la categoría y el total no cuadraba con la lista.
+    const refreshServerFilter = async () => {
+      if (!selectedCategoryFilter.value && !selectedTypeFilter.value) {
+        serverFilteredTx.value = null
+        filterLoading.value = false
+        return
+      }
+
+      const token = localStorage.getItem('token')
+      const ws = localStorage.getItem('active_workspace') || 'personal'
+      const { start, end } = currentPeriodRange()
+
+      let url = `${API_BASE}/transactions.php?limit=2000`
+      if (start) url += `&start_date=${start}`
+      if (end) url += `&end_date=${end}`
+      if (selectedTypeFilter.value) url += `&type=${selectedTypeFilter.value}`
+      if (selectedCategoryFilter.value) {
+        // Los movimientos sin categoría tienen category_id NULL, se piden aparte.
+        url += selectedCategoryId.value ? `&category_id=${selectedCategoryId.value}` : '&uncategorized=1'
+      }
+
+      filterLoading.value = true
+      try {
+        const data = await fetchJsonSafe(url, {
+          headers: { 'Authorization': `Bearer ${token}`, 'X-Workspace': ws }
+        })
+        serverFilteredTx.value = Array.isArray(data) ? data : []
+      } catch (err) {
+        // Si la petición falla, se cae al filtrado local sobre lo ya cargado
+        // en vez de dejar la lista en blanco.
+        serverFilteredTx.value = null
+      } finally {
+        filterLoading.value = false
+      }
+    }
+
+    watch([selectedCategoryFilter, selectedTypeFilter], refreshServerFilter)
+
     const fetchData = async () => {
       loading.value = true
       loadError.value = false
@@ -870,31 +952,14 @@ export default {
       }
 
       // Calcular fechas según el rango de filtrado seleccionado
-      let start = ''
-      let end = ''
+      const { start, end } = currentPeriodRange()
       let repUrl = ''
       let txUrl = `${API_BASE}/transactions.php?limit=100`
 
       if (filterRangeMode.value === 'month') {
-        const formattedMonth = String(filterMonth.value).padStart(2, '0')
-        start = `${filterYear.value}-${formattedMonth}-01`
-        const lastDay = new Date(filterYear.value, filterMonth.value, 0).getDate()
-        end = `${filterYear.value}-${formattedMonth}-${String(lastDay).padStart(2, '0')}`
-
         repUrl = `${API_BASE}/reports.php?month=${filterMonth.value}&year=${filterYear.value}`
         txUrl += `&start_date=${start}&end_date=${end}`
-      } else if (filterRangeMode.value === 'week') {
-        const today = new Date()
-        const sevenDaysAgo = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000)
-        start = sevenDaysAgo.toISOString().split('T')[0]
-        end = today.toISOString().split('T')[0]
-
-        repUrl = `${API_BASE}/reports.php?start_date=${start}&end_date=${end}`
-        txUrl += `&start_date=${start}&end_date=${end}`
-      } else if (filterRangeMode.value === 'custom') {
-        start = filterStartDate.value
-        end = filterEndDate.value
-
+      } else if (filterRangeMode.value === 'week' || filterRangeMode.value === 'custom') {
         repUrl = `${API_BASE}/reports.php?start_date=${start}&end_date=${end}`
         txUrl += `&start_date=${start}&end_date=${end}`
       }
@@ -946,6 +1011,10 @@ export default {
 
       loading.value = false
       hasLoadedOnce.value = true
+
+      // Si hay un filtro activo, se vuelve a pedir su lista para que refleje
+      // el período/los datos recién cargados (no-op si no hay filtro).
+      refreshServerFilter()
     }
 
     const completeReminder = async (id) => {
@@ -1252,6 +1321,7 @@ export default {
 
         return {
           name: cat.name,
+          category_id: cat.category_id ?? null,
           total: cat.total,
           color: cat.color,
           percentage: Math.round(percent * 100),
@@ -1259,7 +1329,6 @@ export default {
           strokeDashOffset: offset
         }
       })
-      console.log('DIAGNOSTICO DONA:', JSON.stringify(sectors), 'TOTAL:', totalExpenses)
       return sectors
     })
 
@@ -1379,16 +1448,29 @@ export default {
       window.removeEventListener('user-updated', updateWorkspaceInfo)
     })
 
-    const toggleCategoryFilter = (catName) => {
-      if (selectedCategoryFilter.value === catName) {
+    // Recibe la categoría completa (no solo el nombre) porque se necesita su
+    // id para pedirle al servidor todos sus movimientos.
+    const toggleCategoryFilter = (cat) => {
+      const name = typeof cat === 'string' ? cat : cat?.name
+      const id = typeof cat === 'string' ? null : (cat?.category_id ?? null)
+
+      if (selectedCategoryFilter.value === name) {
         selectedCategoryFilter.value = null
+        selectedCategoryId.value = null
       } else {
-        selectedCategoryFilter.value = catName
+        selectedCategoryFilter.value = name
+        selectedCategoryId.value = id
       }
+    }
+
+    const clearCategoryFilter = () => {
+      selectedCategoryFilter.value = null
+      selectedCategoryId.value = null
     }
 
     const applyDateFilters = () => {
       selectedCategoryFilter.value = null
+      selectedCategoryId.value = null
       fetchData()
     }
 
@@ -1408,6 +1490,11 @@ export default {
     })
 
     const filteredTransactions = computed(() => {
+      // Con un filtro activo la lista la entrega el servidor ya filtrada:
+      // son TODOS los movimientos del período que cumplen el filtro, no solo
+      // los que cupieron en las 100 filas cargadas al inicio.
+      if (serverFilteredTx.value) return serverFilteredTx.value
+
       let result = transactions.value
 
       if (selectedTypeFilter.value) {
@@ -1487,8 +1574,10 @@ export default {
       filterEndDate,
       selectedCategoryFilter,
       selectedTypeFilter,
+      filterLoading,
       toggleTypeFilter,
       toggleCategoryFilter,
+      clearCategoryFilter,
       applyDateFilters,
       getActiveFilterLabel,
       filteredTransactions

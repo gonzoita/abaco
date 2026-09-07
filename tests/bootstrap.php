@@ -11,3 +11,4 @@ require_once __DIR__ . '/../backend/api/auth_helper.php';
 require_once __DIR__ . '/../backend/lib/import_insert_row.php';
 require_once __DIR__ . '/../backend/lib/savings_logic.php';
 require_once __DIR__ . '/../backend/lib/budgets_logic.php';
+require_once __DIR__ . '/../backend/lib/gemini_response.php';

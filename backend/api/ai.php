@@ -3,6 +3,7 @@
 require_once __DIR__ . '/cors.php';
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/auth_helper.php';
+require_once __DIR__ . '/../lib/gemini_response.php';
 
 $userData = authenticate();
 $userId = $userData['user_id'];
@@ -35,50 +36,53 @@ if (empty($apiKeyToUse)) {
 }
 
 /**
- * Función auxiliar para realizar peticiones HTTP a la API de Gemini con reintentos para picos de demanda
+ * Llama a la API de Gemini y devuelve una respuesta YA CLASIFICADA
+ * (ver backend/lib/gemini_response.php): ['status' => 'ok'|'error'|..., 'text' => ...].
  *
- * IMPORTANTE: Google va retirando modelos de Gemini con el tiempo (Gemini
- * 2.0 Flash se apagó el 1 de junio de 2026; toda la línea 1.5 ya estaba
- * apagada desde antes de eso). Si esta lista queda desactualizada, TODAS
- * las peticiones fallan con "not found" y la IA deja de funcionar por
- * completo aunque el código esté bien. 'gemini-flash-latest' va primero
- * porque es un alias que Google mantiene apuntando siempre al modelo
- * Flash recomendado del momento, así que no depende de que nosotros
- * actualicemos el número de versión a mano.
+ * Antes devolvía el JSON crudo de Google y cada endpoint lo interpretaba por su
+ * cuenta mirando solo si venía un campo 'error'. Eso dejaba pasar como buenas
+ * las respuestas que llegan con HTTP 200 y sin texto, que es justo lo que
+ * rompía la IA en producción.
+ *
+ * Dos cosas que hay que saber de los modelos actuales:
+ *
+ * 1) RAZONAMIENTO: los Gemini 3 "piensan" antes de responder y esos tokens
+ *    salen del MISMO presupuesto (maxOutputTokens) que la respuesta visible.
+ *    Con prompts largos el modelo se quedaba sin espacio y terminaba con
+ *    finishReason=MAX_TOKENS y cero texto, sin error alguno. Por eso aquí se
+ *    pide el nivel de razonamiento más bajo Y se deja un presupuesto amplio.
+ *    Importante: en los flash 3.x el razonamiento NO se puede apagar del todo,
+ *    y el parámetro antiguo (thinkingBudget) lo ignoran: el que aplica es
+ *    thinkingConfig.thinkingLevel.
+ *
+ * 2) MODELOS: Google los va retirando (Gemini 2.0 se apagó el 1 de junio de
+ *    2026; la línea 2.5 se apaga el 16 de octubre de 2026). 'gemini-flash-latest'
+ *    va primero porque es un alias que Google mantiene apuntando al Flash
+ *    recomendado del momento, así no depende de que actualicemos la lista.
  */
 function callGemini($payload, $apiKey) {
     $models = ['gemini-flash-latest', 'gemini-3.7-flash', 'gemini-3.5-flash', 'gemini-3.1-flash-lite'];
-    $lastDecoded = null;
 
-    // Los modelos Gemini 2.5+/3.x "piensan" antes de responder, y ese
-    // razonamiento interno consume el MISMO presupuesto de tokens de salida
-    // que la respuesta visible. Con prompts largos (asesor de IA, diagnóstico
-    // financiero, optimizar presupuesto) el modelo a veces gastaba todo el
-    // presupuesto pensando y devolvía `candidates` sin texto -- sin ningún
-    // error real de Google, así que la app mostraba "no pude procesar la
-    // consulta" mientras que el test rápido de la clave (un mensaje trivial
-    // que no necesita razonar) sí funcionaba. Se desactiva el "thinking" (no
-    // se necesita para estas tareas) y se da margen de tokens de salida,
-    // salvo que el payload ya traiga su propia configuración.
+    // Configuración base (respeta lo que ya traiga el endpoint que llama).
     if (!isset($payload['generationConfig'])) {
         $payload['generationConfig'] = [];
     }
-    if (!isset($payload['generationConfig']['thinkingConfig'])) {
-        $payload['generationConfig']['thinkingConfig'] = ['thinkingBudget' => 0];
-    }
     if (!isset($payload['generationConfig']['maxOutputTokens'])) {
-        $payload['generationConfig']['maxOutputTokens'] = 2048;
+        $payload['generationConfig']['maxOutputTokens'] = 8192;
+    }
+    if (!isset($payload['generationConfig']['thinkingConfig'])) {
+        $payload['generationConfig']['thinkingConfig'] = ['thinkingLevel' => 'low'];
     }
 
-    // Límite de tiempo TOTAL duro para toda la función, no solo por petición.
-    // Antes, en el peor caso (4 modelos x 2 intentos x 20s + esperas), esto
-    // podía tardar más de dos minutos -- pero el servidor/proxy de por medio
-    // corta la conexión mucho antes (30-60s típico), y ahí es cuando el
-    // usuario veía la página de error HTML del propio servidor en vez de una
-    // respuesta de la app ("Unexpected token '<'... is not valid JSON").
-    // Con este límite, siempre respondemos (éxito o error real) antes de que
-    // el servidor decida cortar por nosotros.
+    // Límite de tiempo TOTAL duro para toda la función, no por petición: el
+    // servidor/proxy corta la conexión a los 30-60s y ahí el usuario recibía
+    // la página de error HTML del servidor en vez de una respuesta de la app
+    // ("Unexpected token '<'... is not valid JSON").
     $deadline = microtime(true) + 25;
+
+    $lastClassified = null;
+    $dropThinking = false;   // un modelo rechazó el parámetro de razonamiento
+    $bumpedTokens = false;   // ya se amplió el presupuesto una vez
 
     foreach ($models as $modelName) {
         if (microtime(true) >= $deadline) break;
@@ -88,17 +92,18 @@ function callGemini($payload, $apiKey) {
             $remaining = $deadline - microtime(true);
             if ($remaining <= 1) break 2;
 
+            $body = $payload;
+            if ($dropThinking) {
+                unset($body['generationConfig']['thinkingConfig']);
+            }
+
             $ch = curl_init($url);
             curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
             curl_setopt($ch, CURLOPT_POST, true);
-            curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($payload));
-            curl_setopt($ch, CURLOPT_HTTPHEADER, [
-                'Content-Type: application/json'
-            ]);
+            curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($body));
+            curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json']);
             curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
-            // Nunca más de 10s por intento (antes 20s), y nunca más del
-            // tiempo que le queda al presupuesto total.
-            curl_setopt($ch, CURLOPT_TIMEOUT, (int) max(1, min(10, $remaining)));
+            curl_setopt($ch, CURLOPT_TIMEOUT, (int) max(1, min(15, $remaining)));
 
             $response = curl_exec($ch);
             $curlErr = curl_error($ch);
@@ -109,65 +114,65 @@ function callGemini($payload, $apiKey) {
                 continue;
             }
 
-            $decoded = json_decode($response, true);
-            $lastDecoded = $decoded;
+            $classified = gemini_classify_response(json_decode($response, true));
+            $lastClassified = $classified;
 
-            // Éxito: devolvió texto válido
-            if (isset($decoded['candidates'][0]['content']['parts'][0]['text'])) {
-                return $decoded;
+            if ($classified['status'] === 'ok') {
+                return $classified;
             }
 
-            if (isset($decoded['error']['message'])) {
-                $errMsg = mb_strtolower($decoded['error']['message']);
-                if (strpos($errMsg, 'api_key_invalid') !== false || strpos($errMsg, 'invalid api key') !== false) {
-                    return $decoded;
+            if ($classified['status'] === 'error') {
+                // Clave mala: reintentar con otro modelo no arregla nada.
+                if ($classified['kind'] === 'invalid_key') {
+                    return $classified;
                 }
-                if (strpos($errMsg, 'not found') !== false || strpos($errMsg, 'not supported') !== false) {
-                    break;
+                // El modelo no acepta el parámetro de razonamiento (Google le
+                // ha cambiado el nombre entre generaciones): se reintenta sin
+                // él, aquí y en los modelos siguientes.
+                if ($classified['kind'] === 'bad_thinking' && !$dropThinking) {
+                    $dropThinking = true;
+                    continue;
                 }
-                if (strpos($errMsg, 'high demand') !== false || strpos($errMsg, 'overloaded') !== false || strpos($errMsg, '503') !== false || strpos($errMsg, 'resource_exhausted') !== false || strpos($errMsg, 'quota') !== false) {
-                    // Con "alta demanda"/cuota, un reintento casi inmediato
-                    // (antes 0.3s) casi nunca alcanza a ayudar -- es el
-                    // límite de peticiones por minuto de la clave gratuita,
-                    // no un problema de red puntual. Se espera más (2s en el
-                    // segundo intento del mismo modelo) siempre que quede
-                    // presupuesto de tiempo para hacerlo.
+                if ($classified['kind'] === 'model_gone') {
+                    break; // este modelo ya no existe: probar el siguiente
+                }
+                if ($classified['kind'] === 'rate_limit') {
+                    // Es el límite por minuto de la clave gratuita, no un fallo
+                    // de red: un reintento inmediato no sirve de nada.
                     $wait = $attempt === 1 ? 2.0 : 0.5;
                     if ($deadline - microtime(true) > $wait + 1) {
                         usleep((int) ($wait * 1000000));
                     }
                     continue;
                 }
+                break;
             }
-            break;
+
+            // Se quedó sin tokens razonando: una segunda oportunidad con el
+            // doble de espacio antes de pasar al siguiente modelo.
+            if ($classified['status'] === 'truncated' && !$bumpedTokens) {
+                $bumpedTokens = true;
+                $payload['generationConfig']['maxOutputTokens'] =
+                    min(32768, $payload['generationConfig']['maxOutputTokens'] * 2);
+                continue;
+            }
+
+            // Bloqueado por los filtros de Google: otro modelo lo bloqueará igual.
+            if ($classified['status'] === 'blocked') {
+                return $classified;
+            }
+
+            break; // respuesta vacía sin motivo: probar el siguiente modelo
         }
     }
 
-    return $lastDecoded ?? ["error" => ["message" => "Google Gemini no pudo procesar la solicitud. Verifica tu clave de API."]];
-}
-
-/**
- * Traduce los errores más comunes de la API de Gemini a un mensaje en
- * español que explique qué está pasando de verdad y qué hacer, en vez de
- * mostrarle al usuario el texto crudo en inglés de Google.
- */
-function translate_gemini_error($rawMessage) {
-    $msg = mb_strtolower($rawMessage ?? '');
-
-    if (strpos($msg, 'high demand') !== false || strpos($msg, 'overloaded') !== false || strpos($msg, '503') !== false) {
-        return "Los servidores de Gemini están saturados en este momento (esto lo reporta Google, no es un error de la app). Espera unos 30-60 segundos y vuelve a intentar.";
-    }
-    if (strpos($msg, 'resource_exhausted') !== false || strpos($msg, 'quota') !== false || strpos($msg, 'rate limit') !== false) {
-        return "Tu clave gratuita de Gemini llegó a su límite de peticiones por minuto (es normal si probaste varias veces seguidas). Espera un minuto y vuelve a intentar.";
-    }
-    if (strpos($msg, 'api_key_invalid') !== false || strpos($msg, 'invalid api key') !== false || strpos($msg, 'api key not valid') !== false) {
-        return "Tu clave de Gemini no es válida. Ve a Ajustes → IA Personal y vuelve a vincularla (aistudio.google.com/apikey).";
-    }
-    if (strpos($msg, 'not found') !== false || strpos($msg, 'not supported') !== false) {
-        return "El modelo de IA solicitado ya no está disponible. Si esto persiste, avísale al administrador de la app.";
-    }
-
-    return $rawMessage;
+    return $lastClassified ?? [
+        'status' => 'empty',
+        'text' => '',
+        'kind' => 'no_response',
+        'finish_reason' => null,
+        'message' => '',
+    ];
 }
 
 function fallbackVoiceParser($transcript, $categoriesList, $accountsList, $defaultAccId) {
@@ -246,17 +251,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         try {
             $result = callGemini($payload, $apiKeyToUse);
 
-            if (isset($result['error'])) {
-                $googleError = translate_gemini_error($result['error']['message'] ?? 'Error de la API de Google.');
+            if ($result['status'] !== 'ok') {
                 http_response_code(400);
-                echo json_encode(["success" => false, "error" => $googleError]);
-                exit();
-            }
-
-            $text = trim($result['candidates'][0]['content']['parts'][0]['text'] ?? '');
-            if (empty($text)) {
-                http_response_code(500);
-                echo json_encode(["success" => false, "error" => "Gemini no devolvió ninguna respuesta. Intenta de nuevo."]);
+                echo json_encode(["success" => false, "error" => gemini_status_message($result)]);
                 exit();
             }
 
@@ -326,20 +323,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         try {
             $result = callGemini($payload, $apiKeyToUse);
-            
-            if (isset($result['error'])) {
-                $googleError = translate_gemini_error($result['error']['message'] ?? 'Error de la API de Google.');
-                throw new Exception($googleError);
-            }
-            
-            // Extraer respuesta del texto
-            $jsonText = $result['candidates'][0]['content']['parts'][0]['text'] ?? '';
-            
-            if (empty($jsonText)) {
-                throw new Exception("Gemini no devolvió texto analizable.");
+
+            if ($result['status'] !== 'ok') {
+                throw new Exception(gemini_status_message($result));
             }
 
-            echo $jsonText; // Ya es un JSON válido retornado por el modelo
+            // El modelo a veces envuelve el JSON en un bloque markdown ```json.
+            echo gemini_strip_code_fence($result['text']);
 
         } catch (Exception $e) {
             http_response_code(500);
@@ -406,16 +396,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         try {
             $result = callGemini($payload, $apiKeyToUse);
             // Reintento de contingencia sin responseMimeType si falla
-            if (isset($result['error'])) {
+            if ($result['status'] !== 'ok') {
                 unset($payload['generationConfig']['responseMimeType']);
                 $result = callGemini($payload, $apiKeyToUse);
             }
 
             $parsedData = null;
-            if (!isset($result['error'])) {
-                $rawText = $result['candidates'][0]['content']['parts'][0]['text'] ?? '{}';
-                $cleanText = preg_replace('/```(?:json)?/i', '', $rawText);
-                $cleanText = trim($cleanText);
+            if ($result['status'] === 'ok') {
+                $cleanText = gemini_strip_code_fence($result['text']);
 
                 $parsedData = json_decode($cleanText, true);
                 if (!$parsedData && preg_match('/\{.*\}/s', $cleanText, $matches)) {
@@ -590,16 +578,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         try {
             $result = callGemini($payload, $apiKeyToUse);
-            
-            if (isset($result['error'])) {
-                $googleError = translate_gemini_error($result['error']['message'] ?? 'Error de la API de Google.');
-                echo json_encode(["response" => "⚠️ " . $googleError]);
+
+            if ($result['status'] !== 'ok') {
+                echo json_encode(["response" => "⚠️ " . gemini_status_message($result)]);
                 exit();
             }
-            
-            $responseText = $result['candidates'][0]['content']['parts'][0]['text'] ?? 'No pude procesar la consulta en este momento.';
 
-            echo json_encode(["response" => $responseText]);
+            echo json_encode(["response" => $result['text']]);
         } catch (Exception $e) {
             http_response_code(500);
             echo json_encode(["error" => "Error al obtener consejo de la IA: " . $e->getMessage()]);
@@ -666,18 +651,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         try {
             $result = callGemini($payload, $apiKeyToUse);
-            
-            if (isset($result['error'])) {
-                $googleError = translate_gemini_error($result['error']['message'] ?? 'Error de la API de Google.');
-                throw new Exception($googleError);
-            }
-            $jsonText = $result['candidates'][0]['content']['parts'][0]['text'] ?? '';
-            
-            if (empty($jsonText)) {
-                throw new Exception("La IA no devolvió una respuesta estructurada.");
+
+            if ($result['status'] !== 'ok') {
+                throw new Exception(gemini_status_message($result));
             }
 
-            echo $jsonText; // Ya es el JSON limpio devuelto por la IA
+            echo gemini_strip_code_fence($result['text']);
         } catch (Exception $e) {
             http_response_code(500);
             echo json_encode(["error" => "Error al optimizar presupuesto: " . $e->getMessage()]);
@@ -802,24 +781,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 ]
             ],
             // Respuesta de 5 secciones en markdown: necesita más margen que
-            // el default de callGemini() para no cortarse a mitad de camino.
+            // el default de callGemini() para no cortarse a mitad de camino
+            // (el razonamiento del modelo sale de este mismo cupo de tokens).
             "generationConfig" => [
-                "thinkingConfig" => ["thinkingBudget" => 0],
-                "maxOutputTokens" => 4096
+                "maxOutputTokens" => 16384
             ]
         ];
 
         try {
             $result = callGemini($payload, $apiKeyToUse);
 
-            if (isset($result['error'])) {
-                $googleError = translate_gemini_error($result['error']['message'] ?? 'Error de la API de Google.');
-                echo json_encode(["error" => $googleError]);
+            if ($result['status'] !== 'ok') {
+                echo json_encode(["error" => gemini_status_message($result)]);
                 exit();
             }
 
-            $analysis = $result['candidates'][0]['content']['parts'][0]['text'] ?? 'No se pudo generar el diagnóstico.';
-            echo json_encode(["diagnosis" => $analysis, "summary" => $summaryData]);
+            echo json_encode(["diagnosis" => $result['text'], "summary" => $summaryData]);
         } catch (Exception $e) {
             http_response_code(500);
             echo json_encode(["error" => "Error al generar diagnóstico: " . $e->getMessage()]);
