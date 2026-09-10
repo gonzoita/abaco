@@ -5,6 +5,8 @@
 header("Access-Control-Allow-Origin: *");
 header("Access-Control-Allow-Headers: Content-Type, Access-Control-Allow-Headers, Authorization, X-Requested-With, X-Gemini-API-Key, X-Workspace");
 header("Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS");
+// Sin esto el navegador no deja al frontend leer el token renovado.
+header("Access-Control-Expose-Headers: X-Refreshed-Token");
 header("Content-Type: application/json; charset=UTF-8");
 
 // Manejar preflight request (OPTIONS) para peticiones complejas

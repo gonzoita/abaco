@@ -345,6 +345,7 @@ export default {
     }
 
     const logout = () => {
+      window._sessionExpiredHandled = false
       localStorage.removeItem('token')
       localStorage.removeItem('user')
       checkAuth()
@@ -366,6 +367,18 @@ export default {
     const triggerQuickAction = (actionType) => {
       showQuickActions.value = false
       router.push({ path: '/', query: { action: actionType, t: Date.now() } })
+    }
+
+    // Cierra la sesión vencida una sola vez y lleva al login explicando qué
+    // pasó, en vez de dejar la app girando con un error de servidor engañoso.
+    const handleSessionExpired = () => {
+      if (window._sessionExpiredHandled) return
+      window._sessionExpiredHandled = true
+
+      localStorage.removeItem('token')
+      localStorage.removeItem('user')
+      checkAuth()
+      router.push({ path: '/login', query: { expirada: '1' } })
     }
 
     // Interceptor global de fetch para inyectar automáticamente la cabecera X-Workspace y parámetro ?workspace=...
@@ -398,7 +411,27 @@ export default {
           }
         }
 
-        return originalFetch(url, options)
+        return originalFetch(url, options).then(response => {
+          if (isOwnBackend) {
+            // El backend renueva el token cuando le queda poca vida: si viene
+            // uno nuevo, se guarda para que la sesión no caduque estando activo.
+            const renovado = response.headers.get('X-Refreshed-Token')
+            if (renovado) {
+              try { localStorage.setItem('token', renovado) } catch (e) {}
+            }
+
+            // Sesión vencida o inválida. Antes esto no se manejaba en ningún
+            // sitio: cada vista recibía un 401, lo trataba como "fallo de red"
+            // y mostraba "no se pudo acceder al servidor" girando para siempre,
+            // sin decirle al usuario que solo tenía que volver a entrar.
+            // Se excluye auth.php porque ahí un 401 significa "credenciales
+            // incorrectas", no sesión vencida.
+            if (response.status === 401 && !url.includes('auth.php')) {
+              handleSessionExpired()
+            }
+          }
+          return response
+        })
       }
       window._fetchPatched = true
     }

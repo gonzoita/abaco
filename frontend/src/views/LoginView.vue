@@ -10,6 +10,10 @@
         <p class="auth-subtitle">Controla tus finanzas inteligentes</p>
       </div>
 
+      <div v-if="sesionExpirada" class="info-msg" style="margin-bottom: 16px; text-align: center;">
+        Tu sesión expiró por seguridad. Vuelve a entrar con Google para continuar; tus datos siguen intactos.
+      </div>
+
       <div v-if="googleError" class="error-msg" style="margin-bottom: 16px; text-align: center;">
         {{ googleError }}
       </div>
@@ -74,7 +78,7 @@
 
 <script>
 import { ref, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import { API_BASE, GOOGLE_CLIENT_ID } from '../config.js'
 
 export default {
@@ -85,6 +89,9 @@ export default {
     const loading = ref(false)
     const googleError = ref('')
     const router = useRouter()
+    const route = useRoute()
+    // App.vue redirige aquí con ?expirada=1 cuando el backend responde 401.
+    const sesionExpirada = ref(route.query.expirada === '1')
 
     const handleGoogleCredentialResponse = async (response) => {
       loading.value = true
@@ -115,6 +122,7 @@ export default {
 
         localStorage.setItem('token', data.token)
         localStorage.setItem('user', JSON.stringify(data.user))
+        window._sessionExpiredHandled = false
         
         emit('auth-change')
         router.push('/')
@@ -148,6 +156,7 @@ export default {
     })
 
     return {
+      sesionExpirada,
       activeTab,
       loading,
       googleError,
@@ -268,6 +277,16 @@ export default {
 .google-icon {
   width: 18px;
   height: 18px;
+}
+
+.info-msg {
+  padding: 10px 14px;
+  border-radius: 8px;
+  font-size: 13.5px;
+  line-height: 1.45;
+  color: var(--text-primary);
+  background: rgba(255, 159, 10, 0.1);
+  border: 1px solid rgba(255, 159, 10, 0.3);
 }
 
 .error-msg {

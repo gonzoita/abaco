@@ -2,6 +2,7 @@
 // C:\laragon\www\control-finanzas\backend\api\auth_helper.php
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../config/jwt.php';
+require_once __DIR__ . '/../lib/session_refresh.php';
 
 // Compatibilidad de getallheaders para cualquier servidor (Apache, Nginx, CGI)
 if (!function_exists('getallheaders')) {
@@ -73,6 +74,20 @@ function authenticate() {
             $db->prepare("UPDATE users SET last_login_at = NOW() WHERE id = ? AND (last_login_at IS NULL OR last_login_at < DATE_SUB(NOW(), INTERVAL 1 HOUR))")
                ->execute([$decoded['user_id']]);
         } catch (Exception $e) {}
+    }
+
+    // RENOVACIÓN DESLIZANTE DE LA SESIÓN.
+    // El token dura 30 días fijos desde el login. Un usuario que entra a
+    // diario igual quedaba fuera al día 30: todas sus peticiones empezaban a
+    // responder 401 de golpe y la app se quedaba "cargando" sin explicar nada.
+    // Ahora, cuando a un token válido le queda menos de la mitad de vida, se
+    // emite uno nuevo y se devuelve en una cabecera; el frontend lo guarda.
+    // Así, quien usa la app con regularidad no vuelve a caerse nunca, y quien
+    // la abandona meses sí termina cerrando sesión, como debe ser.
+    if (!headers_sent() && should_refresh_session($decoded['exp'] ?? null, time())) {
+        $nuevo = $decoded;
+        $nuevo['exp'] = time() + SESSION_LIFETIME;
+        header('X-Refreshed-Token: ' . JWT::encode($nuevo, JWT_SECRET));
     }
 
     return $decoded; // Contiene user_id, email, name, etc.
