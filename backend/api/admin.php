@@ -3,6 +3,7 @@
 require_once __DIR__ . '/cors.php';
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/auth_helper.php';
+require_once __DIR__ . '/../lib/ai_prompts.php';
 
 $userData = authenticate();
 if (($userData['role'] ?? '') !== 'admin') {
@@ -166,6 +167,19 @@ if ($method === 'GET') {
         }
         exit();
     }
+
+    // Prompts de IA editables (ver backend/lib/ai_prompts.php). Devuelve los
+    // 5 prompts con su texto vigente (override o default) para el editor del
+    // panel de admin.
+    if ($action === 'list_prompts') {
+        try {
+            echo json_encode(ai_prompt_list($db));
+        } catch (Exception $e) {
+            http_response_code(500);
+            echo json_encode(["error" => "Error al obtener los prompts: " . $e->getMessage()]);
+        }
+        exit();
+    }
 }
 
 if ($method === 'POST') {
@@ -289,6 +303,58 @@ if ($method === 'POST') {
             }
             http_response_code(500);
             echo json_encode(["error" => "Error al eliminar usuario en cascada: " . $e->getMessage()]);
+        }
+        exit();
+    }
+
+    if ($action === 'update_prompt') {
+        $promptKey = isset($input['prompt_key']) ? trim($input['prompt_key']) : '';
+        $promptText = isset($input['prompt_text']) ? $input['prompt_text'] : '';
+
+        if (!isset(AI_PROMPT_DEFAULTS[$promptKey])) {
+            http_response_code(400);
+            echo json_encode(["error" => "prompt_key inválido."]);
+            exit();
+        }
+        if (trim($promptText) === '') {
+            http_response_code(400);
+            echo json_encode(["error" => "El texto del prompt no puede estar vacío."]);
+            exit();
+        }
+
+        try {
+            $stmt = $db->prepare("
+                INSERT INTO ai_prompts (prompt_key, prompt_text, updated_by)
+                VALUES (?, ?, ?)
+                ON DUPLICATE KEY UPDATE prompt_text = VALUES(prompt_text), updated_by = VALUES(updated_by)
+            ");
+            $stmt->execute([$promptKey, $promptText, intval($userData['user_id'])]);
+
+            echo json_encode(["message" => "Prompt actualizado con éxito."]);
+        } catch (Exception $e) {
+            http_response_code(500);
+            echo json_encode(["error" => "Error al guardar el prompt: " . $e->getMessage()]);
+        }
+        exit();
+    }
+
+    if ($action === 'reset_prompt') {
+        $promptKey = isset($input['prompt_key']) ? trim($input['prompt_key']) : '';
+
+        if (!isset(AI_PROMPT_DEFAULTS[$promptKey])) {
+            http_response_code(400);
+            echo json_encode(["error" => "prompt_key inválido."]);
+            exit();
+        }
+
+        try {
+            $stmt = $db->prepare("DELETE FROM ai_prompts WHERE prompt_key = ?");
+            $stmt->execute([$promptKey]);
+
+            echo json_encode(["message" => "Prompt restaurado al valor por defecto."]);
+        } catch (Exception $e) {
+            http_response_code(500);
+            echo json_encode(["error" => "Error al restaurar el prompt: " . $e->getMessage()]);
         }
         exit();
     }

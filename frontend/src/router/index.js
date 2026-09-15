@@ -84,6 +84,12 @@ const routes = [
     name: 'admin',
     component: () => import('../views/AdminView.vue'),
     meta: { requiresAuth: true, requiresAdmin: true }
+  },
+  {
+    path: '/admin/prompts',
+    name: 'admin-prompts',
+    component: () => import('../views/AdminPromptsView.vue'),
+    meta: { requiresAuth: true, requiresAdmin: true }
   }
 ]
 

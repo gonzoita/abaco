@@ -6,6 +6,7 @@
         <h1 class="page-title text-gradient-purple">Panel de Administración</h1>
         <p class="page-subtitle">Supervisa las métricas del sistema y administra cuentas y suscripciones.</p>
       </div>
+      <router-link to="/admin/prompts" class="btn-secondary" style="text-decoration:none; display:inline-flex; align-items:center;">Prompts IA →</router-link>
     </div>
 
     <!-- Sección de Tarjetas KPI -->
@@ -536,6 +537,11 @@ export default {
 
 .admin-header {
   margin-bottom: 30px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
 }
 
 .page-title {

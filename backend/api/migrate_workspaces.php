@@ -173,6 +173,23 @@ try {
         mark_migration_done($db, 'login_attempts_table');
     }
 
+    // Tabla de overrides de prompts de IA editables desde el panel de admin
+    // (ver backend/lib/ai_prompts.php). Solo guarda las filas que el admin
+    // personalizó; si un prompt_key no tiene fila aquí, ai_prompt_get() usa
+    // el default hardcodeado en AI_PROMPT_DEFAULTS.
+    if (!migration_done($db, 'ai_prompts_table')) {
+        $db->exec("CREATE TABLE IF NOT EXISTS ai_prompts (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            prompt_key VARCHAR(64) NOT NULL,
+            prompt_text LONGTEXT NOT NULL,
+            updated_by INT NULL,
+            updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            UNIQUE KEY prompt_key_unique (prompt_key)
+        ) ENGINE=InnoDB");
+        $migrated[] = 'ai_prompts (tabla nueva)';
+        mark_migration_done($db, 'ai_prompts_table');
+    }
+
     echo json_encode([
         "success" => true,
         "message" => "Migración de espacios de trabajo (workspaces) completada con éxito.",
