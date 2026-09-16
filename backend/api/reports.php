@@ -3,6 +3,7 @@
 require_once __DIR__ . '/cors.php';
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/auth_helper.php';
+require_once __DIR__ . '/../lib/budgets_logic.php';
 
 $userData = authenticate();
 $userId = $userData['user_id'];
@@ -132,22 +133,27 @@ if ($method === 'GET') {
         $stmtBudgets->execute([$userId, $bMonth, $bYear]);
         $budgetsRaw = $stmtBudgets->fetchAll();
 
-        // Si el usuario no ha configurado presupuestos para este mes en particular, buscar los últimos presupuestos vigentes configurados en meses anteriores
-        if (empty($budgetsRaw)) {
-            $stmtLatestPeriod = $db->prepare("
-                SELECT year, month 
-                FROM budgets b 
-                WHERE b.user_id = ? AND {$bWsCond} 
-                ORDER BY year DESC, month DESC 
-                LIMIT 1
-            ");
-            $stmtLatestPeriod->execute([$userId]);
-            $latestPeriod = $stmtLatestPeriod->fetch();
+        // Completar con el último período configurado ANTES de este mes,
+        // solo las categorías que este mes todavía no tiene fila propia --
+        // ver budgets_merge_gap_categories() en budgets_logic.php. Antes
+        // esto solo se activaba si el mes estaba 100% vacío, así que editar
+        // una sola categoría hacía "desaparecer" el resto del presupuesto
+        // de este mismo reporte.
+        $stmtLatestPeriod = $db->prepare("
+            SELECT year, month
+            FROM budgets b
+            WHERE b.user_id = ? AND {$bWsCond}
+              AND (b.year < ? OR (b.year = ? AND b.month < ?))
+            ORDER BY year DESC, month DESC
+            LIMIT 1
+        ");
+        $stmtLatestPeriod->execute([$userId, $bYear, $bYear, $bMonth]);
+        $latestPeriod = $stmtLatestPeriod->fetch();
 
-            if ($latestPeriod) {
-                $stmtBudgets->execute([$userId, intval($latestPeriod['month']), intval($latestPeriod['year'])]);
-                $budgetsRaw = $stmtBudgets->fetchAll();
-            }
+        if ($latestPeriod) {
+            $stmtBudgets->execute([$userId, intval($latestPeriod['month']), intval($latestPeriod['year'])]);
+            $priorBudgetsRaw = $stmtBudgets->fetchAll();
+            $budgetsRaw = budgets_merge_gap_categories($budgetsRaw, $priorBudgetsRaw);
         }
 
         if ($startDate && $endDate) {

@@ -70,10 +70,17 @@ if ($method === 'POST') {
     $amount = budgets_calculate_amount_from_items($items, $amount);
 
     try {
-        $result = budgets_upsert($db, $userId, $workspace, $categoryId, $amount, $month, $year, $itemsJson);
+        $bWsCond = get_workspace_sql_clause('b.workspace');
+        $result = budgets_upsert($db, $userId, $workspace, $categoryId, $amount, $month, $year, $itemsJson, $bWsCond);
+
+        $message = $result['created'] ? "Presupuesto creado con éxito." : "Presupuesto actualizado con éxito.";
+        if ($result['carried_over_count'] > 0) {
+            $message .= " Además trajimos {$result['carried_over_count']} categoría(s) de tu presupuesto del mes anterior.";
+        }
 
         echo json_encode([
-            "message" => $result['created'] ? "Presupuesto creado con éxito." : "Presupuesto actualizado con éxito.",
+            "message" => $message,
+            "carried_over_count" => $result['carried_over_count'],
             "budget" => [
                 "id" => $result['id'],
                 "category_id" => $categoryId,

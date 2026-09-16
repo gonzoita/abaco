@@ -15,8 +15,8 @@
       <div style="display: flex; align-items: center; gap: 12px;">
         <i class="fa-solid fa-calendar-plus" style="font-size: 24px; color: #60a5fa;"></i>
         <div>
-          <strong style="color: #60a5fa; font-size: 14.5px;">¿Deseas reutilizar tus presupuestos del mes anterior?</strong>
-          <p style="margin: 2px 0 0 0; font-size: 12.5px; color: var(--text-secondary);">Hemos detectado presupuestos configurados en tu historial. Puedes copiarlos a este mes con un solo clic.</p>
+          <strong style="color: #60a5fa; font-size: 14.5px;">Faltan categorías de tu presupuesto anterior</strong>
+          <p style="margin: 2px 0 0 0; font-size: 12.5px; color: var(--text-secondary);">Detectamos categorías presupuestadas antes que no están en este mes. Puedes traerlas con un clic, sin pisar lo que ya editaste.</p>
         </div>
       </div>
       <div style="display: flex; gap: 10px; align-items: center;">
@@ -407,14 +407,21 @@ export default {
           globalBudget.value = data.global_budget
           categoryBudgets.value = data.category_budgets || []
 
-          // Si el reporte devuelve presupuestos pero queremos verificar si son heredados o si el usuario quiere clonarlos
+          // Si el reporte devuelve presupuestos (propios o heredados del mes
+          // anterior) verificamos cuántos de esos ya están realmente
+          // guardados en el mes actual. Antes esto solo comparaba "0 vs
+          // algo" (mes totalmente vacío); pero editar una sola categoría deja
+          // el mes con 1 fila real y el resto solo "heredado" para mostrar
+          // -- sin este chequeo el banner de recuperación desaparecía justo
+          // cuando más se necesitaba. Ahora compara cantidades: si faltan
+          // categorías reales en el mes actual (aunque ya haya alguna),
+          // sigue ofreciendo traer las que faltan.
           if (categoryBudgets.value.length > 0) {
-            // Verificar si corresponden al mes actual de forma explícita consultando directamente a budgets.php
             const checkRes = await fetch(`${API_BASE}/budgets.php?month=${new Date().getMonth() + 1}&year=${new Date().getFullYear()}`, {
               headers: { 'Authorization': `Bearer ${token}` }
             })
             const currentMonthBudgets = await checkRes.json()
-            if (Array.isArray(currentMonthBudgets) && currentMonthBudgets.length === 0) {
+            if (Array.isArray(currentMonthBudgets) && currentMonthBudgets.length < categoryBudgets.value.length) {
               showCarryOverBanner.value = true
             } else {
               showCarryOverBanner.value = false
@@ -480,17 +487,20 @@ export default {
           throw new Error(data.error || 'Error al guardar el presupuesto.')
         }
 
-        successMsg.value = 'Presupuesto guardado exitosamente.'
+        const carriedOver = data.carried_over_count || 0
+        successMsg.value = carriedOver > 0
+          ? `Presupuesto guardado. También trajimos ${carriedOver} categoría(s) de tu presupuesto del mes anterior.`
+          : 'Presupuesto guardado exitosamente.'
         form.value.amount = ''
         form.value.items = []
-        
+
         await fetchReports()
-        
-        // Cerrar modal automáticamente tras éxito
+
+        // Cerrar modal automáticamente tras éxito (más tiempo si hay aviso de carry-over, para que se alcance a leer)
         setTimeout(() => {
           showBudgetModal.value = false
           successMsg.value = ''
-        }, 1000)
+        }, carriedOver > 0 ? 3000 : 1000)
 
       } catch (err) {
         errorMsg.value = err.message
