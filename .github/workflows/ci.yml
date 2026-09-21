@@ -75,3 +75,34 @@ jobs:
             git commit -m "build: recompilar frontend automáticamente [skip ci]"
             git push
           fi
+
+      - name: Disparar deploy en el servidor
+        # Dispara deploy.php directo desde este job, sin depender del webhook
+        # nativo de GitHub (Settings > Webhooks) ni de que alguien lo corra a
+        # mano. Requiere el secret DEPLOY_WEBHOOK_SECRET en este repo
+        # (Settings > Secrets and variables > Actions), con el mismo valor
+        # que GITHUB_WEBHOOK_SECRET en el .env del servidor -- ver README,
+        # sección Deploy. Si ya existe un webhook nativo apuntando a
+        # deploy.php, este paso lo duplica sin problema: deploy.php es
+        # idempotente (git reset --hard, rsync --delete, migración con
+        # registro en schema_migrations).
+        env:
+          DEPLOY_WEBHOOK_SECRET: ${{ secrets.DEPLOY_WEBHOOK_SECRET }}
+        run: |
+          if [ -z "$DEPLOY_WEBHOOK_SECRET" ]; then
+            echo "DEPLOY_WEBHOOK_SECRET no está configurado como secret de Actions; se omite el deploy automático."
+            exit 0
+          fi
+          payload='{"ref":"refs/heads/main","triggered_by":"github-actions"}'
+          signature="sha256=$(printf '%s' "$payload" | openssl dgst -sha256 -hmac "$DEPLOY_WEBHOOK_SECRET" | sed 's/^.* //')"
+          http_code=$(curl -sS -o deploy_response.txt -w '%{http_code}' \
+            -X POST "https://abaco.briela.app/deploy.php" \
+            -H "Content-Type: application/json" \
+            -H "X-Hub-Signature-256: $signature" \
+            -d "$payload")
+          echo "=== Respuesta de deploy.php (HTTP $http_code) ==="
+          cat deploy_response.txt
+          if [ "$http_code" != "200" ]; then
+            echo "::error::deploy.php respondió HTTP $http_code"
+            exit 1
+          fi
