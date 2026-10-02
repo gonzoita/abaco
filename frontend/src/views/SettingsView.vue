@@ -229,6 +229,19 @@
           <h4 style="font-size: 14.5px; font-weight: 500; margin-bottom: 4px;">Copia de Seguridad (SaaS Backup)</h4>
           <p style="font-size: 12px; color: var(--text-secondary); margin-bottom: 8px;">Descarga o restaura toda tu información financiera (transacciones, presupuestos, cuentas, categorías) en formato JSON estructurado. Restaurar es aditivo: se suma a lo que ya tienes, no lo reemplaza.</p>
 
+          <div v-if="backupStale" style="display:flex; align-items:center; gap:10px; padding:10px 12px; margin-bottom:10px; border-radius:10px; background:rgba(239,68,68,0.12); border:1px solid rgba(239,68,68,0.3);">
+            <i class="fa-solid fa-triangle-exclamation" style="color:#f87171; font-size:18px;"></i>
+            <span style="font-size:12.5px; color:var(--text-secondary);">
+              <strong style="color:#f87171;">Tu respaldo está viejo.</strong>
+              {{ backupAgeDays === null ? 'No hay ningún respaldo registrado en este dispositivo.' : `El último fue hace ${backupAgeDays} día(s).` }}
+              Respalda ahora para no perder tu presupuesto ni tu historial.
+            </span>
+          </div>
+          <p v-else-if="lastBackupAt" style="font-size:11.5px; color:var(--text-muted); margin-bottom:8px;">
+            <i class="fa-solid fa-circle-check" style="color:#34d399;"></i>
+            Último respaldo: hace {{ backupAgeDays }} día(s).
+          </p>
+
           <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap:10px;">
             <button class="btn-primary btn-tool" @click="exportData" style="width: 100%;">
               <i class="fa-solid fa-download"></i> Exportar JSON
@@ -433,6 +446,7 @@
 <script>
 import { ref, onMounted } from 'vue'
 import { API_BASE, GOOGLE_CLIENT_ID } from '../config.js'
+import { daysSince, isBackupStale, readLastBackup, recordBackup } from '../utils/backupReminder.js'
 
 export default {
   name: 'SettingsView',
@@ -736,6 +750,16 @@ export default {
       }
     }
 
+    const lastBackupAt = ref(readLastBackup())
+    const backupStale = ref(isBackupStale(lastBackupAt.value))
+    const backupAgeDays = ref(daysSince(lastBackupAt.value))
+
+    const markBackupDone = () => {
+      lastBackupAt.value = recordBackup()
+      backupStale.value = false
+      backupAgeDays.value = 0
+    }
+
     // Exportar datos JSON
     const exportData = async () => {
       const token = localStorage.getItem('token')
@@ -758,6 +782,7 @@ export default {
         document.body.appendChild(downloadAnchor)
         downloadAnchor.click()
         downloadAnchor.remove()
+        markBackupDone()
       } catch (err) {
         alert(err.message)
       }
@@ -922,6 +947,7 @@ export default {
           const errData = await uploadRes.json().catch(() => ({}))
           throw new Error((errData.error && errData.error.message) || 'Error al subir el archivo a Drive.')
         }
+        markBackupDone()
         alert(`Respaldo subido a Google Drive como "${fileName}" en la carpeta "${DRIVE_FOLDER_NAME}".`)
       } catch (err) {
         alert(err.message)
@@ -1066,6 +1092,9 @@ export default {
       cancelEdit,
       deleteCategory,
       exportData,
+      lastBackupAt,
+      backupStale,
+      backupAgeDays,
       importing,
       importFileInput,
       triggerImportFile,
