@@ -450,6 +450,11 @@ export default {
 
         showCarryOverBanner.value = false
         await fetchReports()
+        // Confirmar en pantalla qué pasó: antes, cuando no se copiaba nada, el
+        // banner simplemente se iba y volvía sin explicar nada.
+        if (data.message) {
+          alert(data.message)
+        }
       } catch (err) {
         alert(err.message)
       } finally {
@@ -520,7 +525,8 @@ export default {
         })
 
         if (!response.ok) {
-          throw new Error('Error al eliminar el presupuesto.')
+          const data = await response.json().catch(() => ({}))
+          throw new Error(data.error || 'Error al eliminar el presupuesto.')
         }
 
         await fetchReports()

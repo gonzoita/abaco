@@ -89,14 +89,21 @@ function budgets_get_for_period($db, $userId, $workspaceCondition, $month, $year
 }
 
 function budgets_copy_from_last_month($db, $userId, $workspace, $workspaceCondition, $currentMonth, $currentYear) {
+    // El período de origen tiene que ser ESTRICTAMENTE anterior al destino.
+    // Sin este filtro la consulta encontraba al propio mes destino cuando ya
+    // tenía al menos una fila: entonces "copiaba" esa única categoría sobre
+    // sí misma, veía que ya existía y terminaba con copied_count = 0. Ese era
+    // el motivo por el que el botón "traer el presupuesto del mes pasado" no
+    // hacía nada justo después de editar una sola categoría del mes nuevo.
     $stmtLatest = $db->prepare("
         SELECT year, month
         FROM budgets b
         WHERE b.user_id = ? AND {$workspaceCondition}
+          AND (b.year < ? OR (b.year = ? AND b.month < ?))
         ORDER BY year DESC, month DESC
         LIMIT 1
     ");
-    $stmtLatest->execute([$userId]);
+    $stmtLatest->execute([$userId, $currentYear, $currentYear, $currentMonth]);
     $latest = $stmtLatest->fetch(PDO::FETCH_ASSOC);
 
     if (!$latest) {
@@ -136,6 +143,40 @@ function budgets_copy_from_last_month($db, $userId, $workspace, $workspaceCondit
     ];
 }
 
+function budgets_period_is_empty($db, $userId, $workspace, $month, $year) {
+    $stmt = $db->prepare("SELECT COUNT(*) FROM budgets WHERE user_id = ? AND (workspace IS NULL OR workspace = ?) AND month = ? AND year = ?");
+    $stmt->execute([$userId, $workspace, $month, $year]);
+    return intval($stmt->fetchColumn()) === 0;
+}
+
+/**
+ * Arranca el mes con el presupuesto del período anterior ya guardado de
+ * verdad en la BD, no solo "heredado" al momento de mostrarlo. Sin esto, cada
+ * 1ro de mes el presupuesto se veía vacío hasta que el usuario editaba algo o
+ * apretaba el botón de traer el mes pasado: el presupuesto mensual casi
+ * siempre es el mismo, así que lo correcto es que esté ahí desde el primer
+ * día y que ajustarlo sea lo manual, no tener que recuperarlo.
+ *
+ * Solo actúa cuando el mes está COMPLETAMENTE vacío. Si ya tiene filas
+ * propias se respeta tal cual lo dejó el usuario -- incluida una categoría
+ * que borró a propósito, que no debe reaparecer sola en la siguiente recarga.
+ * Para esos meses parciales el botón de traer el mes pasado sigue siendo la
+ * forma explícita de completar lo que falte.
+ */
+function budgets_ensure_period_filled($db, $userId, $workspace, $workspaceCondition, $month, $year) {
+    if (!budgets_period_is_empty($db, $userId, $workspace, $month, $year)) {
+        return 0;
+    }
+
+    try {
+        $result = budgets_copy_from_last_month($db, $userId, $workspace, $workspaceCondition, $month, $year);
+        return $result['copied_count'];
+    } catch (RuntimeException $e) {
+        // Usuario nuevo: no hay ningún mes anterior del que traer nada.
+        return 0;
+    }
+}
+
 /**
  * Si el presupuesto viene desglosado en ítems, el monto total se calcula
  * sumándolos (en vez de usar el monto que haya mandado el formulario),
@@ -168,9 +209,7 @@ function budgets_upsert($db, $userId, $workspace, $categoryId, $amount, $month, 
     // materializar el resto del mes ANTES del upsert puntual, el usuario
     // nunca pierde de vista categorías que no editó explícitamente.
     $carriedOverCount = 0;
-    $stmtAny = $db->prepare("SELECT COUNT(*) FROM budgets WHERE user_id = ? AND (workspace IS NULL OR workspace = ?) AND month = ? AND year = ?");
-    $stmtAny->execute([$userId, $workspace, $month, $year]);
-    if (intval($stmtAny->fetchColumn()) === 0) {
+    if (budgets_period_is_empty($db, $userId, $workspace, $month, $year)) {
         try {
             $carryOver = budgets_copy_from_last_month($db, $userId, $workspace, $workspaceCondition, $month, $year);
             $carriedOverCount = $carryOver['copied_count'];
@@ -209,8 +248,15 @@ function budgets_upsert($db, $userId, $workspace, $categoryId, $amount, $month, 
     return ["id" => $db->lastInsertId(), "created" => true, "carried_over_count" => $carriedOverCount];
 }
 
-function budgets_delete($db, $userId, $budgetId) {
-    $stmt = $db->prepare("DELETE FROM budgets WHERE id = ? AND user_id = ?");
-    $stmt->execute([$budgetId, $userId]);
+/**
+ * El mes que se está viendo puede mostrar filas heredadas que en realidad
+ * pertenecen a un mes anterior (vienen con el id de ESA fila). Sin exigir que
+ * el mes/año coincidan, borrar una de esas desde la pantalla del mes actual
+ * borraba el presupuesto del mes pasado -- justo la fuente de la que todo lo
+ * demás se hereda, así que el presupuesto se degradaba mes a mes.
+ */
+function budgets_delete($db, $userId, $budgetId, $month, $year) {
+    $stmt = $db->prepare("DELETE FROM budgets WHERE id = ? AND user_id = ? AND month = ? AND year = ?");
+    $stmt->execute([$budgetId, $userId, $month, $year]);
     return $stmt->rowCount();
 }

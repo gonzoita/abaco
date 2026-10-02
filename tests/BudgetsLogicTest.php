@@ -149,6 +149,110 @@ final class BudgetsLogicTest extends TestCase
         $this->assertSame(1, $count);
     }
 
+    // Regresión del bug real reportado: el botón "traer el presupuesto del mes
+    // pasado" no hacía nada cuando el mes actual ya tenía UNA categoría
+    // guardada. La búsqueda del "último período" no excluía el mes destino,
+    // así que se encontraba a sí mismo, veía que esa única categoría ya
+    // existía y copiaba 0 filas.
+    public function testCopiesTheMissingCategoriesEvenIfTheTargetMonthAlreadyHasOne(): void
+    {
+        $this->db->exec("INSERT INTO categories (id, name, color, icon) VALUES (2, 'Transporte', '#3B82F6', 'car')");
+        $this->db->exec("INSERT INTO budgets (user_id, category_id, amount, month, year, workspace) VALUES (7, 1, 200000, 7, 2026, 'personal')");
+        $this->db->exec("INSERT INTO budgets (user_id, category_id, amount, month, year, workspace) VALUES (7, 2, 80000, 7, 2026, 'personal')");
+        $this->db->exec("INSERT INTO budgets (user_id, category_id, amount, month, year, workspace) VALUES (7, 2, 95000, 8, 2026, 'personal')");
+
+        $result = budgets_copy_from_last_month($this->db, 7, 'personal', "(workspace IS NULL OR workspace = 'personal')", 8, 2026);
+
+        $this->assertSame(1, $result['copied_count'], 'Debe traer la categoría 1, que falta en agosto.');
+        $this->assertSame(7, $result['from_month'], 'Debe copiar desde julio, no desde el propio agosto.');
+
+        $august = $this->db->query('SELECT category_id, amount FROM budgets WHERE month = 8 AND year = 2026 ORDER BY category_id')->fetchAll(PDO::FETCH_ASSOC);
+        $this->assertCount(2, $august);
+        $this->assertEqualsWithDelta(95000, (float) $august[1]['amount'], 0.001, 'La categoría que el usuario ya había editado no debe pisarse.');
+    }
+
+    public function testNeverCopiesFromAMonthLaterThanTheTargetMonth(): void
+    {
+        // Septiembre ya configurado; el usuario abre agosto (un mes anterior)
+        // que está vacío. No debe "heredar hacia atrás" desde septiembre.
+        $this->db->exec("INSERT INTO budgets (user_id, category_id, amount, month, year, workspace) VALUES (7, 1, 300000, 9, 2026, 'personal')");
+
+        $this->expectException(RuntimeException::class);
+        budgets_copy_from_last_month($this->db, 7, 'personal', "(workspace IS NULL OR workspace = 'personal')", 8, 2026);
+    }
+
+    // ---- budgets_ensure_period_filled ----
+
+    public function testFillsACompletelyEmptyMonthWithRealRowsNotJustInheritedOnes(): void
+    {
+        $this->db->exec("INSERT INTO categories (id, name, color, icon) VALUES (2, 'Transporte', '#3B82F6', 'car')");
+        $this->db->exec("INSERT INTO budgets (user_id, category_id, amount, month, year, workspace) VALUES (7, 1, 200000, 7, 2026, 'personal')");
+        $this->db->exec("INSERT INTO budgets (user_id, category_id, amount, month, year, workspace) VALUES (7, 2, 80000, 7, 2026, 'personal')");
+
+        $filled = budgets_ensure_period_filled($this->db, 7, 'personal', "(workspace IS NULL OR workspace = 'personal')", 8, 2026);
+
+        $this->assertSame(2, $filled);
+        $count = (int) $this->db->query('SELECT COUNT(*) FROM budgets WHERE month = 8 AND year = 2026')->fetchColumn();
+        $this->assertSame(2, $count, 'El mes nuevo debe quedar materializado en la BD, no solo heredado para mostrar.');
+    }
+
+    public function testDoesNotRefillAMonthThatAlreadyHasRows(): void
+    {
+        $this->db->exec("INSERT INTO categories (id, name, color, icon) VALUES (2, 'Transporte', '#3B82F6', 'car')");
+        $this->db->exec("INSERT INTO budgets (user_id, category_id, amount, month, year, workspace) VALUES (7, 1, 200000, 7, 2026, 'personal')");
+        $this->db->exec("INSERT INTO budgets (user_id, category_id, amount, month, year, workspace) VALUES (7, 2, 80000, 7, 2026, 'personal')");
+        // El usuario borró Transporte a propósito en agosto y dejó solo Alimentación.
+        $this->db->exec("INSERT INTO budgets (user_id, category_id, amount, month, year, workspace) VALUES (7, 1, 210000, 8, 2026, 'personal')");
+
+        $filled = budgets_ensure_period_filled($this->db, 7, 'personal', "(workspace IS NULL OR workspace = 'personal')", 8, 2026);
+
+        $this->assertSame(0, $filled, 'Un mes con filas propias no se vuelve a rellenar solo: la categoría borrada a propósito no debe reaparecer.');
+        $count = (int) $this->db->query('SELECT COUNT(*) FROM budgets WHERE month = 8 AND year = 2026')->fetchColumn();
+        $this->assertSame(1, $count);
+    }
+
+    public function testFillingIsANoOpForAUserWithNoPreviousBudgets(): void
+    {
+        $filled = budgets_ensure_period_filled($this->db, 99, 'personal', "(workspace IS NULL OR workspace = 'personal')", 8, 2026);
+
+        $this->assertSame(0, $filled);
+    }
+
+    // ---- budgets_delete ----
+
+    // El mes actual puede mostrar filas heredadas que en realidad pertenecen
+    // al mes anterior (traen el id de ESA fila). Borrar una de esas desde la
+    // pantalla del mes actual borraba el presupuesto del mes pasado, que es
+    // justo la fuente de la que todo se hereda.
+    public function testDoesNotDeleteARowThatBelongsToAnotherPeriod(): void
+    {
+        $this->db->exec("INSERT INTO budgets (id, user_id, category_id, amount, month, year, workspace) VALUES (55, 7, 1, 200000, 7, 2026, 'personal')");
+
+        $deleted = budgets_delete($this->db, 7, 55, 8, 2026);
+
+        $this->assertSame(0, $deleted);
+        $count = (int) $this->db->query('SELECT COUNT(*) FROM budgets WHERE id = 55')->fetchColumn();
+        $this->assertSame(1, $count, 'La fila de julio debe seguir intacta.');
+    }
+
+    public function testDeletesARowOfTheRequestedPeriod(): void
+    {
+        $this->db->exec("INSERT INTO budgets (id, user_id, category_id, amount, month, year, workspace) VALUES (55, 7, 1, 200000, 8, 2026, 'personal')");
+
+        $deleted = budgets_delete($this->db, 7, 55, 8, 2026);
+
+        $this->assertSame(1, $deleted);
+    }
+
+    public function testDoesNotDeleteAnotherUsersBudget(): void
+    {
+        $this->db->exec("INSERT INTO budgets (id, user_id, category_id, amount, month, year, workspace) VALUES (55, 7, 1, 200000, 8, 2026, 'personal')");
+
+        $deleted = budgets_delete($this->db, 99, 55, 8, 2026);
+
+        $this->assertSame(0, $deleted);
+    }
+
     // ---- budgets_get_for_period ----
 
     public function testReturnsEmptyForAMonthWithNoBudgetsWhenInheritIsDisabled(): void
