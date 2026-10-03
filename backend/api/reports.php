@@ -19,6 +19,9 @@ if ($method === 'GET') {
         $year = isset($_GET['year']) ? intval($_GET['year']) : intval(date('Y'));
         $startDate = isset($_GET['start_date']) ? trim($_GET['start_date']) : null;
         $endDate = isset($_GET['end_date']) ? trim($_GET['end_date']) : null;
+        // Más abajo $startDate se rellena solo con el mes actual, así que hay
+        // que recordar ACÁ si el cliente pidió un período concreto.
+        $implicitPeriod = !isset($_GET['month']) && !$startDate;
 
         $wsCond = get_workspace_sql_clause('workspace');
         $tWsCond = get_workspace_sql_clause('t.workspace');
@@ -123,6 +126,13 @@ if ($method === 'GET') {
         // 5. Comparativa de Presupuestos vs Gastos Reales por workspace
         $bMonth = $startDate ? intval(date('m', strtotime($startDate))) : $month;
         $bYear = $startDate ? intval(date('Y', strtotime($startDate))) : $year;
+
+        // La pantalla de Presupuestos entra por acá (sin mes explícito) antes
+        // de llamar a budgets.php, así que el mes nuevo se materializa también
+        // desde este lado -- ver budgets_ensure_period_filled().
+        if ($implicitPeriod) {
+            budgets_ensure_period_filled($db, $userId, $workspace, $bWsCond, $bMonth, $bYear);
+        }
 
         $stmtBudgets = $db->prepare("
              SELECT b.id, b.category_id, b.amount, b.items_json, c.name as category_name, c.color as category_color, c.icon as category_icon
