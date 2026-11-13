@@ -79,13 +79,43 @@ function gemini_classify_response($decoded) {
     }
 
     if (isset($decoded['error'])) {
-        $message = $decoded['error']['message'] ?? 'Error de la API de Google.';
+        $error = $decoded['error'];
+        $message = $error['message'] ?? 'Error de la API de Google.';
+
+        // Los errores de cuota traen en 'details' qué cuota se agotó (por
+        // minuto, por día, o una de valor 0 = "este modelo no tiene nivel
+        // gratuito para tu clave") y cuánto esperar. Sin esto los tres casos
+        // se veían igual y el usuario recibía "espera un minuto" aunque
+        // esperar no sirviera de nada.
+        $quotaIds = [];
+        $quotaZero = false;
+        $retrySeconds = null;
+        foreach (($error['details'] ?? []) as $detail) {
+            if (!is_array($detail)) continue;
+            foreach (($detail['violations'] ?? []) as $violation) {
+                if (!is_array($violation)) continue;
+                if (!empty($violation['quotaId'])) $quotaIds[] = (string) $violation['quotaId'];
+                if (isset($violation['quotaValue']) && (string) $violation['quotaValue'] === '0') $quotaZero = true;
+            }
+            if (!empty($detail['retryDelay']) && preg_match('/(\d+(?:\.\d+)?)\s*s/', (string) $detail['retryDelay'], $m)) {
+                $retrySeconds = (int) ceil((float) $m[1]);
+            }
+        }
+        if (preg_match('/limit:\s*0\b/i', (string) $message)) $quotaZero = true;
+        if ($retrySeconds === null && preg_match('/retry in (\d+(?:\.\d+)?)\s*s/i', (string) $message, $m)) {
+            $retrySeconds = (int) ceil((float) $m[1]);
+        }
+
         return [
             'status' => 'error',
             'text' => '',
             'kind' => gemini_error_kind($message),
             'finish_reason' => null,
             'message' => $message,
+            'api_status' => $error['status'] ?? null,
+            'quota_ids' => $quotaIds,
+            'quota_zero' => $quotaZero,
+            'retry_seconds' => $retrySeconds,
         ];
     }
 
@@ -135,6 +165,74 @@ function translate_gemini_error($rawMessage) {
 }
 
 /**
+ * Distingue QUÉ pasó dentro de un error de límite: 'zero' (la clave no tiene
+ * cupo gratuito para ese modelo: esperar no lo arregla), 'daily' (se agotó el
+ * cupo del día), 'minute' (límite por minuto: esperar sí sirve), 'overloaded'
+ * (servidores de Google saturados) o 'unknown'.
+ */
+function gemini_rate_limit_detail($classified) {
+    $msg = mb_strtolower((string) ($classified['message'] ?? ''));
+    $ids = array_map('mb_strtolower', $classified['quota_ids'] ?? []);
+
+    if (!empty($classified['quota_zero'])) {
+        return 'zero';
+    }
+    foreach ($ids as $id) {
+        if (strpos($id, 'perday') !== false) return 'daily';
+    }
+    if (strpos($msg, 'perday') !== false || strpos($msg, 'per day') !== false || strpos($msg, 'daily') !== false) {
+        return 'daily';
+    }
+    foreach ($ids as $id) {
+        if (strpos($id, 'perminute') !== false) return 'minute';
+    }
+    if (strpos($msg, 'perminute') !== false || strpos($msg, 'per minute') !== false) {
+        return 'minute';
+    }
+    if (($classified['api_status'] ?? null) === 'UNAVAILABLE' || strpos($msg, 'high demand') !== false
+        || strpos($msg, 'overloaded') !== false || strpos($msg, '503') !== false) {
+        return 'overloaded';
+    }
+    return 'unknown';
+}
+
+/**
+ * Mensaje para un error de Google ya clasificado. Los límites se explican
+ * según su causa real y se añade el texto original (recortado) de Google:
+ * sin él, quien soporta la app no puede saber qué cuota o qué modelo falló.
+ */
+function gemini_error_message($classified) {
+    $raw = (string) ($classified['message'] ?? '');
+    if (gemini_error_kind($raw) !== 'rate_limit') {
+        return translate_gemini_error($raw);
+    }
+
+    switch (gemini_rate_limit_detail($classified)) {
+        case 'zero':
+            $text = "Google indica que tu clave gratuita no tiene cupo para usar este modelo (límite 0), así que esperar no lo arregla. Entra a aistudio.google.com y revisa que el proyecto de tu clave tenga habilitado el uso gratuito, o crea una clave nueva en otro proyecto y vincúlala en Ajustes → IA Personal.";
+            break;
+        case 'daily':
+            $text = "Tu clave gratuita ya usó todas las peticiones de hoy. Google las reinicia a medianoche, hora del Pacífico (madrugada en Colombia); hasta entonces la IA no responderá con esta clave.";
+            break;
+        case 'minute':
+            $seconds = max(5, intval($classified['retry_seconds'] ?? 60));
+            $text = "Superaste el límite de peticiones por minuto de tu clave gratuita. Espera {$seconds} segundos y vuelve a intentar.";
+            break;
+        case 'overloaded':
+            $text = "Los servidores de Google están saturados en este momento. Espera unos minutos y vuelve a intentar.";
+            break;
+        default:
+            $text = translate_gemini_error($raw);
+    }
+
+    $detail = trim(preg_replace('/\s+/', ' ', $raw));
+    if ($detail !== '') {
+        $text .= ' (Detalle de Google: ' . mb_substr($detail, 0, 220) . (mb_strlen($detail) > 220 ? '…' : '') . ')';
+    }
+    return $text;
+}
+
+/**
  * Mensaje en español para las respuestas que NO son un error de Google pero
  * tampoco traen texto.
  */
@@ -145,7 +243,7 @@ function gemini_status_message($classified) {
         case 'blocked':
             return "Google bloqueó esta respuesta por sus filtros de contenido. Reformula la pregunta e intenta de nuevo.";
         case 'error':
-            return translate_gemini_error($classified['message']);
+            return gemini_error_message($classified);
         case 'empty':
         default:
             return "La IA no devolvió ninguna respuesta. Espera unos segundos y vuelve a intentar.";

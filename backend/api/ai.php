@@ -142,6 +142,12 @@ function callGemini($payload, $apiKey) {
                     break; // este modelo ya no existe: probar el siguiente
                 }
                 if ($classified['kind'] === 'rate_limit') {
+                    // Sin cupo o cupo del día agotado: reintentar este mismo
+                    // modelo no sirve de nada. Cada modelo tiene su propia
+                    // cuota, así que se pasa directo al siguiente.
+                    if (in_array(gemini_rate_limit_detail($classified), ['daily', 'zero'], true)) {
+                        break;
+                    }
                     // Es el límite por minuto de la clave gratuita, no un fallo
                     // de red: un reintento inmediato no sirve de nada.
                     $wait = $attempt === 1 ? 2.0 : 0.5;

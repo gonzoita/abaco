@@ -132,6 +132,97 @@ class GeminiResponseTest extends TestCase
         }
     }
 
+    private function errorDeCuota(string $mensaje, array $violaciones, ?string $retryDelay = null, string $status = 'RESOURCE_EXHAUSTED'): array
+    {
+        $details = [['@type' => 'type.googleapis.com/google.rpc.QuotaFailure', 'violations' => $violaciones]];
+        if ($retryDelay !== null) {
+            $details[] = ['@type' => 'type.googleapis.com/google.rpc.RetryInfo', 'retryDelay' => $retryDelay];
+        }
+        return ['error' => ['code' => 429, 'message' => $mensaje, 'status' => $status, 'details' => $details]];
+    }
+
+    // Caso que no se distinguía: la clave gratuita NO tiene cupo para el
+    // modelo (límite 0). El mensaje decía "espera un minuto" y esperar jamás
+    // lo arregla.
+    public function testUnCupoGratuitoDeCeroNoDiceQueEsperes(): void
+    {
+        $result = gemini_classify_response($this->errorDeCuota(
+            'You exceeded your current quota, please check your plan and billing details.',
+            [['quotaId' => 'GenerateRequestsPerDayPerProjectPerModel-FreeTier', 'quotaValue' => '0']]
+        ));
+
+        $this->assertSame('rate_limit', $result['kind']);
+        $this->assertSame('zero', gemini_rate_limit_detail($result));
+        $mensaje = gemini_status_message($result);
+        $this->assertStringContainsString('no tiene cupo', $mensaje);
+        $this->assertStringNotContainsString('Espera un minuto', $mensaje);
+    }
+
+    public function testElLimiteDentroDelTextoDelMensajeTambienSeDetectaComoCero(): void
+    {
+        $result = gemini_classify_response(['error' => ['message' => 'Quota exceeded for metric: generate_content_free_tier_requests, limit: 0, model: gemini-x']]);
+
+        $this->assertSame('zero', gemini_rate_limit_detail($result));
+    }
+
+    public function testDetectaQueSeAgotoElCupoDelDia(): void
+    {
+        $result = gemini_classify_response($this->errorDeCuota(
+            'You exceeded your current quota.',
+            [['quotaId' => 'GenerateRequestsPerDayPerProjectPerModel-FreeTier', 'quotaValue' => '20']]
+        ));
+
+        $this->assertSame('daily', gemini_rate_limit_detail($result));
+        $this->assertStringContainsString('hoy', gemini_status_message($result));
+    }
+
+    public function testElLimitePorMinutoUsaLosSegundosQueIndicaGoogle(): void
+    {
+        $result = gemini_classify_response($this->errorDeCuota(
+            'You exceeded your current quota. Please retry in 37.5s.',
+            [['quotaId' => 'GenerateRequestsPerMinutePerProjectPerModel-FreeTier', 'quotaValue' => '10']],
+            '37s'
+        ));
+
+        $this->assertSame('minute', gemini_rate_limit_detail($result));
+        $this->assertSame(37, $result['retry_seconds']);
+        $this->assertStringContainsString('Espera 37 segundos', gemini_status_message($result));
+    }
+
+    public function testLosSegundosDeEsperaTambienSeLeenDelTextoDelMensaje(): void
+    {
+        $result = gemini_classify_response(['error' => ['message' => 'Rate limit hit (PerMinute). Please retry in 12.2s.']]);
+
+        $this->assertSame(13, $result['retry_seconds']);
+    }
+
+    public function testUnServidorSaturadoSeDistingueDeUnaCuotaAgotada(): void
+    {
+        $result = gemini_classify_response(['error' => ['code' => 503, 'status' => 'UNAVAILABLE', 'message' => 'The model is overloaded. Please try again later.']]);
+
+        $this->assertSame('overloaded', gemini_rate_limit_detail($result));
+        $this->assertStringContainsString('saturados', gemini_status_message($result));
+    }
+
+    public function testElMensajeIncluyeElDetalleOriginalDeGoogleRecortado(): void
+    {
+        $largo = 'Quota exceeded for metric: x. ' . str_repeat('detalle ', 80);
+        $result = gemini_classify_response(['error' => ['message' => $largo]]);
+
+        $mensaje = gemini_status_message($result);
+
+        $this->assertStringContainsString('Detalle de Google: Quota exceeded for metric: x.', $mensaje);
+        $this->assertStringContainsString('…', $mensaje);
+        $this->assertLessThan(700, mb_strlen($mensaje));
+    }
+
+    public function testLosErroresQueNoSonDeLimiteNoLlevanDetalleExtra(): void
+    {
+        $result = gemini_classify_response(['error' => ['message' => 'API key not valid. Please pass a valid API key.']]);
+
+        $this->assertStringNotContainsString('Detalle de Google', gemini_status_message($result));
+    }
+
     public function testClasificaModeloRetirado(): void
     {
         // Google retira modelos con el tiempo; hay que poder pasar al siguiente.
