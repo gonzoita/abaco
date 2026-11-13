@@ -19,6 +19,18 @@ if (!$input) {
 
 $workspace = get_active_workspace();
 
+if ($method === 'GET' && ($_GET['action'] ?? '') === 'list_periods') {
+    try {
+        $month = isset($_GET['month']) ? intval($_GET['month']) : intval(date('m'));
+        $year = isset($_GET['year']) ? intval($_GET['year']) : intval(date('Y'));
+        echo json_encode(budgets_list_periods($db, $userId, get_workspace_sql_clause('b.workspace'), $month, $year));
+    } catch (Exception $e) {
+        http_response_code(500);
+        echo json_encode(["error" => "Error al listar los meses con presupuesto: " . $e->getMessage()]);
+    }
+    exit();
+}
+
 if ($method === 'GET') {
     try {
         $month = isset($_GET['month']) ? intval($_GET['month']) : intval(date('m'));
@@ -53,12 +65,21 @@ if ($method === 'POST') {
             $currentMonth = intval(date('m'));
             $currentYear = intval(date('Y'));
 
-            $result = budgets_copy_from_last_month($db, $userId, $workspace, $bWsCond, $currentMonth, $currentYear);
+            $fromMonth = isset($_GET['from_month']) ? intval($_GET['from_month']) : null;
+            $fromYear = isset($_GET['from_year']) ? intval($_GET['from_year']) : null;
 
+            $result = budgets_copy_from_last_month($db, $userId, $workspace, $bWsCond, $currentMonth, $currentYear, $fromMonth, $fromYear);
+
+            $message = $result['copied_count'] > 0
+                ? "Se trajeron {$result['copied_count']} categoría(s) del presupuesto de {$result['from_month']}/{$result['from_year']}."
+                : "Este mes ya tiene todas las categorías del presupuesto de {$result['from_month']}/{$result['from_year']}: no había nada que traer.";
             echo json_encode([
-                "message" => "Se han copiado {$result['copied_count']} presupuestos del período {$result['from_month']}/{$result['from_year']} al mes actual.",
+                "message" => $message,
                 "copied_count" => $result['copied_count']
             ]);
+        } catch (InvalidArgumentException $e) {
+            http_response_code(400);
+            echo json_encode(["error" => $e->getMessage()]);
         } catch (RuntimeException $e) {
             http_response_code(404);
             echo json_encode(["error" => $e->getMessage()]);
