@@ -24,8 +24,17 @@ if ($method === 'GET') {
         $month = isset($_GET['month']) ? intval($_GET['month']) : intval(date('m'));
         $year = isset($_GET['year']) ? intval($_GET['year']) : intval(date('Y'));
         $bWsCond = get_workspace_sql_clause('b.workspace');
+        $implicitPeriod = !isset($_GET['month']);
 
-        $budgets = budgets_get_for_period($db, $userId, $bWsCond, $month, $year, !isset($_GET['month']));
+        // Al entrar al mes actual sin pedir un mes concreto, el presupuesto del
+        // período anterior se materializa si este mes todavía está vacío: así
+        // el presupuesto está siempre, desde el día 1, sin depender de que el
+        // usuario apriete un botón para recuperarlo.
+        if ($implicitPeriod) {
+            budgets_ensure_period_filled($db, $userId, $workspace, $bWsCond, $month, $year);
+        }
+
+        $budgets = budgets_get_for_period($db, $userId, $bWsCond, $month, $year, $implicitPeriod);
 
         echo json_encode($budgets);
     } catch (Exception $e) {
@@ -108,11 +117,18 @@ if ($method === 'DELETE') {
     }
 
     try {
-        $deleted = budgets_delete($db, $userId, $id);
+        // El mes/año del que el cliente cree que está borrando (por defecto el
+        // actual, que es el que muestra la pantalla de Presupuestos). Así una
+        // fila heredada del mes pasado no se puede borrar por accidente desde
+        // la vista del mes actual.
+        $month = isset($_GET['month']) ? intval($_GET['month']) : intval(date('m'));
+        $year = isset($_GET['year']) ? intval($_GET['year']) : intval(date('Y'));
+
+        $deleted = budgets_delete($db, $userId, $id, $month, $year);
 
         if ($deleted === 0) {
             http_response_code(404);
-            echo json_encode(["error" => "Presupuesto no encontrado o no tienes permisos."]);
+            echo json_encode(["error" => "Ese presupuesto no corresponde al mes que estás viendo (puede venir heredado del mes anterior), o no tienes permisos."]);
             exit();
         }
 
