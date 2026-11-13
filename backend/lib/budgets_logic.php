@@ -88,26 +88,42 @@ function budgets_get_for_period($db, $userId, $workspaceCondition, $month, $year
     return $budgets;
 }
 
-function budgets_copy_from_last_month($db, $userId, $workspace, $workspaceCondition, $currentMonth, $currentYear) {
+function budgets_copy_from_last_month($db, $userId, $workspace, $workspaceCondition, $currentMonth, $currentYear, $fromMonth = null, $fromYear = null) {
     // El período de origen tiene que ser ESTRICTAMENTE anterior al destino.
     // Sin este filtro la consulta encontraba al propio mes destino cuando ya
     // tenía al menos una fila: entonces "copiaba" esa única categoría sobre
     // sí misma, veía que ya existía y terminaba con copied_count = 0. Ese era
     // el motivo por el que el botón "traer el presupuesto del mes pasado" no
     // hacía nada justo después de editar una sola categoría del mes nuevo.
-    $stmtLatest = $db->prepare("
-        SELECT year, month
-        FROM budgets b
-        WHERE b.user_id = ? AND {$workspaceCondition}
-          AND (b.year < ? OR (b.year = ? AND b.month < ?))
-        ORDER BY year DESC, month DESC
-        LIMIT 1
-    ");
-    $stmtLatest->execute([$userId, $currentYear, $currentYear, $currentMonth]);
-    $latest = $stmtLatest->fetch(PDO::FETCH_ASSOC);
+    //
+    // Con $fromMonth/$fromYear el usuario elige de qué mes traer: el último
+    // período puede ser justamente el incompleto (un mes en el que solo se
+    // editó una categoría), y entonces "el anterior" no sirve de fuente.
+    if ($fromMonth !== null && $fromYear !== null) {
+        $latest = ['month' => intval($fromMonth), 'year' => intval($fromYear)];
+        if ($latest['year'] > $currentYear || ($latest['year'] === $currentYear && $latest['month'] >= $currentMonth)) {
+            throw new InvalidArgumentException("Solo se puede traer el presupuesto de un mes anterior al que estás configurando.");
+        }
+        $stmtExists = $db->prepare("SELECT COUNT(*) FROM budgets b WHERE b.user_id = ? AND {$workspaceCondition} AND b.month = ? AND b.year = ?");
+        $stmtExists->execute([$userId, $latest['month'], $latest['year']]);
+        if (intval($stmtExists->fetchColumn()) === 0) {
+            throw new RuntimeException("Ese mes no tiene presupuesto para copiar.");
+        }
+    } else {
+        $stmtLatest = $db->prepare("
+            SELECT year, month
+            FROM budgets b
+            WHERE b.user_id = ? AND {$workspaceCondition}
+              AND (b.year < ? OR (b.year = ? AND b.month < ?))
+            ORDER BY year DESC, month DESC
+            LIMIT 1
+        ");
+        $stmtLatest->execute([$userId, $currentYear, $currentYear, $currentMonth]);
+        $latest = $stmtLatest->fetch(PDO::FETCH_ASSOC);
 
-    if (!$latest) {
-        throw new RuntimeException("No se encontraron presupuestos anteriores para copiar.");
+        if (!$latest) {
+            throw new RuntimeException("No se encontraron presupuestos anteriores para copiar.");
+        }
     }
 
     $stmtOld = $db->prepare("
@@ -147,6 +163,52 @@ function budgets_period_is_empty($db, $userId, $workspace, $month, $year) {
     $stmt = $db->prepare("SELECT COUNT(*) FROM budgets WHERE user_id = ? AND (workspace IS NULL OR workspace = ?) AND month = ? AND year = ?");
     $stmt->execute([$userId, $workspace, $month, $year]);
     return intval($stmt->fetchColumn()) === 0;
+}
+
+/**
+ * Meses anteriores al indicado que tienen presupuesto, del más reciente al
+ * más antiguo (hasta 12), con cuántas categorías y cuánto suman, y cuántas de
+ * esas categorías le faltan todavía al mes destino. Sirve para que el
+ * usuario elija de cuál traer lo que le falta.
+ */
+function budgets_list_periods($db, $userId, $workspaceCondition, $month, $year) {
+    $stmt = $db->prepare("
+        SELECT b.year, b.month, b.category_id, b.amount
+        FROM budgets b
+        WHERE b.user_id = ? AND {$workspaceCondition}
+          AND (b.year < ? OR (b.year = ? AND b.month < ?))
+        ORDER BY b.year DESC, b.month DESC
+    ");
+    $stmt->execute([$userId, $year, $year, $month]);
+
+    $stmtHere = $db->prepare("SELECT b.category_id FROM budgets b WHERE b.user_id = ? AND {$workspaceCondition} AND b.month = ? AND b.year = ?");
+    $stmtHere->execute([$userId, $month, $year]);
+    $here = [];
+    foreach ($stmtHere->fetchAll(PDO::FETCH_ASSOC) as $row) {
+        $here[$row['category_id'] === null ? 'null' : intval($row['category_id'])] = true;
+    }
+
+    $periods = [];
+    foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+        $key = intval($row['year']) . '-' . intval($row['month']);
+        if (!isset($periods[$key])) {
+            if (count($periods) >= 12) {
+                continue;
+            }
+            $periods[$key] = ['month' => intval($row['month']), 'year' => intval($row['year']), 'category_count' => 0, 'total' => 0.0, 'missing_count' => 0];
+        }
+        $catKey = $row['category_id'] === null ? 'null' : intval($row['category_id']);
+        $periods[$key]['category_count']++;
+        // El presupuesto global (sin categoría) es un tope aparte, no se suma a los límites por categoría.
+        if ($row['category_id'] !== null) {
+            $periods[$key]['total'] += floatval($row['amount']);
+        }
+        if (!isset($here[$catKey])) {
+            $periods[$key]['missing_count']++;
+        }
+    }
+
+    return array_values($periods);
 }
 
 /**

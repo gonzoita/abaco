@@ -5,9 +5,14 @@
         <h1 class="view-title">Presupuestos Mensuales</h1>
         <p class="view-subtitle">Define límites de gastos, compáralos con tus egresos reales y optimízalos con IA</p>
       </div>
-      <button class="btn-primary" @click="openBudgetModal(null)">
-        <i class="fa-solid fa-plus"></i> Configurar Presupuesto
-      </button>
+      <div style="display:flex; gap:10px; flex-wrap:wrap;">
+        <button class="btn-secondary" @click="openPeriodsModal">
+          <i class="fa-solid fa-clock-rotate-left"></i> Traer de otro mes
+        </button>
+        <button class="btn-primary" @click="openBudgetModal(null)">
+          <i class="fa-solid fa-plus"></i> Configurar Presupuesto
+        </button>
+      </div>
     </div>
 
     <!-- Presupuesto vigente: se mantiene mes a mes hasta que el usuario lo ajuste -->
@@ -201,6 +206,40 @@
           <div class="proposal-actions">
             <button class="btn-success" @click="applyAiBudgets" :disabled="aiApplying">
               {{ aiApplying ? 'Aplicando Presupuestos...' : 'Aplicar esta Propuesta' }}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- MODAL: TRAER EL PRESUPUESTO DE OTRO MES -->
+    <div v-if="showPeriodsModal" class="modal-overlay" @click.self="showPeriodsModal = false">
+      <div class="glass-card modal-content">
+        <div class="modal-header">
+          <h3>Traer de otro mes</h3>
+          <button class="btn-close" @click="showPeriodsModal = false">&times;</button>
+        </div>
+        <p style="font-size:12.5px; color:var(--text-secondary); margin:0 0 12px 0;">
+          Elige el mes del que quieres traer las categorías que le faltan a este mes. No se pisa lo que ya tienes: solo se agregan las que no están.
+        </p>
+
+        <div v-if="periodsLoading" style="padding:20px; text-align:center; color:var(--text-secondary); font-size:13px;">Buscando tus meses anteriores...</div>
+        <div v-else-if="periodsError" style="color:var(--color-danger); font-size:13px;">{{ periodsError }}</div>
+        <div v-else-if="periods.length === 0" style="padding:16px 0; color:var(--text-secondary); font-size:13px;">No hay meses anteriores con presupuesto guardado.</div>
+
+        <div v-else style="display:flex; flex-direction:column; gap:8px; max-height:50vh; overflow-y:auto;">
+          <div v-for="p in periods" :key="p.year + '-' + p.month" style="display:flex; justify-content:space-between; align-items:center; gap:10px; padding:10px 12px; border-radius:10px; background:rgba(255,255,255,0.04); border:1px solid var(--card-border);">
+            <div>
+              <div style="font-weight:700; font-size:13.5px; text-transform:capitalize;">{{ monthName(p.month) }} {{ p.year }}</div>
+              <div style="font-size:12px; color:var(--text-secondary);">
+                {{ p.category_count }} categoría(s) · {{ formatCurrency(p.total) }}
+              </div>
+              <div style="font-size:11.5px; margin-top:2px;" :style="{ color: p.missing_count > 0 ? '#fbbf24' : 'var(--text-muted)' }">
+                {{ p.missing_count > 0 ? 'A este mes le faltan ' + p.missing_count : 'Este mes ya las tiene todas' }}
+              </div>
+            </div>
+            <button class="btn-primary" :disabled="copyingBudgets || p.missing_count === 0" @click="copyFromPeriod(p)" style="padding:8px 14px; font-size:12.5px;">
+              {{ copyingBudgets ? 'Trayendo...' : 'Traer' }}
             </button>
           </div>
         </div>
@@ -449,6 +488,55 @@ export default {
         }
       } catch (err) {
         console.error(err)
+      }
+    }
+
+    const showPeriodsModal = ref(false)
+    const periods = ref([])
+    const periodsLoading = ref(false)
+    const periodsError = ref('')
+
+    const openPeriodsModal = async () => {
+      showPeriodsModal.value = true
+      periodsLoading.value = true
+      periodsError.value = ''
+      const token = localStorage.getItem('token')
+      try {
+        const response = await fetch(`${API_BASE}/budgets.php?action=list_periods`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        })
+        const data = await response.json()
+        if (!response.ok) {
+          throw new Error(data.error || 'No se pudieron cargar los meses anteriores.')
+        }
+        periods.value = Array.isArray(data) ? data : []
+      } catch (err) {
+        periodsError.value = err.message
+      } finally {
+        periodsLoading.value = false
+      }
+    }
+
+    const copyFromPeriod = async (period) => {
+      copyingBudgets.value = true
+      const token = localStorage.getItem('token')
+      try {
+        const response = await fetch(`${API_BASE}/budgets.php?action=copy_from_last_month&from_month=${period.month}&from_year=${period.year}`, {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${token}` }
+        })
+        const data = await response.json()
+        if (!response.ok) {
+          throw new Error(data.error || 'Error al traer el presupuesto.')
+        }
+        showPeriodsModal.value = false
+        showCarryOverBanner.value = false
+        await fetchReports()
+        alert(data.message)
+      } catch (err) {
+        periodsError.value = err.message
+      } finally {
+        copyingBudgets.value = false
       }
     }
 
@@ -732,6 +820,12 @@ export default {
       copyingBudgets,
       budgetStatus,
       monthName,
+      showPeriodsModal,
+      periods,
+      periodsLoading,
+      periodsError,
+      openPeriodsModal,
+      copyFromPeriod,
       copyLastMonthBudgets,
       budgetCatSearch,
       searchedExpenseCategories,

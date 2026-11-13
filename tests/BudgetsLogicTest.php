@@ -181,6 +181,85 @@ final class BudgetsLogicTest extends TestCase
         budgets_copy_from_last_month($this->db, 7, 'personal', "(workspace IS NULL OR workspace = 'personal')", 8, 2026);
     }
 
+    // Caso real: octubre quedó con UNA sola categoría (se editó sola antes de
+    // existir el arreglo) y noviembre la heredó. El último período es el
+    // incompleto, así que el usuario tiene que poder elegir septiembre.
+    public function testCopiesFromAnExplicitEarlierMonthInsteadOfTheIncompleteLatestOne(): void
+    {
+        $this->db->exec("INSERT INTO categories (id, name, color, icon) VALUES (2, 'Transporte', '#3B82F6', 'car'), (3, 'Vivienda', '#F59E0B', 'home')");
+        foreach ([[1, 600000], [2, 110000], [3, 500000]] as [$cat, $amt]) {
+            $this->db->exec("INSERT INTO budgets (user_id, category_id, amount, month, year, workspace) VALUES (7, {$cat}, {$amt}, 9, 2026, 'personal')");
+        }
+        $this->db->exec("INSERT INTO budgets (user_id, category_id, amount, month, year, workspace) VALUES (7, 2, 164000, 10, 2026, 'personal')");
+        $this->db->exec("INSERT INTO budgets (user_id, category_id, amount, month, year, workspace) VALUES (7, 2, 164000, 11, 2026, 'personal')");
+
+        $viaLatest = budgets_copy_from_last_month($this->db, 7, 'personal', self::WS_COND, 11, 2026);
+        $this->assertSame(0, $viaLatest['copied_count'], 'Con la fuente por defecto (octubre) no hay nada que traer.');
+
+        $result = budgets_copy_from_last_month($this->db, 7, 'personal', self::WS_COND, 11, 2026, 9, 2026);
+
+        $this->assertSame(2, $result['copied_count']);
+        $this->assertSame(9, $result['from_month']);
+        $november = $this->db->query('SELECT category_id, amount FROM budgets WHERE month = 11 AND year = 2026 ORDER BY category_id')->fetchAll(PDO::FETCH_ASSOC);
+        $this->assertCount(3, $november);
+        $this->assertEqualsWithDelta(164000, (float) $november[1]['amount'], 0.001, 'Lo que el usuario ya ajustó en noviembre no se pisa.');
+    }
+
+    public function testRejectsCopyingFromTheSameOrALaterMonth(): void
+    {
+        $this->db->exec("INSERT INTO budgets (user_id, category_id, amount, month, year, workspace) VALUES (7, 1, 100000, 11, 2026, 'personal')");
+
+        $this->expectException(InvalidArgumentException::class);
+        budgets_copy_from_last_month($this->db, 7, 'personal', self::WS_COND, 11, 2026, 11, 2026);
+    }
+
+    public function testRejectsCopyingFromAMonthWithoutBudget(): void
+    {
+        $this->expectException(RuntimeException::class);
+        budgets_copy_from_last_month($this->db, 7, 'personal', self::WS_COND, 11, 2026, 8, 2026);
+    }
+
+    // ---- budgets_list_periods ----
+
+    public function testListsEarlierMonthsWithHowManyCategoriesTheTargetIsMissing(): void
+    {
+        $this->db->exec("INSERT INTO categories (id, name, color, icon) VALUES (2, 'Transporte', '#3B82F6', 'car'), (3, 'Vivienda', '#F59E0B', 'home')");
+        foreach ([[1, 600000], [2, 110000], [3, 500000]] as [$cat, $amt]) {
+            $this->db->exec("INSERT INTO budgets (user_id, category_id, amount, month, year, workspace) VALUES (7, {$cat}, {$amt}, 9, 2026, 'personal')");
+        }
+        $this->db->exec("INSERT INTO budgets (user_id, category_id, amount, month, year, workspace) VALUES (7, 2, 164000, 10, 2026, 'personal')");
+        $this->db->exec("INSERT INTO budgets (user_id, category_id, amount, month, year, workspace) VALUES (7, 2, 164000, 11, 2026, 'personal')");
+
+        $periods = budgets_list_periods($this->db, 7, self::WS_COND, 11, 2026);
+
+        $this->assertCount(2, $periods, 'Solo meses anteriores al destino: noviembre no aparece.');
+        $this->assertSame(10, $periods[0]['month'], 'El más reciente va primero.');
+        $this->assertSame(1, $periods[0]['category_count']);
+        $this->assertSame(0, $periods[0]['missing_count']);
+        $this->assertSame(9, $periods[1]['month']);
+        $this->assertSame(3, $periods[1]['category_count']);
+        $this->assertEqualsWithDelta(1210000, $periods[1]['total'], 0.001);
+        $this->assertSame(2, $periods[1]['missing_count'], 'A noviembre le faltan 2 de las 3 categorías de septiembre.');
+    }
+
+    public function testListsNothingWhenThereAreNoEarlierBudgets(): void
+    {
+        $this->db->exec("INSERT INTO budgets (user_id, category_id, amount, month, year, workspace) VALUES (7, 1, 100000, 11, 2026, 'personal')");
+
+        $this->assertSame([], budgets_list_periods($this->db, 7, self::WS_COND, 11, 2026));
+    }
+
+    public function testListsAcrossYearBoundariesAndOnlyTheUsersOwnBudgets(): void
+    {
+        $this->db->exec("INSERT INTO budgets (user_id, category_id, amount, month, year, workspace) VALUES (7, 1, 100000, 12, 2025, 'personal')");
+        $this->db->exec("INSERT INTO budgets (user_id, category_id, amount, month, year, workspace) VALUES (99, 1, 999999, 12, 2025, 'personal')");
+
+        $periods = budgets_list_periods($this->db, 7, self::WS_COND, 1, 2026);
+
+        $this->assertCount(1, $periods);
+        $this->assertSame(2025, $periods[0]['year']);
+    }
+
     // ---- budgets_ensure_period_filled ----
 
     public function testFillsACompletelyEmptyMonthWithRealRowsNotJustInheritedOnes(): void
