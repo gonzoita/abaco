@@ -267,3 +267,58 @@ function gemini_strip_code_fence($text) {
     $clean = preg_replace('/```[a-zA-Z]*/', '', $clean);
     return trim($clean);
 }
+
+/**
+ * De la lista de modelos que devuelve Google (GET /v1beta/models) elige los
+ * Flash estables que sirven para generar texto, del más nuevo al más viejo:
+ * hasta 3 "flash" y luego 1 "flash-lite". Se descartan los preview, las
+ * versiones de imagen/audio, los Pro y todo lo que no soporte
+ * generateContent: para eso ya está el alias 'gemini-flash-latest'.
+ *
+ * POR QUÉ: la lista escrita a mano se desactualizó tres veces (modelos
+ * apagados, versiones nuevas) y cuando el modelo principal se sobrecargaba
+ * los "respaldos" ya no existían, así que no había a dónde caer.
+ */
+function gemini_pick_models($listing) {
+    $flash = [];
+    $lite = [];
+    foreach (($listing['models'] ?? []) as $model) {
+        if (!is_array($model) || !isset($model['name'])) continue;
+        if (!preg_match('/^models\/gemini-(\d+(?:\.\d+)?)-flash(-lite)?$/', (string) $model['name'], $m)) continue;
+        $methods = $model['supportedGenerationMethods'] ?? null;
+        if (is_array($methods) && !in_array('generateContent', $methods, true)) continue;
+
+        $entry = ['id' => substr($model['name'], strlen('models/')), 'version' => $m[1]];
+        if (!empty($m[2])) {
+            $lite[] = $entry;
+        } else {
+            $flash[] = $entry;
+        }
+    }
+
+    $newestFirst = function ($a, $b) {
+        return version_compare($b['version'], $a['version']);
+    };
+    usort($flash, $newestFirst);
+    usort($lite, $newestFirst);
+
+    return array_merge(
+        array_column(array_slice($flash, 0, 3), 'id'),
+        array_column(array_slice($lite, 0, 1), 'id')
+    );
+}
+
+/**
+ * Orden final en que se prueban los modelos: el alias que Google mantiene
+ * apuntando al Flash vigente, los descubiertos, el alias lite y, por si el
+ * descubrimiento falla, los nombres conocidos. Máximo 6 para no gastar todo
+ * el tiempo disponible probando modelos que no responden.
+ */
+function gemini_model_chain(array $discovered) {
+    $chain = array_merge(
+        ['gemini-flash-latest'],
+        $discovered,
+        ['gemini-flash-lite-latest', 'gemini-3.6-flash', 'gemini-3.7-flash', 'gemini-3.5-flash', 'gemini-3.1-flash-lite']
+    );
+    return array_slice(array_values(array_unique($chain)), 0, 6);
+}

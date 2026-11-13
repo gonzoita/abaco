@@ -223,6 +223,75 @@ class GeminiResponseTest extends TestCase
         $this->assertStringNotContainsString('Detalle de Google', gemini_status_message($result));
     }
 
+    // ---- elección de modelos ----
+
+    private function listadoDeModelos(): array
+    {
+        $gen = ['generateContent', 'countTokens'];
+        return ['models' => [
+            ['name' => 'models/gemini-3.8-flash', 'supportedGenerationMethods' => $gen],
+            ['name' => 'models/gemini-3.6-flash', 'supportedGenerationMethods' => $gen],
+            ['name' => 'models/gemini-3.10-flash', 'supportedGenerationMethods' => $gen],
+            ['name' => 'models/gemini-3.8-flash-lite', 'supportedGenerationMethods' => $gen],
+            ['name' => 'models/gemini-3.8-flash-preview-1105', 'supportedGenerationMethods' => $gen],
+            ['name' => 'models/gemini-3.8-flash-image', 'supportedGenerationMethods' => $gen],
+            ['name' => 'models/gemini-3.8-pro', 'supportedGenerationMethods' => $gen],
+            ['name' => 'models/gemini-3.9-flash', 'supportedGenerationMethods' => ['embedContent']],
+            ['name' => 'models/embedding-001', 'supportedGenerationMethods' => ['embedContent']],
+        ]];
+    }
+
+    public function testElegeLosFlashEstablesDelMasNuevoAlMasViejo(): void
+    {
+        $this->assertSame(
+            ['gemini-3.10-flash', 'gemini-3.8-flash', 'gemini-3.6-flash', 'gemini-3.8-flash-lite'],
+            gemini_pick_models($this->listadoDeModelos()),
+            '3.10 es más nuevo que 3.8; los preview, imagen, pro y los que no generan texto se descartan.'
+        );
+    }
+
+    public function testNoElegiraMasDeTresFlashNiMasDeUnLite(): void
+    {
+        $gen = ['generateContent'];
+        $listado = ['models' => []];
+        foreach (['3.1', '3.2', '3.3', '3.4'] as $v) {
+            $listado['models'][] = ['name' => "models/gemini-{$v}-flash", 'supportedGenerationMethods' => $gen];
+            $listado['models'][] = ['name' => "models/gemini-{$v}-flash-lite", 'supportedGenerationMethods' => $gen];
+        }
+
+        $this->assertSame(
+            ['gemini-3.4-flash', 'gemini-3.3-flash', 'gemini-3.2-flash', 'gemini-3.4-flash-lite'],
+            gemini_pick_models($listado)
+        );
+    }
+
+    public function testUnaRespuestaInvalidaNoDescubreModelos(): void
+    {
+        $this->assertSame([], gemini_pick_models(null));
+        $this->assertSame([], gemini_pick_models(['error' => ['message' => 'API key not valid']]));
+    }
+
+    public function testElOrdenDePruebaEmpiezaPorElAliasYSigueConLosDescubiertos(): void
+    {
+        $cadena = gemini_model_chain(gemini_pick_models($this->listadoDeModelos()));
+
+        $this->assertSame(
+            ['gemini-flash-latest', 'gemini-3.10-flash', 'gemini-3.8-flash', 'gemini-3.6-flash', 'gemini-3.8-flash-lite', 'gemini-flash-lite-latest'],
+            $cadena
+        );
+    }
+
+    public function testSiNoSePuedeDescubrirNadaQuedanLosNombresConocidos(): void
+    {
+        $cadena = gemini_model_chain([]);
+
+        $this->assertSame('gemini-flash-latest', $cadena[0]);
+        $this->assertContains('gemini-flash-lite-latest', $cadena);
+        $this->assertContains('gemini-3.6-flash', $cadena);
+        $this->assertCount(6, $cadena);
+        $this->assertSame(array_unique($cadena), $cadena, 'Sin repetidos.');
+    }
+
     public function testClasificaModeloRetirado(): void
     {
         // Google retira modelos con el tiempo; hay que poder pasar al siguiente.

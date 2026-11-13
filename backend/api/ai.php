@@ -62,8 +62,34 @@ if (empty($apiKeyToUse)) {
  *    va primero porque es un alias que Google mantiene apuntando al Flash
  *    recomendado del momento, así no depende de que actualicemos la lista.
  */
+/**
+ * Modelos a probar, en orden. Pregunta a Google cuáles existen (la lista se
+ * guarda 6 horas en un archivo temporal, es la misma para todos) y, si no
+ * responde, usa los nombres conocidos: ver gemini_model_chain().
+ */
+function gemini_models_for_key($apiKey) {
+    $cacheFile = sys_get_temp_dir() . '/abaco_gemini_models.json';
+    $cached = @json_decode((string) @file_get_contents($cacheFile), true);
+    if (is_array($cached) && isset($cached['at'], $cached['models']) && is_array($cached['models']) && time() - intval($cached['at']) < 21600) {
+        return gemini_model_chain($cached['models']);
+    }
+
+    $ch = curl_init('https://generativelanguage.googleapis.com/v1beta/models?pageSize=200');
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_HTTPHEADER, ['x-goog-api-key: ' . $apiKey]);
+    curl_setopt($ch, CURLOPT_TIMEOUT, 4);
+    $response = curl_exec($ch);
+    curl_close($ch);
+
+    $discovered = $response ? gemini_pick_models(json_decode($response, true)) : [];
+    if (!empty($discovered)) {
+        @file_put_contents($cacheFile, json_encode(['at' => time(), 'models' => $discovered]));
+    }
+    return gemini_model_chain($discovered);
+}
+
 function callGemini($payload, $apiKey) {
-    $models = ['gemini-flash-latest', 'gemini-3.7-flash', 'gemini-3.5-flash', 'gemini-3.1-flash-lite'];
+    $models = gemini_models_for_key($apiKey);
 
     // Configuración base (respeta lo que ya traiga el endpoint que llama).
     if (!isset($payload['generationConfig'])) {
@@ -83,6 +109,7 @@ function callGemini($payload, $apiKey) {
     $deadline = microtime(true) + 25;
 
     $lastClassified = null;
+    $lastRealError = null;   // último fallo que NO sea "este modelo no existe"
     $dropThinking = false;   // un modelo rechazó el parámetro de razonamiento
     $bumpedTokens = false;   // ya se amplió el presupuesto una vez
 
@@ -121,6 +148,9 @@ function callGemini($payload, $apiKey) {
 
             $classified = gemini_classify_response(json_decode($response, true));
             $lastClassified = $classified;
+            if (!($classified['status'] === 'error' && $classified['kind'] === 'model_gone')) {
+                $lastRealError = $classified;
+            }
 
             if ($classified['status'] === 'ok') {
                 return $classified;
@@ -142,10 +172,11 @@ function callGemini($payload, $apiKey) {
                     break; // este modelo ya no existe: probar el siguiente
                 }
                 if ($classified['kind'] === 'rate_limit') {
-                    // Sin cupo o cupo del día agotado: reintentar este mismo
-                    // modelo no sirve de nada. Cada modelo tiene su propia
-                    // cuota, así que se pasa directo al siguiente.
-                    if (in_array(gemini_rate_limit_detail($classified), ['daily', 'zero'], true)) {
+                    // Sin cupo, cupo del día agotado o modelo sobrecargado:
+                    // reintentar este mismo modelo no sirve de nada. Cada
+                    // modelo tiene su propia cuota y su propia carga, así que
+                    // se pasa directo al siguiente.
+                    if (in_array(gemini_rate_limit_detail($classified), ['daily', 'zero', 'overloaded'], true)) {
                         break;
                     }
                     // Es el límite por minuto de la clave gratuita, no un fallo
@@ -177,7 +208,9 @@ function callGemini($payload, $apiKey) {
         }
     }
 
-    return $lastClassified ?? [
+    // Si algún modelo no existía, su 404 no debe tapar el motivo real del
+    // fallo (por ejemplo, que el principal estaba sobrecargado).
+    return $lastRealError ?? $lastClassified ?? [
         'status' => 'empty',
         'text' => '',
         'kind' => 'no_response',
