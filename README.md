@@ -94,10 +94,16 @@ El frontend compila **directo a la raíz del repo** (no a `frontend/dist`,
 ver `frontend/vite.config.js`) porque `deploy.php` sincroniza todo el
 repo tal cual a `public_html` del hosting.
 
-Flujo en cada push a `main`:
+Flujo de un cambio:
 
-1. **GitHub Actions** corre lint de PHP, PHPUnit, Vitest y `vite build`.
-   Si el build cambió algo, lo commitea de vuelta con `[skip ci]`.
+0. En cada **pull request** hacia `main`, GitHub Actions corre lint de PHP,
+   PHPUnit, Vitest y `vite build`. Si pasan, el PR se mezcla solo
+   (auto-merge); si fallan, no llega a `main` ni a producción.
+
+Y en cada push a `main`:
+
+1. **GitHub Actions** vuelve a correr lint de PHP, PHPUnit, Vitest y
+   `vite build`. Si el build cambió algo, lo commitea de vuelta con `[skip ci]`.
 2. **Webhook de GitHub** (firmado con HMAC, ver `GITHUB_WEBHOOK_SECRET`)
    dispara `deploy.php` en el servidor.
 3. `deploy.php`: etiqueta el commit actual como punto de rollback, corre

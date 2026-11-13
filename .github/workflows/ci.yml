@@ -1,14 +1,27 @@
 name: CI - lint, pruebas y compilar frontend
 
-# Se dispara en cada push a main. El commit que este workflow hace al final
-# (con el frontend recompilado) incluye "[skip ci]" en el mensaje, así que
-# GitHub no vuelve a disparar este mismo workflow para ese commit (evita loop).
+# Corre en dos momentos:
+#  - En cada pull request hacia main: lint, pruebas y compilación. Es la
+#    compuerta que decide si un cambio puede mezclarse (y, al mezclarse,
+#    desplegarse: el webhook de GitHub publica cada push a main). No
+#    commitea nada.
+#  - En cada push a main: lo mismo y, además, commitea el frontend
+#    recompilado. Ese commit incluye "[skip ci]", así que GitHub no vuelve a
+#    disparar este workflow para él (evita loop).
 on:
   push:
+    branches: [main]
+  pull_request:
     branches: [main]
 
 permissions:
   contents: write
+
+# Un push nuevo a un PR cancela la corrida anterior de ese PR. En main nunca
+# se cancela: interrumpir el commit del build dejaría el frontend a medias.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   build:
@@ -65,6 +78,7 @@ jobs:
         run: npm run build
 
       - name: Commitear el build si cambió algo
+        if: github.event_name == 'push'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"

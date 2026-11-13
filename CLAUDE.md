@@ -85,10 +85,13 @@ testeadas junto a cada módulo (`src/utils/*.js` + `*.test.js` al lado).
 *directo a la raíz del repo* (`frontend/vite.config.js`: `outDir: '../'`,
 `emptyOutDir: false`), no a `frontend/dist`, porque `deploy.php` sincroniza
 todo el repo tal cual al `public_html` del hosting con `rsync --delete`.
-En cada push a `main`, GitHub Actions (`.github/workflows/ci.yml`) corre
-`php -l` sobre todo el PHP, PHPUnit, Vitest, y `vite build`; si el build
-cambió algo lo commitea de vuelta con `[skip ci]` (para no disparar el
-workflow de nuevo). Un webhook de GitHub firmado con HMAC
+GitHub Actions (`.github/workflows/ci.yml`) corre `php -l` sobre todo el
+PHP, PHPUnit, Vitest, y `vite build` en cada pull request hacia `main` (es
+la compuerta: `main` exige que el chequeo `build` pase, y los PR se mezclan
+solos con auto-merge cuando está en verde) y también en cada push a `main`;
+solo en el push commitea de vuelta el frontend recompilado, con `[skip ci]`
+(para no disparar el workflow de nuevo). Mezclar a `main` publica a
+producción, así que nada llega ahí sin pasar las pruebas. Un webhook de GitHub firmado con HMAC
 (`GITHUB_WEBHOOK_SECRET`) dispara `deploy.php` en el servidor, que etiqueta
 el commit actual como punto de rollback (`git tag pre-deploy-*`), corre
 `php -l` de nuevo (si falla, aborta sin tocar nada), sincroniza con rsync y
