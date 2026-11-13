@@ -14,3 +14,4 @@ require_once __DIR__ . '/../backend/lib/budgets_logic.php';
 require_once __DIR__ . '/../backend/lib/gemini_response.php';
 require_once __DIR__ . '/../backend/lib/session_refresh.php';
 require_once __DIR__ . '/../backend/lib/ai_prompts.php';
+require_once __DIR__ . '/../backend/lib/finance_analytics.php';

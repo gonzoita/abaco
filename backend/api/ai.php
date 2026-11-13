@@ -5,6 +5,7 @@ require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/auth_helper.php';
 require_once __DIR__ . '/../lib/gemini_response.php';
 require_once __DIR__ . '/../lib/ai_prompts.php';
+require_once __DIR__ . '/../lib/finance_analytics.php';
 
 $userData = authenticate();
 $userId = $userData['user_id'];
@@ -87,7 +88,7 @@ function callGemini($payload, $apiKey) {
 
     foreach ($models as $modelName) {
         if (microtime(true) >= $deadline) break;
-        $url = "https://generativelanguage.googleapis.com/v1beta/models/" . $modelName . ":generateContent?key=" . $apiKey;
+        $url = "https://generativelanguage.googleapis.com/v1beta/models/" . $modelName . ":generateContent";
 
         for ($attempt = 1; $attempt <= 2; $attempt++) {
             $remaining = $deadline - microtime(true);
@@ -102,8 +103,11 @@ function callGemini($payload, $apiKey) {
             curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
             curl_setopt($ch, CURLOPT_POST, true);
             curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($body));
-            curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json']);
-            curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+            // La clave viaja en una cabecera y no en la URL (las URLs quedan en
+            // logs de proxies y del propio servidor), y con el certificado de
+            // Google verificado: antes la verificación estaba apagada, así que
+            // cualquiera en el camino podía leer la clave del usuario.
+            curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json', 'x-goog-api-key: ' . $apiKey]);
             curl_setopt($ch, CURLOPT_TIMEOUT, (int) max(1, min(15, $remaining)));
 
             $response = curl_exec($ch);
@@ -432,79 +436,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         $historyInput = isset($input['history']) && is_array($input['history']) ? $input['history'] : [];
 
-        // NOTA: get_active_workspace() debe llamarse ANTES de usar $workspace
-        // en las consultas de abajo (antes se llamaba después de usarlo, lo
-        // que dejaba $workspace indefinido y rompía el filtro de espacio de
-        // trabajo para estas consultas).
         $workspace = get_active_workspace();
 
-        // Obtener resumen de las finanzas del usuario (para contextualizar)
-        $accounts = [];
-        $recentTransactions = [];
-        $loans = [];
-        $totalLiquid = 0;
-        $monthIncome = 0;
-        $monthExpense = 0;
-
-        try {
-            $stmtAccounts = $db->prepare("SELECT name, type, balance, currency FROM accounts WHERE user_id = ? AND (workspace IS NULL OR workspace = ?)");
-            $stmtAccounts->execute([$userId, $workspace]);
-            $accounts = $stmtAccounts->fetchAll();
-            foreach ($accounts as $acc) {
-                if (in_array($acc['type'], ['efectivo', 'banco', 'ahorro'])) {
-                    $totalLiquid += floatval($acc['balance']);
-                }
-            }
-        } catch (Exception $e) {}
-
-        try {
-            $stmtTx = $db->prepare("SELECT t.type, t.amount, t.description, t.date, c.name as category
-                                    FROM transactions t
-                                    LEFT JOIN categories c ON t.category_id = c.id
-                                    WHERE t.user_id = ? AND (t.workspace IS NULL OR t.workspace = ?)
-                                    ORDER BY t.date DESC LIMIT 10");
-            $stmtTx->execute([$userId, $workspace]);
-            $recentTransactions = $stmtTx->fetchAll();
-        } catch (Exception $e) {}
-
-        try {
-            $stmtMonth = $db->prepare("SELECT type, SUM(amount) as total FROM transactions
-                                       WHERE user_id = ? AND (workspace IS NULL OR workspace = ?)
-                                       AND MONTH(date) = MONTH(CURRENT_DATE()) AND YEAR(date) = YEAR(CURRENT_DATE())
-                                       GROUP BY type");
-            $stmtMonth->execute([$userId, $workspace]);
-            foreach ($stmtMonth->fetchAll() as $row) {
-                if ($row['type'] === 'ingreso') $monthIncome = floatval($row['total']);
-                if ($row['type'] === 'egreso') $monthExpense = floatval($row['total']);
-            }
-        } catch (Exception $e) {}
-
-        try {
-            $stmtLoans = $db->prepare("SELECT l.amount, l.type, c.name as person_name
-                                       FROM loans l
-                                       LEFT JOIN loan_clients c ON l.client_id = c.id
-                                       WHERE l.user_id = ? AND (l.workspace IS NULL OR l.workspace = ?) AND l.status != 'finalizado'");
-            $stmtLoans->execute([$userId, $workspace]);
-            $loans = $stmtLoans->fetchAll();
-        } catch (Exception $e) {}
-
-        // Estructurar el resumen
-        $summary = "Cuentas del usuario:\n";
-        foreach ($accounts as $acc) {
-            $summary .= "- {$acc['name']} ({$acc['type']}): {$acc['balance']} {$acc['currency']}\n";
-        }
-        $summary .= "\nSaldo líquido total (efectivo + banco + ahorro): {$totalLiquid}\n";
-        $summary .= "Ingresos de este mes: {$monthIncome} | Gastos de este mes: {$monthExpense} | Ahorro neto del mes: " . ($monthIncome - $monthExpense) . "\n";
-        $summary .= "\nÚltimos movimientos:\n";
-        foreach ($recentTransactions as $tx) {
-            $summary .= "- {$tx['date']} | {$tx['type']} | {$tx['amount']} | {$tx['description']} ({$tx['category']})\n";
-        }
-        if (!empty($loans)) {
-            $summary .= "\nPréstamos registrados:\n";
-            foreach ($loans as $l) {
-                $summary .= "- Préstamo a/de {$l['person_name']}: Monto inicial {$l['amount']}\n";
-            }
-        }
+        // El resumen ya no son 10 movimientos y dos totales: es la situación
+        // completa y calculada (ver backend/lib/finance_analytics.php).
+        $summary = fa_context_to_text(fa_build_context($db, $userId, $workspace, date('Y-m-d')));
 
         $chatPromptKey = $workspace === 'business' ? 'chat_business_system' : 'chat_personal_system';
         $systemPrompt = ai_prompt_fill(ai_prompt_get($db, $chatPromptKey), [
@@ -554,40 +490,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     // 3. OPTIMIZAR PRESUPUESTO CON IA
     if ($action === 'optimize_budget') {
-        // Obtener presupuestos de este mes
-        $stmtBudgets = $db->prepare("
-            SELECT b.amount, b.category_id, c.name as category_name
-            FROM budgets b
-            LEFT JOIN categories c ON b.category_id = c.id
-            WHERE b.user_id = ? AND b.month = MONTH(CURRENT_DATE()) AND b.year = YEAR(CURRENT_DATE())
-        ");
-        $stmtBudgets->execute([$userId]);
-        $budgets = $stmtBudgets->fetchAll();
+        // Antes estas consultas no filtraban por espacio de trabajo (mezclaban
+        // el presupuesto personal con el del negocio) y solo le pasaban a la
+        // IA límite y gastado: sin ingresos ni historial no podía proponer
+        // nada con fundamento.
+        $workspace = get_active_workspace();
+        $ctx = fa_build_context($db, $userId, $workspace, date('Y-m-d'));
 
-        // Obtener gastos de este mes
-        $stmtSpent = $db->prepare("
-            SELECT category_id, SUM(amount) as spent 
-            FROM transactions 
-            WHERE user_id = ? AND type = 'egreso' AND MONTH(date) = MONTH(CURRENT_DATE()) AND YEAR(date) = YEAR(CURRENT_DATE())
-            GROUP BY category_id
-        ");
-        $stmtSpent->execute([$userId]);
-        $spents = $stmtSpent->fetchAll();
-
-        $spentMap = [];
-        foreach ($spents as $row) {
-            $catId = $row['category_id'] !== null ? intval($row['category_id']) : 0;
-            $spentMap[$catId] = floatval($row['spent']);
+        $context = fa_context_to_text($ctx) . "\n\nCATEGORÍAS PRESUPUESTADAS (usa estos ID en 'proposed_budgets'):\n";
+        foreach ($ctx['budget']['categories'] as $bc) {
+            $context .= "- {$bc['name']} (ID de Categoría: {$bc['category_id']}): Límite: " . round($bc['limit']) . " | Gastado: " . round($bc['spent']) . "\n";
         }
-
-        // Formatear el contexto para la IA
-        $context = "Historial de Presupuestos vs Gastos de este mes:\n";
-        foreach ($budgets as $b) {
-            $catId = $b['category_id'] !== null ? intval($b['category_id']) : 0;
-            $name = $b['category_name'] ?: 'Presupuesto Global';
-            $limit = floatval($b['amount']);
-            $spent = isset($spentMap[$catId]) ? $spentMap[$catId] : 0.00;
-            $context .= "- {$name} (ID de Categoría: " . ($b['category_id'] ?: 'null') . "): Límite: {$limit} | Gastado: {$spent}\n";
+        if (empty($ctx['budget']['categories'])) {
+            $context .= "- (ninguna todavía)\n";
         }
 
         $prompt = ai_prompt_fill(ai_prompt_get($db, 'optimize_budget'), [
@@ -627,78 +542,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         $workspace = get_active_workspace();
 
-        // 1. Obtener datos financieros reales del usuario
-        $accounts = [];
-        $recentTransactions = [];
-        $loans = [];
-        $budgets = [];
-
-        try {
-            $stmtAccounts = $db->prepare("SELECT name, type, balance, currency FROM accounts WHERE user_id = ? AND (workspace IS NULL OR workspace = ?)");
-            $stmtAccounts->execute([$userId, $workspace]);
-            $accounts = $stmtAccounts->fetchAll();
-        } catch (Exception $e) {}
-
-        try {
-            $stmtTx = $db->prepare("SELECT t.type, t.amount, t.description, t.date, c.name as category 
-                                    FROM transactions t 
-                                    LEFT JOIN categories c ON t.category_id = c.id 
-                                    WHERE t.user_id = ? AND (t.workspace IS NULL OR t.workspace = ?) AND MONTH(t.date) = MONTH(CURRENT_DATE()) AND YEAR(t.date) = YEAR(CURRENT_DATE())");
-            $stmtTx->execute([$userId, $workspace]);
-            $recentTransactions = $stmtTx->fetchAll();
-        } catch (Exception $e) {}
-
-        try {
-            $stmtLoans = $db->prepare("SELECT l.amount, l.type, l.status, c.name as person_name 
-                                       FROM loans l 
-                                       LEFT JOIN loan_clients c ON l.client_id = c.id 
-                                       WHERE l.user_id = ? AND (l.workspace IS NULL OR l.workspace = ?) AND l.status != 'finalizado'");
-            $stmtLoans->execute([$userId, $workspace]);
-            $loans = $stmtLoans->fetchAll();
-        } catch (Exception $e) {}
-
-        try {
-            $stmtBudgets = $db->prepare("SELECT b.amount, c.name as category_name FROM budgets b LEFT JOIN categories c ON b.category_id = c.id WHERE b.user_id = ? AND b.month = MONTH(CURRENT_DATE()) AND b.year = YEAR(CURRENT_DATE())");
-            $stmtBudgets->execute([$userId]);
-            $budgets = $stmtBudgets->fetchAll();
-        } catch (Exception $e) {}
-
-        // Formatear la situación real del usuario
-        $totalBalance = 0;
-        $summaryData = "CUENTAS Y SALDOS:\n";
-        foreach ($accounts as $acc) {
-            $totalBalance += floatval($acc['balance']);
-            $summaryData .= "- {$acc['name']} ({$acc['type']}): {$acc['balance']} {$acc['currency']}\n";
-        }
-
-        $totalIncomeMonth = 0;
-        $totalExpenseMonth = 0;
-        foreach ($recentTransactions as $tx) {
-            if ($tx['type'] === 'ingreso') $totalIncomeMonth += floatval($tx['amount']);
-            if ($tx['type'] === 'egreso') $totalExpenseMonth += floatval($tx['amount']);
-        }
-
-        $summaryData .= "\nMOVIMIENTOS DEL MES ACTUAL:\n";
-        $summaryData .= "- Total Ingresos: {$totalIncomeMonth}\n";
-        $summaryData .= "- Total Egresos: {$totalExpenseMonth}\n";
-        $summaryData .= "- Ahorro Neto del Mes: " . ($totalIncomeMonth - $totalExpenseMonth) . "\n";
-
-        if (!empty($loans)) {
-            $summaryData .= "\nPRÉSTAMOS / CARTERA / DEUDAS:\n";
-            foreach ($loans as $l) {
-                $summaryData .= "- {$l['type']} a/de {$l['person_name']}: {$l['amount']} (Estado: {$l['status']})\n";
-            }
-        }
-
-        if (!empty($budgets)) {
-            $summaryData .= "\nPRESUPUESTOS DEL MES:\n";
-            foreach ($budgets as $b) {
-                $summaryData .= "- Categoría {$b['category_name']}: Límite {$b['amount']}\n";
-            }
-        }
+        $summaryData = fa_context_to_text(fa_build_context($db, $userId, $workspace, date('Y-m-d')));
 
         if (!empty($userNotes)) {
-            $summaryData .= "\nNOTAS Y OBJETIVOS EXPRESADOS POR EL USUARIO:\n{$userNotes}\n";
+            $summaryData .= "\n\nNOTAS Y OBJETIVOS EXPRESADOS POR EL USUARIO:\n{$userNotes}\n";
         }
 
         $systemPrompt = ai_prompt_fill(ai_prompt_get($db, 'financial_diagnosis'), [
@@ -734,6 +581,46 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } catch (Exception $e) {
             http_response_code(500);
             echo json_encode(["error" => "Error al generar diagnóstico: " . $e->getMessage()]);
+        }
+        exit();
+    }
+
+    // 5. PLAN DE INVERSIÓN. La decisión de SI puede invertir y CUÁNTO la toma
+    // el sistema (fa_investment_readiness); la IA solo arma el plan dentro de
+    // ese límite, según el horizonte y el perfil de riesgo que eligió el usuario.
+    if ($action === 'investment_plan') {
+        $input = json_decode(file_get_contents('php://input'), true);
+        $horizons = ['corto' => 'menos de 1 año', 'medio' => 'entre 1 y 5 años', 'largo' => 'más de 5 años'];
+        $risks = ['conservador' => 'conservador (no tolera ver bajar su capital)', 'moderado' => 'moderado (acepta bajas temporales a cambio de más rendimiento)', 'arriesgado' => 'arriesgado (acepta alta volatilidad buscando el mayor rendimiento)'];
+        $horizon = $horizons[$input['horizon'] ?? ''] ?? $horizons['medio'];
+        $risk = $risks[$input['risk'] ?? ''] ?? $risks['moderado'];
+
+        $workspace = get_active_workspace();
+        $ctx = fa_build_context($db, $userId, $workspace, date('Y-m-d'));
+
+        $prompt = ai_prompt_fill(ai_prompt_get($db, 'investment_plan'), [
+            '{{RESUMEN_FINANCIERO}}' => fa_context_to_text($ctx),
+            '{{HORIZONTE}}' => $horizon,
+            '{{PERFIL_RIESGO}}' => $risk,
+        ]);
+
+        $payload = [
+            "contents" => [["role" => "user", "parts" => [["text" => $prompt]]]],
+            "generationConfig" => ["maxOutputTokens" => 16384]
+        ];
+
+        try {
+            $result = callGemini($payload, $apiKeyToUse);
+
+            if ($result['status'] !== 'ok') {
+                echo json_encode(["error" => gemini_status_message($result)]);
+                exit();
+            }
+
+            echo json_encode(["plan" => $result['text'], "readiness" => $ctx['readiness']]);
+        } catch (Exception $e) {
+            http_response_code(500);
+            echo json_encode(["error" => "Error al generar el plan de inversión: " . $e->getMessage()]);
         }
         exit();
     }
