@@ -218,6 +218,48 @@ final class BudgetsLogicTest extends TestCase
         $this->assertSame(0, $filled);
     }
 
+    // ---- budgets_standing_status ----
+
+    public function testStandingBudgetIsUnchangedRightAfterTheMonthIsFilled(): void
+    {
+        $this->db->exec("INSERT INTO categories (id, name, color, icon) VALUES (2, 'Transporte', '#3B82F6', 'car')");
+        $this->db->exec("INSERT INTO budgets (user_id, category_id, amount, month, year, workspace) VALUES (7, 1, 200000, 7, 2026, 'personal')");
+        $this->db->exec("INSERT INTO budgets (user_id, category_id, amount, month, year, workspace) VALUES (7, 2, 80000, 7, 2026, 'personal')");
+        budgets_ensure_period_filled($this->db, 7, 'personal', self::WS_COND, 8, 2026);
+
+        $status = budgets_standing_status($this->db, 7, self::WS_COND, 8, 2026);
+
+        $this->assertTrue($status['has_budget']);
+        $this->assertTrue($status['unchanged'], 'Agosto arranca con el mismo presupuesto de julio.');
+        $this->assertSame(['month' => 7, 'year' => 2026], $status['previous']);
+    }
+
+    public function testStandingBudgetStopsBeingUnchangedOnceTheMonthIsAdjusted(): void
+    {
+        $this->db->exec("INSERT INTO budgets (user_id, category_id, amount, month, year, workspace) VALUES (7, 1, 200000, 7, 2026, 'personal')");
+        budgets_ensure_period_filled($this->db, 7, 'personal', self::WS_COND, 8, 2026);
+        budgets_upsert($this->db, 7, 'personal', 1, 250000, 8, 2026, null, self::WS_COND);
+
+        $status = budgets_standing_status($this->db, 7, self::WS_COND, 8, 2026);
+
+        $this->assertFalse($status['unchanged']);
+    }
+
+    public function testStandingStatusForTheVeryFirstBudgetHasNoPreviousPeriod(): void
+    {
+        $this->db->exec("INSERT INTO budgets (user_id, category_id, amount, month, year, workspace) VALUES (7, 1, 200000, 8, 2026, 'personal')");
+
+        $status = budgets_standing_status($this->db, 7, self::WS_COND, 8, 2026);
+
+        $this->assertTrue($status['has_budget']);
+        $this->assertNull($status['previous']);
+    }
+
+    public function testStandingStatusWithoutAnyBudget(): void
+    {
+        $this->assertFalse(budgets_standing_status($this->db, 7, self::WS_COND, 8, 2026)['has_budget']);
+    }
+
     // ---- budgets_delete ----
 
     // El mes actual puede mostrar filas heredadas que en realidad pertenecen

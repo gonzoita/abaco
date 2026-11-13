@@ -242,6 +242,7 @@ if ($method === 'GET') {
             "savings" => $savingsData,
             "global_budget" => $globalBudget,
             "category_budgets" => $budgetsComparison,
+            "budget_status" => budgets_standing_status($db, $userId, $bWsCond, $bMonth, $bYear),
             "debug" => [
                 "user_id" => $userId,
                 "server_month" => $month,

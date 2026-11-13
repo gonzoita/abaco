@@ -64,6 +64,14 @@ tiene test coverage dedicado (`savings_logic.php`, `budgets_logic.php`,
 `import_insert_row.php`, `gemini_response.php`, `ai_prompts.php`,
 `session_refresh.php`).
 
+`backend/lib/finance_analytics.php` es la fuente única de las cifras
+financieras: la usan la IA (`ai.php`, como texto inyectado en
+`{{RESUMEN_FINANCIERO}}`), `insights.php`, los puntos por ahorro y la
+capacidad de inversión. Cualquier cálculo nuevo va ahí, no en el endpoint
+ni en el prompt: a la IA se le entregan números ya calculados. Su SQL usa
+rangos de fecha (nada de `MONTH()`/`YEAR()`) para correr igual en MySQL y
+en el SQLite de las pruebas.
+
 `backend/config/` tiene la conexión a BD, JWT, y la tabla de control de
 migraciones (`schema_migrations`, para que `migrate_workspaces.php` no
 repita migraciones en cada deploy).
@@ -95,6 +103,15 @@ en el hosting, así que `deploy.php` usa `proc_open()`.
 - Toda query de datos de usuario debe filtrar por workspace activo vía
   `get_workspace_sql_clause()` — el modo "Mi Negocio" depende de esto para
   no mezclar datos con "Personal".
+- El presupuesto es "el vigente": un mes nuevo arranca con el del período
+  anterior ya guardado (`budgets_ensure_period_filled()`), y lo que el
+  usuario ajuste pasa a ser el vigente. No reintroducir herencia solo
+  visual ni botones para "recuperarlo".
+- Deudas del usuario = cuentas `tarjeta_credito` / `prestamo_pagar`, con
+  saldo guardado en NEGATIVO. La tabla `loans` es plata que el usuario
+  PRESTÓ (cartera por cobrar), no lo que debe.
+- Un abono a una meta de ahorro se registra como `egreso` con descripción
+  "Abono a meta de ahorro: …": es ahorro, no gasto.
 - Cada usuario usa su propia API key de Gemini (no hay clave compartida ni
   se debe agregar una).
 - Los mensajes de commit y comentarios del código están en español,

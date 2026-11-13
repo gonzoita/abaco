@@ -178,6 +178,52 @@ function budgets_ensure_period_filled($db, $userId, $workspace, $workspaceCondit
 }
 
 /**
+ * El presupuesto es "el vigente": se mantiene igual mes a mes hasta que el
+ * usuario lo ajuste. Esto le dice a la pantalla si el mes actual sigue
+ * idéntico al último período anterior (mismo límite en las mismas
+ * categorías) o si ya fue ajustado para este mes.
+ */
+function budgets_standing_status($db, $userId, $workspaceCondition, $month, $year) {
+    $limitsOf = function ($m, $y) use ($db, $userId, $workspaceCondition) {
+        $stmt = $db->prepare("SELECT b.category_id, b.amount FROM budgets b WHERE b.user_id = ? AND {$workspaceCondition} AND b.month = ? AND b.year = ?");
+        $stmt->execute([$userId, $m, $y]);
+        $limits = [];
+        foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+            $key = $row['category_id'] === null ? 'global' : intval($row['category_id']);
+            $limits[$key] = round(floatval($row['amount']), 2);
+        }
+        ksort($limits);
+        return $limits;
+    };
+
+    $current = $limitsOf($month, $year);
+    if (empty($current)) {
+        return ['has_budget' => false, 'previous' => null, 'unchanged' => false];
+    }
+
+    $stmtLatest = $db->prepare("
+        SELECT year, month
+        FROM budgets b
+        WHERE b.user_id = ? AND {$workspaceCondition}
+          AND (b.year < ? OR (b.year = ? AND b.month < ?))
+        ORDER BY year DESC, month DESC
+        LIMIT 1
+    ");
+    $stmtLatest->execute([$userId, $year, $year, $month]);
+    $latest = $stmtLatest->fetch(PDO::FETCH_ASSOC);
+    if (!$latest) {
+        return ['has_budget' => true, 'previous' => null, 'unchanged' => false];
+    }
+
+    $previous = $limitsOf(intval($latest['month']), intval($latest['year']));
+    return [
+        'has_budget' => true,
+        'previous' => ['month' => intval($latest['month']), 'year' => intval($latest['year'])],
+        'unchanged' => $current == $previous,
+    ];
+}
+
+/**
  * Si el presupuesto viene desglosado en ítems, el monto total se calcula
  * sumándolos (en vez de usar el monto que haya mandado el formulario),
  * salvo que la suma dé 0, en cuyo caso se conserva el monto original.

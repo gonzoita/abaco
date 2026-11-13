@@ -98,9 +98,10 @@ final class FinanceAnalyticsTest extends TestCase
         $this->assertEqualsWithDelta(3400000, $projected, 0.001, 'La proyección lineal habría dado 15.000.000.');
     }
 
-    public function testProjectionFollowsTheRealPaceWhenSpendingIsLow(): void
+    public function testProjectionIsNotZeroJustBecauseTheBigPaymentsComeLaterInTheMonth(): void
     {
-        $this->assertEqualsWithDelta(1250000, fa_project_month_expense(500000, 12, 30, 3000000), 0.001);
+        // Negocio que paga proveedores el día 20: el día 13 no lleva gastos.
+        $this->assertEqualsWithDelta(2890000, fa_project_month_expense(0, 13, 30, 5100000), 0.001);
     }
 
     public function testProjectionWithoutHistoryIsLinear(): void
@@ -214,7 +215,10 @@ final class FinanceAnalyticsTest extends TestCase
         $this->assertCount(2, $summary['months']);
         $this->assertSame('octubre 2026', $summary['months'][0]['label'], 'El mes más reciente va primero.');
         $this->assertTrue($summary['current_month']['in_progress']);
-        $this->assertSame(500 + 75, $summary['current_month']['points'], 'El mes en curso muestra lo que lleva (50% + racha de 3), sin sumarlo.');
+        // Día 12 de 30: lleva 1.000.000 gastado y un mes normal son 1.800.000,
+        // así que cierra en ~2.080.000 > 2.000.000 de ingreso: hoy "va ahorrando
+        // el 50%", pero el cierre estimado no deja ahorro.
+        $this->assertSame(0, $summary['current_month']['points'], 'El mes en curso se puntúa con el cierre estimado, no con lo que lleva a la fecha.');
     }
 
     public function testAMonthWithoutSavingsBreaksTheStreak(): void

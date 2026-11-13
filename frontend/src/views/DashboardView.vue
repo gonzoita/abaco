@@ -1335,8 +1335,11 @@ export default {
     const totalAccountsBalance = computed(() => {
       return accounts.value.reduce((sum, acc) => {
         const val = parseFloat(acc.balance) || 0
+        // Las deudas se guardan con saldo NEGATIVO (ver saveAccount en
+        // AccountsView). Restar ese valor tal cual las SUMABA al total: una
+        // deuda de 1.000.000 inflaba el patrimonio en 1.000.000.
         if (acc.type === 'tarjeta_credito' || acc.type === 'prestamo_pagar') {
-          return sum - val
+          return sum - Math.abs(val)
         }
         return sum + val
       }, 0)

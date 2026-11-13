@@ -168,19 +168,18 @@ function fa_budget_execution(array $budgetRows, array $activity) {
 }
 
 /**
- * Gasto estimado al cierre del mes. Multiplicar el gasto diario por los días
- * del mes (lo que se hacía antes) se dispara cuando el arriendo o las cuotas
- * se pagan el día 1: el día 2 "proyectaba" 15 arriendos. Aquí se asume que lo
- * que falta del mes se comporta como un mes promedio, sin superar nunca la
- * proyección lineal. Sin historial solo queda la lineal.
+ * Gasto estimado al cierre del mes: lo ya gastado más lo que falta del mes
+ * comportándose como un mes promedio. Multiplicar el gasto diario por los
+ * días del mes (lo que se hacía antes) falla en los dos sentidos: con el
+ * arriendo pagado el día 1 "proyectaba" 15 arriendos, y un negocio que le
+ * paga a proveedores el día 20 "proyectaba" cero gastos el día 13. Sin
+ * historial contra el cual promediar solo queda la proyección lineal.
  */
 function fa_project_month_expense($spent, $day, $daysInMonth, $avgExpense) {
-    $linear = $day > 0 ? $spent / $day * $daysInMonth : $spent;
     if ($avgExpense <= 0) {
-        return $linear;
+        return $day > 0 ? $spent / $day * $daysInMonth : $spent;
     }
-    $blended = $spent + $avgExpense * ($daysInMonth - $day) / $daysInMonth;
-    return max($spent, min($linear, $blended));
+    return $spent + $avgExpense * ($daysInMonth - $day) / $daysInMonth;
 }
 
 // ---------------------------------------------------------------------------
@@ -252,13 +251,35 @@ function fa_points_summary($db, $userId, $workspace, $today, $monthsBack = 12) {
     $curYear = intval(substr($today, 0, 4));
     $curMonth = intval(substr($today, 5, 2));
 
+    $day = intval(substr($today, 8, 2));
+    $daysInMonth = intval(date('t', strtotime($today)));
+
     $months = [];
+    $closed = [];
     $streak = 0;
     $total = 0;
     for ($delta = -$monthsBack; $delta <= 0; $delta++) {
         [$y, $m] = fa_shift_month($curYear, $curMonth, $delta);
         $activity = fa_month_activity($db, $userId, $workspace, $y, $m);
         $budget = fa_budget_execution(fa_budget_rows($db, $userId, $workspace, $y, $m), $activity);
+
+        if ($delta === 0) {
+            // El mes en curso se puntúa con su cierre ESTIMADO: el día 5, con
+            // el sueldo ya adentro y casi todo el gasto por venir, las cifras
+            // a la fecha dirían "ahorraste el 90%".
+            $recent = array_filter(array_slice($closed, -3), fn($a) => $a['income'] > 0 || $a['expense'] > 0);
+            $n = count($recent);
+            $avgExpense = $n ? array_sum(array_column($recent, 'expense')) / $n : 0.0;
+            $avgIncome = $n ? array_sum(array_column($recent, 'income')) / $n : 0.0;
+            $projected = fa_project_month_expense($activity['expense'], $day, $daysInMonth, $avgExpense);
+            if ($activity['expense'] > 0 && $budget['has_budget']) {
+                $budget['spent'] *= $projected / $activity['expense'];
+            }
+            $activity['expense'] = $projected;
+            $activity['income'] = max($activity['income'], $avgIncome);
+        } else {
+            $closed[] = $activity;
+        }
         $saved = $activity['income'] > 0 && $activity['income'] > $activity['expense'];
         $isCurrent = $delta === 0;
 

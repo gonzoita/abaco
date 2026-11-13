@@ -10,6 +10,19 @@
       </button>
     </div>
 
+    <!-- Presupuesto vigente: se mantiene mes a mes hasta que el usuario lo ajuste -->
+    <div v-if="budgetStatus && budgetStatus.has_budget && budgetStatus.previous" style="display:flex; align-items:center; gap:10px; padding:10px 14px; border-radius:12px; background:rgba(16,185,129,0.10); border:1px solid rgba(16,185,129,0.28); margin-bottom:8px; font-size:12.5px; color:var(--text-secondary);">
+      <i class="fa-solid fa-rotate" style="color:#34d399; font-size:16px;"></i>
+      <span v-if="budgetStatus.unchanged">
+        <strong style="color:#34d399;">Presupuesto vigente.</strong>
+        Es el mismo de {{ monthName(budgetStatus.previous.month) }}: se mantiene cada mes sin que tengas que hacer nada. Si este mes cambia algo, ajusta la categoría con el lápiz.
+      </span>
+      <span v-else>
+        <strong style="color:#34d399;">Presupuesto ajustado para este mes.</strong>
+        Lo que dejes aquí pasa a ser el vigente y seguirá igual el próximo mes.
+      </span>
+    </div>
+
     <!-- Banner de Copia de Presupuesto Anterior (Carry-Over) -->
     <div v-if="showCarryOverBanner" class="budget-alert-banner warning" style="display: flex; justify-content: space-between; align-items: center; padding: 14px 18px; border-radius: 12px; background: rgba(59, 130, 246, 0.15); border: 1px solid rgba(59, 130, 246, 0.3); margin-bottom: 8px;">
       <div style="display: flex; align-items: center; gap: 12px;">
@@ -395,6 +408,9 @@ export default {
 
     const showCarryOverBanner = ref(false)
     const copyingBudgets = ref(false)
+    const budgetStatus = ref(null)
+    const MONTH_NAMES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre']
+    const monthName = (m) => MONTH_NAMES[m - 1] || ''
 
     const fetchReports = async () => {
       const token = localStorage.getItem('token')
@@ -406,6 +422,7 @@ export default {
         if (response.ok) {
           globalBudget.value = data.global_budget
           categoryBudgets.value = data.category_budgets || []
+          budgetStatus.value = data.budget_status || null
 
           // Si el reporte devuelve presupuestos (propios o heredados del mes
           // anterior) verificamos cuántos de esos ya están realmente
@@ -713,6 +730,8 @@ export default {
     return {
       showCarryOverBanner,
       copyingBudgets,
+      budgetStatus,
+      monthName,
       copyLastMonthBudgets,
       budgetCatSearch,
       searchedExpenseCategories,
