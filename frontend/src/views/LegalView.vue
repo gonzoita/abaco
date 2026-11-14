@@ -41,14 +41,14 @@
           <li>Prevenir fraude y accesos no autorizados a tu cuenta (por ejemplo, límites de intentos de inicio de sesión).</li>
         </ul>
 
-        <h2>3. Uso de Inteligencia Artificial (Google Gemini)</h2>
-        <p>Las funciones de asesor de IA, escaneo de recibos, dictado por voz y análisis de salud financiera envían la información estrictamente necesaria (por ejemplo, un resumen de tus movimientos o la imagen de un recibo) a la API de <strong>Google Gemini</strong> para generar una respuesta. Esta información se transmite de forma cifrada (HTTPS) y no se usa por Google para entrenar sus modelos de uso público según los términos de la API de Gemini vigentes al momento de esta política. Te recomendamos no incluir información sensible de terceros (números de tarjeta completos, contraseñas, documentos de identidad) en tus descripciones de transacciones o notas.</p>
+        <h2>3. Uso de Inteligencia Artificial</h2>
+        <p>Las funciones de asesor de IA, escaneo de recibos, dictado por voz y análisis de salud financiera envían la información estrictamente necesaria (por ejemplo, un resumen de tus movimientos o la imagen de un recibo) al proveedor de IA que tú elijas y vincules con tu propia clave en Ajustes: <strong>Google Gemini</strong> o <strong>Groq</strong>. Esta información se transmite de forma cifrada (HTTPS). Cada proveedor trata los datos que recibe según sus propios términos y políticas, que son distintos para el nivel gratuito y el de pago, y que puedes consultar al crear tu clave; Ábaco no controla cómo los usa. Te recomendamos no incluir información sensible de terceros (números de tarjeta completos, contraseñas, documentos de identidad) en tus descripciones de transacciones o notas.</p>
         <p><strong>El asesor de IA no es un asesor financiero certificado.</strong> Sus recomendaciones son generadas automáticamente con base en los datos que registras y tienen fines educativos e informativos; no constituyen asesoría financiera, legal o tributaria profesional. Las decisiones financieras que tomes son tu responsabilidad.</p>
 
         <h2>4. Con quién compartimos tu información</h2>
         <ul>
           <li><strong>Google:</strong> para autenticación ("Acceder con Google"), y si tú lo activas voluntariamente, para respaldar tus datos en tu propio Google Drive (la Aplicación solo accede a los archivos que ella misma crea, nunca al resto de tu Drive).</li>
-          <li><strong>Google Gemini (IA):</strong> según se describe en la sección 3.</li>
+          <li><strong>El proveedor de IA que elijas (Google Gemini o Groq):</strong> según se describe en la sección 3.</li>
           <li><strong>Nuestro proveedor de hosting</strong>, donde se almacena la base de datos de forma segura.</li>
           <li>No vendemos, alquilamos ni compartimos tu información financiera con anunciantes ni con terceros para fines comerciales ajenos al funcionamiento de la Aplicación.</li>
         </ul>

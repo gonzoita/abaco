@@ -286,6 +286,7 @@
 
 <script>
 import { ref, onMounted, watch } from 'vue'
+import { getActiveProvider } from './utils/aiProvider.js'
 import { useRouter, useRoute } from 'vue-router'
 
 export default {
@@ -397,12 +398,23 @@ export default {
           options.headers = options.headers || {}
           const ws = localStorage.getItem('active_workspace') || 'personal'
 
-          if (options.headers instanceof Headers) {
-            options.headers.set('X-Workspace', ws)
-          } else if (Array.isArray(options.headers)) {
-            options.headers.push(['X-Workspace', ws])
-          } else {
-            options.headers['X-Workspace'] = ws
+          const hasHeader = (name) => {
+            if (options.headers instanceof Headers) return options.headers.has(name)
+            if (Array.isArray(options.headers)) return options.headers.some(([k]) => k.toLowerCase() === name.toLowerCase())
+            return Object.keys(options.headers).some(k => k.toLowerCase() === name.toLowerCase())
+          }
+          const setHeader = (name, value) => {
+            if (options.headers instanceof Headers) options.headers.set(name, value)
+            else if (Array.isArray(options.headers)) options.headers.push([name, value])
+            else options.headers[name] = value
+          }
+
+          setHeader('X-Workspace', ws)
+          // Proveedor de IA en uso (Gemini o Groq), para que el servidor sepa a
+          // quién enviarle la clave. Si la petición ya trae uno explícito (la
+          // verificación de una clave nueva en Ajustes) se respeta.
+          if (!hasHeader('X-AI-Provider')) {
+            setHeader('X-AI-Provider', getActiveProvider())
           }
 
           if (!url.includes('workspace=')) {

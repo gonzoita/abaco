@@ -33,10 +33,10 @@
           <line x1="12" y1="8" x2="12.01" y2="8"></line>
         </svg>
         <span v-if="hasCustomKey">
-          🔐 Conectado a tu cuenta de **Google Gemini** (API Key Personal).
+          🔐 Conectado a tu cuenta de <strong>{{ providerName }}</strong> (clave personal).
         </span>
         <span v-else>
-          💡 Usando IA compartida del servidor. Puedes vincular tu API Key de Gemini en <router-link to="/settings" class="banner-link">Ajustes</router-link>.
+          💡 Para usar la IA, vincula tu clave gratuita (Gemini o Groq) en <router-link to="/settings" class="banner-link">Ajustes</router-link>.
         </span>
       </div>
     </div>
@@ -160,6 +160,7 @@
 
 <script>
 import { ref, onMounted, nextTick } from 'vue'
+import { PROVIDERS, getActiveProvider } from '../utils/aiProvider.js'
 import { API_BASE } from '../config.js'
 
 export default {
@@ -167,6 +168,7 @@ export default {
   setup() {
     const userName = ref('Usuario')
     const hasCustomKey = ref(!!localStorage.getItem('gemini_api_key'))
+    const providerName = PROVIDERS[getActiveProvider()].name
     const userInput = ref('')
     const messages = ref([])
     const loading = ref(false)
@@ -431,6 +433,7 @@ export default {
       sendPredefined,
       scrollToBottom,
       hasCustomKey,
+      providerName,
       clearHistory,
       renderFormattedText,
       showDiagnosisModal,

@@ -177,6 +177,9 @@ function gemini_rate_limit_detail($classified) {
     if (!empty($classified['quota_zero'])) {
         return 'zero';
     }
+    if (!empty($classified['too_large'])) {
+        return 'too_large';
+    }
     foreach ($ids as $id) {
         if (strpos($id, 'perday') !== false) return 'daily';
     }
@@ -197,37 +200,57 @@ function gemini_rate_limit_detail($classified) {
 }
 
 /**
- * Mensaje para un error de Google ya clasificado. Los límites se explican
- * según su causa real y se añade el texto original (recortado) de Google:
+ * Mensaje para un error de un proveedor de IA ya clasificado (Gemini o Groq:
+ * 'provider' en el resultado, Gemini si no viene). Los límites se explican
+ * según su causa real y se añade el texto original del proveedor (recortado):
  * sin él, quien soporta la app no puede saber qué cuota o qué modelo falló.
  */
 function gemini_error_message($classified) {
     $raw = (string) ($classified['message'] ?? '');
-    if (gemini_error_kind($raw) !== 'rate_limit') {
-        return translate_gemini_error($raw);
+    $provider = $classified['provider'] ?? 'gemini';
+    $names = ['gemini' => ['Gemini', 'aistudio.google.com/apikey'], 'groq' => ['Groq', 'console.groq.com/keys']];
+    [$name, $keysUrl] = $names[$provider] ?? $names['gemini'];
+    $kind = $classified['kind'] ?? gemini_error_kind($raw);
+
+    if ($kind === 'invalid_key') {
+        return "Tu clave de {$name} no es válida. Ve a Ajustes → IA Personal y vuelve a vincularla ({$keysUrl}).";
+    }
+    if ($kind === 'model_gone') {
+        return "El modelo de IA solicitado ya no está disponible. Si esto persiste, avísale al administrador de la app.";
+    }
+    if ($kind !== 'rate_limit') {
+        return $raw === '' ? 'Error del proveedor de IA.' : $raw;
     }
 
     switch (gemini_rate_limit_detail($classified)) {
         case 'zero':
-            $text = "Google indica que tu clave gratuita no tiene cupo para usar este modelo (límite 0), así que esperar no lo arregla. Entra a aistudio.google.com y revisa que el proyecto de tu clave tenga habilitado el uso gratuito, o crea una clave nueva en otro proyecto y vincúlala en Ajustes → IA Personal.";
+            $text = "{$name} indica que tu clave gratuita no tiene cupo para usar este modelo (límite 0), así que esperar no lo arregla. Revisa en {$keysUrl} que tu clave tenga habilitado el uso gratuito, o crea una nueva y vincúlala en Ajustes → IA Personal.";
+            break;
+        case 'too_large':
+            $text = "La petición es más grande de lo que permite el nivel gratuito de {$name} para ese modelo. Vuelve a intentar en un momento; si persiste, usa la clave de otro proveedor en Ajustes → IA Personal.";
             break;
         case 'daily':
-            $text = "Tu clave gratuita ya usó todas las peticiones de hoy. Google las reinicia a medianoche, hora del Pacífico (madrugada en Colombia); hasta entonces la IA no responderá con esta clave.";
+            if ($provider === 'groq') {
+                $wait = isset($classified['retry_seconds']) ? ' Podrás volver a intentar en unos ' . max(1, intval(ceil($classified['retry_seconds'] / 60))) . ' minuto(s).' : '';
+                $text = "Tu clave gratuita de Groq ya usó el cupo diario de este modelo.{$wait} Mientras tanto puedes vincular la clave de otro proveedor en Ajustes → IA Personal.";
+            } else {
+                $text = "Tu clave gratuita ya usó todas las peticiones de hoy. Google las reinicia a medianoche, hora del Pacífico (madrugada en Colombia); hasta entonces la IA no responderá con esta clave.";
+            }
             break;
         case 'minute':
             $seconds = max(5, intval($classified['retry_seconds'] ?? 60));
             $text = "Superaste el límite de peticiones por minuto de tu clave gratuita. Espera {$seconds} segundos y vuelve a intentar.";
             break;
         case 'overloaded':
-            $text = "Los servidores de Google están saturados en este momento. Espera unos minutos y vuelve a intentar.";
+            $text = "Los servidores de {$name} están saturados en este momento. Espera unos minutos y vuelve a intentar.";
             break;
         default:
-            $text = translate_gemini_error($raw);
+            $text = "Tu clave gratuita de {$name} llegó a su límite de peticiones por ahora, o sus servidores están saturados. Espera un minuto y vuelve a intentar.";
     }
 
     $detail = trim(preg_replace('/\s+/', ' ', $raw));
     if ($detail !== '') {
-        $text .= ' (Detalle de Google: ' . mb_substr($detail, 0, 220) . (mb_strlen($detail) > 220 ? '…' : '') . ')';
+        $text .= " (Detalle de {$name}: " . mb_substr($detail, 0, 220) . (mb_strlen($detail) > 220 ? '…' : '') . ')';
     }
     return $text;
 }

@@ -4,7 +4,7 @@
       <div>
         <router-link to="/admin" class="back-link">← Volver al panel</router-link>
         <h1 class="page-title text-gradient-purple">Prompts de IA</h1>
-        <p class="page-subtitle">Edita el texto que Ábaco envía a Gemini en cada función de IA, sin necesidad de tocar código.</p>
+        <p class="page-subtitle">Edita el texto que Ábaco envía a la IA en cada función de IA, sin necesidad de tocar código.</p>
       </div>
     </div>
 
