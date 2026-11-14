@@ -168,7 +168,7 @@
           </div>
           <div>
             <h3 class="text-gradient-purple">Optimizar Presupuestos con IA</h3>
-            <p>Deja que Gemini analice tus finanzas y te dé sugerencias inteligentes</p>
+            <p>Deja que la IA analice tus finanzas y te dé sugerencias inteligentes</p>
           </div>
         </div>
         <button class="btn-primary btn-ai" @click="optimizeBudgets" :disabled="aiLoading">

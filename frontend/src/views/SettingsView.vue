@@ -80,33 +80,52 @@
         <!-- Ajustes de IA Personal -->
         <div class="glass-card ai-settings-card">
           <h3 class="card-title text-gradient-purple">
-            <i class="fa-solid fa-key"></i> IA Personal (Google Gemini)
+            <i class="fa-solid fa-key"></i> IA Personal
           </h3>
 
+          <!-- Proveedor: cada uno tiene su propia clave gratuita -->
+          <div role="tablist" style="display:flex; gap:8px; margin-top:12px;">
+            <button v-for="p in providers" :key="p.id" type="button" role="tab" :aria-selected="aiProvider === p.id"
+              @click="selectProvider(p.id)"
+              :style="{ flex:'1', padding:'9px 12px', borderRadius:'10px', fontSize:'13px', fontWeight:'700', cursor:'pointer',
+                        border: aiProvider === p.id ? '1px solid var(--color-primary)' : '1px solid var(--card-border)',
+                        background: aiProvider === p.id ? 'rgba(99,102,241,0.15)' : 'rgba(255,255,255,0.04)',
+                        color: aiProvider === p.id ? 'var(--text-primary)' : 'var(--text-secondary)' }">
+              {{ p.name }}
+              <span v-if="activeProvider === p.id && hasActiveKey" style="font-size:10.5px; font-weight:600; color:var(--color-success); margin-left:4px;">· en uso</span>
+            </button>
+          </div>
+
           <!-- Estado actual: configurada o no -->
-          <div v-if="geminiApiKey" style="display:flex; align-items:center; gap:8px; margin-top:10px; padding:8px 12px; border-radius:8px; background:rgba(48,209,88,0.1); border:1px solid rgba(48,209,88,0.2); color:var(--color-success); font-size:12.5px; font-weight:600;">
-            <i class="fa-solid fa-circle-check"></i> Tu clave está configurada. El Asesor IA, el escaneo de recibos y el dictado por voz ya funcionan.
+          <div v-if="geminiApiKey && aiProvider === activeProvider" style="display:flex; align-items:center; gap:8px; margin-top:10px; padding:8px 12px; border-radius:8px; background:rgba(48,209,88,0.1); border:1px solid rgba(48,209,88,0.2); color:var(--color-success); font-size:12.5px; font-weight:600;">
+            <i class="fa-solid fa-circle-check"></i> Tu clave de {{ currentProvider.name }} está configurada y en uso. El Asesor IA y el dictado por voz ya funcionan.
+          </div>
+          <div v-else-if="geminiApiKey" style="display:flex; align-items:center; gap:8px; margin-top:10px; padding:8px 12px; border-radius:8px; background:rgba(99,102,241,0.1); border:1px solid rgba(99,102,241,0.25); color:var(--text-secondary); font-size:12.5px; font-weight:600;">
+            <i class="fa-solid fa-circle-info"></i> Tienes una clave de {{ currentProvider.name }} guardada, pero hoy la app usa {{ activeProviderName }}. Presiona "Vincular" para cambiar a {{ currentProvider.name }}.
           </div>
           <div v-else style="display:flex; align-items:center; gap:8px; margin-top:10px; padding:8px 12px; border-radius:8px; background:rgba(255,159,10,0.1); border:1px solid rgba(255,159,10,0.25); color:var(--color-warning); font-size:12.5px; font-weight:600;">
             <i class="fa-solid fa-triangle-exclamation"></i> Sin tu propia clave, las funciones de IA no van a funcionar. Sigue los pasos de abajo (toma 1 minuto y es gratis).
           </div>
 
           <p class="card-subtitle" style="font-size: 13px; color: var(--text-secondary); margin-top: 14px;">
-            Cada usuario usa su propia clave de Google Gemini — así tus consultas de IA son privadas y no dependen de un cupo compartido con otros usuarios.
+            Cada usuario usa su propia clave gratuita ({{ currentProvider.name }}) — así tus consultas de IA son privadas y no dependen de un cupo compartido con otros usuarios.
           </p>
 
           <div class="guide-step-list" style="margin-top:14px;">
             <div class="step-item">
               <span class="step-num">1</span>
-              <p>Entra a <a href="https://aistudio.google.com/apikey" target="_blank" class="auth-link" style="text-decoration:underline;">aistudio.google.com/apikey</a> e inicia sesión con cualquier cuenta de Google (puede ser distinta a la que usas para entrar a Ábaco).</p>
+              <p v-if="aiProvider === 'gemini'">Entra a <a :href="currentProvider.keysUrl" target="_blank" class="auth-link" style="text-decoration:underline;">{{ currentProvider.keysLabel }}</a> e inicia sesión con cualquier cuenta de Google (puede ser distinta a la que usas para entrar a Ábaco).</p>
+              <p v-else>Entra a <a :href="currentProvider.keysUrl" target="_blank" class="auth-link" style="text-decoration:underline;">{{ currentProvider.keysLabel }}</a> e inicia sesión con tu cuenta de Google o de GitHub.</p>
             </div>
             <div class="step-item">
               <span class="step-num">2</span>
-              <p>Presiona el botón azul <strong>"Create API key"</strong> (Crear clave de API).</p>
+              <p v-if="aiProvider === 'gemini'">Presiona el botón azul <strong>"Create API key"</strong> (Crear clave de API).</p>
+              <p v-else>Presiona <strong>"Create API Key"</strong>, ponle un nombre (por ejemplo "Abaco") y confirma.</p>
             </div>
             <div class="step-item">
               <span class="step-num">3</span>
-              <p>Google te muestra una clave que empieza con <code>AIzaSy...</code>. Presiona el ícono de copiar junto a ella.</p>
+              <p v-if="aiProvider === 'gemini'">Google te muestra una clave que empieza con <code>AIzaSy...</code>. Presiona el ícono de copiar junto a ella.</p>
+              <p v-else>Groq te muestra una clave que empieza con <code>gsk_...</code>. Cópiala ahora: solo se muestra una vez.</p>
             </div>
             <div class="step-item">
               <span class="step-num">4</span>
@@ -116,20 +135,26 @@
 
           <div class="settings-form" style="margin-top: 18px;">
             <div class="form-group">
-              <label for="gemini-key">Tu Gemini API Key</label>
+              <label for="gemini-key">Tu clave de {{ currentProvider.name }}</label>
               <div style="display: flex; gap: 8px;">
-                <input type="password" id="gemini-key" v-model="geminiApiKey" placeholder="AIzaSy..." style="flex: 1;" :disabled="testingGeminiKey" />
+                <input type="password" id="gemini-key" v-model="geminiApiKey" @input="onKeyInput" :placeholder="currentProvider.placeholder" style="flex: 1;" :disabled="testingGeminiKey" />
                 <button type="button" class="btn-primary" @click="saveGeminiKey" :disabled="testingGeminiKey" style="padding: 10px 16px; display:flex; align-items:center; gap:6px; white-space:nowrap;">
                   <i v-if="testingGeminiKey" class="fa-solid fa-circle-notch fa-spin"></i>
                   {{ testingGeminiKey ? 'Verificando...' : 'Vincular' }}
                 </button>
               </div>
-              <p class="input-help-text" style="font-size: 11.5px; color: var(--text-muted); margin-top: 8px; line-height: 1.45;">
-                Es gratis dentro del límite generoso de uso personal de Google. Tu clave se guarda solo en este navegador (localStorage), nunca en nuestros servidores. Al vincularla, hacemos una consulta real de prueba para confirmar que sí quedó conectada.
+              <p v-if="aiProvider === 'gemini'" class="input-help-text" style="font-size: 11.5px; color: var(--text-muted); margin-top: 8px; line-height: 1.45;">
+                Es gratis dentro del límite generoso de uso personal de Google. Lee imágenes, así que sirve para el escáner de recibos.
+              </p>
+              <p v-else class="input-help-text" style="font-size: 11.5px; color: var(--text-muted); margin-top: 8px; line-height: 1.45;">
+                Es gratis dentro de los límites de Groq y responde muy rápido. Sus límites por minuto son más bajos: si aparece un aviso de límite, espera un momento. El escáner de recibos solo funciona si tu cuenta tiene un modelo que lea imágenes; si no, la app te lo avisa.
+              </p>
+              <p class="input-help-text" style="font-size: 11.5px; color: var(--text-muted); margin-top: 6px; line-height: 1.45;">
+                Tu clave se guarda solo en este navegador (localStorage), nunca en nuestros servidores. Al vincularla, hacemos una consulta real de prueba para confirmar que sí quedó conectada. Tus consultas, con las cifras que registras, se envían al proveedor que elijas: revisa sus términos de uso de datos.
               </p>
             </div>
 
-            <!-- Resultado de la verificación real contra Gemini al vincular -->
+            <!-- Resultado de la verificación real contra el proveedor al vincular -->
             <div v-if="geminiTestResult" :style="{ marginTop:'10px', display:'flex', alignItems:'center', gap:'8px', padding:'8px 12px', borderRadius:'8px', fontSize:'13.5px', textAlign:'left', background: geminiTestResult.success ? 'rgba(48,209,88,0.1)' : 'rgba(255,69,58,0.1)', border: '1px solid ' + (geminiTestResult.success ? 'rgba(48,209,88,0.2)' : 'rgba(255,69,58,0.25)'), color: geminiTestResult.success ? 'var(--color-success)' : 'var(--color-danger)' }">
               <i :class="geminiTestResult.success ? 'fa-solid fa-circle-check' : 'fa-solid fa-circle-exclamation'"></i>
               <span>{{ geminiTestResult.message }}</span>
@@ -444,15 +469,39 @@
 </template>
 
 <script>
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { API_BASE, GOOGLE_CLIENT_ID } from '../config.js'
 import { daysSince, isBackupStale, readLastBackup, recordBackup } from '../utils/backupReminder.js'
+import { PROVIDERS, detectProvider, getActiveProvider, getStoredKey, rememberKey, activateProvider, forgetKey, keyIsRejected } from '../utils/aiProvider.js'
 
 export default {
   name: 'SettingsView',
   setup() {
     const currentTheme = ref(localStorage.getItem('theme') || 'dark')
-    const geminiApiKey = ref(localStorage.getItem('gemini_api_key') || '')
+    // IA Personal: proveedor que se está viendo en la pantalla (aiProvider) y
+    // el que la app usa de verdad (activeProvider); no son lo mismo hasta que
+    // la clave del primero se vincula con éxito.
+    const providers = Object.values(PROVIDERS)
+    const activeProvider = ref(getActiveProvider())
+    const aiProvider = ref(activeProvider.value)
+    const geminiApiKey = ref(getStoredKey(aiProvider.value))
+    const currentProvider = computed(() => PROVIDERS[aiProvider.value])
+    const activeProviderName = computed(() => PROVIDERS[activeProvider.value].name)
+    const hasActiveKey = computed(() => !!getStoredKey(activeProvider.value))
+
+    const selectProvider = (id) => {
+      aiProvider.value = id
+      geminiApiKey.value = getStoredKey(id)
+      geminiTestResult.value = null
+    }
+
+    // Quien pega una clave de otro proveedor no tiene que elegirlo a mano.
+    const onKeyInput = () => {
+      const detected = detectProvider(geminiApiKey.value)
+      if (detected && detected !== aiProvider.value) {
+        aiProvider.value = detected
+      }
+    }
 
     const toggleTheme = (theme) => {
       currentTheme.value = theme
@@ -606,13 +655,24 @@ export default {
 
     const saveGeminiKey = async () => {
       const key = geminiApiKey.value.trim()
-      localStorage.setItem('gemini_api_key', key)
       geminiTestResult.value = null
 
-      if (!key) return
+      const detected = detectProvider(key)
+      if (detected) aiProvider.value = detected
+      const provider = aiProvider.value
 
-      // No basta con guardarla: se hace una consulta real y liviana a
-      // Gemini para confirmar que la clave sí quedó conectada y funcional,
+      if (!key) {
+        forgetKey(provider)
+        if (activeProvider.value === provider) activeProvider.value = getActiveProvider()
+        return
+      }
+
+      // La clave se recuerda siempre (para no tener que pegarla otra vez si
+      // falla algo pasajero), pero solo pasa a USARSE si no la rechazan.
+      rememberKey(provider, key)
+
+      // No basta con guardarla: se hace una consulta real y liviana al
+      // proveedor para confirmar que la clave sí quedó conectada y funcional,
       // en vez de que el usuario se entere hasta la próxima vez que use el
       // Asesor IA.
       testingGeminiKey.value = true
@@ -623,7 +683,8 @@ export default {
           headers: {
             'Content-Type': 'application/json',
             'Authorization': `Bearer ${token}`,
-            'X-Gemini-API-Key': key
+            'X-Gemini-API-Key': key,
+            'X-AI-Provider': provider
           },
           body: JSON.stringify({})
         })
@@ -636,8 +697,16 @@ export default {
         }
 
         if (response.ok && data.success) {
+          activateProvider(provider, key)
+          activeProvider.value = provider
           geminiTestResult.value = { success: true, message: data.message || 'Conexión verificada correctamente.' }
         } else {
+          // Un límite de peticiones o un servidor saturado no significan que
+          // la clave sea mala: se deja en uso y se explica qué pasó.
+          if (!keyIsRejected(data.kind)) {
+            activateProvider(provider, key)
+            activeProvider.value = provider
+          }
           geminiTestResult.value = { success: false, message: data.error || 'No se pudo verificar la clave.' }
         }
       } catch (err) {
@@ -1114,6 +1183,14 @@ export default {
       closeCategoryModal,
       geminiApiKey,
       saveGeminiKey,
+      providers,
+      aiProvider,
+      activeProvider,
+      activeProviderName,
+      currentProvider,
+      hasActiveKey,
+      selectProvider,
+      onKeyInput,
       testingGeminiKey,
       geminiTestResult,
       monthNames,

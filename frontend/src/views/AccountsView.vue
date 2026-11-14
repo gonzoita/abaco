@@ -343,7 +343,7 @@
 
           <div v-if="loanAILoading" class="loan-ai-loading" style="display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 40px 20px; gap: 16px; color: var(--text-secondary);">
             <div class="spinner" style="width: 32px; height: 32px; border: 3px solid rgba(94, 92, 230, 0.15); border-top-color: var(--color-accent); border-radius: 50%; animation: spin 1s linear infinite;"></div>
-            <p style="text-align: center; font-size: 14px;">Gemini está analizando tu préstamo y calculando consejos para ahorrar intereses...</p>
+            <p style="text-align: center; font-size: 14px;">La IA está analizando tu préstamo y calculando consejos para ahorrar intereses...</p>
           </div>
 
           <div v-else-if="loanAIError" class="error-msg" style="padding: 12px; margin-bottom: 0;">

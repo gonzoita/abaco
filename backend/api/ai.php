@@ -5,6 +5,7 @@ require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/auth_helper.php';
 require_once __DIR__ . '/../lib/gemini_response.php';
 require_once __DIR__ . '/../lib/ai_prompts.php';
+require_once __DIR__ . '/../lib/ai_providers.php';
 require_once __DIR__ . '/../lib/finance_analytics.php';
 
 $userData = authenticate();
@@ -13,83 +14,195 @@ $db = Database::getConnection();
 
 $action = isset($_GET['action']) ? $_GET['action'] : '';
 
-// Obtener API Key de cabeceras de la petición (para llaves personalizadas)
+// Clave y proveedor de IA de la petición (cabeceras). Cada usuario trae SU
+// PROPIA clave y elige con cuál proveedor trabajar (Gemini o Groq); el
+// nombre de la cabecera de la clave se conserva por compatibilidad.
 $userApiKey = '';
+$providerHeader = '';
 $headers = function_exists('getallheaders') ? getallheaders() : [];
 if (isset($headers['X-Gemini-API-Key'])) {
     $userApiKey = trim($headers['X-Gemini-API-Key']);
 } elseif (isset($_SERVER['HTTP_X_GEMINI_API_KEY'])) {
     $userApiKey = trim($_SERVER['HTTP_X_GEMINI_API_KEY']);
 }
+if (isset($headers['X-AI-Provider'])) {
+    $providerHeader = trim($headers['X-AI-Provider']);
+} elseif (isset($_SERVER['HTTP_X_AI_PROVIDER'])) {
+    $providerHeader = trim($_SERVER['HTTP_X_AI_PROVIDER']);
+}
 
-// Cada usuario usa exclusivamente SU PROPIA clave de Gemini (ver Ajustes ->
-// IA Personal). Ya no existe una clave compartida por defecto: con varios
-// usuarios activos, una sola clave se agota rápido y además mezclaría las
-// consultas de todos contra el mismo cupo/cuenta de Google.
+// Cada usuario usa exclusivamente SU PROPIA clave (ver Ajustes -> IA
+// Personal). No existe una clave compartida por defecto: con varios usuarios
+// activos, una sola clave se agota rápido y además mezclaría las consultas de
+// todos contra el mismo cupo/cuenta.
 $apiKeyToUse = $userApiKey;
+$aiProvider = ai_provider_for_request($providerHeader, $apiKeyToUse);
 
 if (empty($apiKeyToUse)) {
     http_response_code(400);
     echo json_encode([
-        "error" => "Necesitas vincular tu propia clave de Gemini para usar la IA.",
-        "details" => "Ve a Ajustes → IA Personal (Google Gemini) y sigue los 4 pasos para obtener tu clave gratis en Google AI Studio. Toma menos de un minuto."
+        "error" => "Necesitas vincular tu propia clave de IA (Gemini o Groq) para usarla.",
+        "details" => "Ve a Ajustes → IA Personal, elige Gemini o Groq y sigue los pasos para obtener tu clave gratis. Toma menos de un minuto."
     ]);
     exit();
 }
 
+const AI_MODELS_CACHE_SECONDS = 21600;
+
+/** Lee una lista de modelos guardada hace menos de 6 horas, o null. */
+function ai_models_cache_read($file) {
+    $cached = @json_decode((string) @file_get_contents($file), true);
+    if (is_array($cached) && isset($cached['at'], $cached['data']) && time() - intval($cached['at']) < AI_MODELS_CACHE_SECONDS) {
+        return $cached['data'];
+    }
+    return null;
+}
+
+function ai_models_cache_write($file, $data) {
+    @file_put_contents($file, json_encode(['at' => time(), 'data' => $data]));
+}
+
 /**
- * Llama a la API de Gemini y devuelve una respuesta YA CLASIFICADA
- * (ver backend/lib/gemini_response.php): ['status' => 'ok'|'error'|..., 'text' => ...].
- *
- * Antes devolvía el JSON crudo de Google y cada endpoint lo interpretaba por su
- * cuenta mirando solo si venía un campo 'error'. Eso dejaba pasar como buenas
- * las respuestas que llegan con HTTP 200 y sin texto, que es justo lo que
- * rompía la IA en producción.
- *
- * Dos cosas que hay que saber de los modelos actuales:
- *
- * 1) RAZONAMIENTO: los Gemini 3 "piensan" antes de responder y esos tokens
- *    salen del MISMO presupuesto (maxOutputTokens) que la respuesta visible.
- *    Con prompts largos el modelo se quedaba sin espacio y terminaba con
- *    finishReason=MAX_TOKENS y cero texto, sin error alguno. Por eso aquí se
- *    pide el nivel de razonamiento más bajo Y se deja un presupuesto amplio.
- *    Importante: en los flash 3.x el razonamiento NO se puede apagar del todo,
- *    y el parámetro antiguo (thinkingBudget) lo ignoran: el que aplica es
- *    thinkingConfig.thinkingLevel.
- *
- * 2) MODELOS: Google los va retirando (Gemini 2.0 se apagó el 1 de junio de
- *    2026; la línea 2.5 se apaga el 16 de octubre de 2026). 'gemini-flash-latest'
- *    va primero porque es un alias que Google mantiene apuntando al Flash
- *    recomendado del momento, así no depende de que actualicemos la lista.
+ * Una llamada HTTP con cuerpo JSON. La clave viaja SIEMPRE en una cabecera
+ * y nunca en la URL (las URLs quedan en logs de proxies y del servidor), y
+ * con el certificado del proveedor verificado.
+ * Devuelve [código HTTP, cuerpo|false, error de curl].
  */
+function ai_http_json($url, array $headers, ?array $body, $timeout) {
+    $ch = curl_init($url);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_TIMEOUT, (int) max(1, $timeout));
+    $headers[] = 'Content-Type: application/json';
+    curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
+    if ($body !== null) {
+        curl_setopt($ch, CURLOPT_POST, true);
+        curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($body));
+    }
+    $response = curl_exec($ch);
+    $error = curl_error($ch);
+    $code = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+    return [$code, $response, $error];
+}
+
 /**
- * Modelos a probar, en orden. Pregunta a Google cuáles existen (la lista se
- * guarda 6 horas en un archivo temporal, es la misma para todos) y, si no
- * responde, usa los nombres conocidos: ver gemini_model_chain().
+ * Modelos de Gemini a probar, en orden. Pregunta a Google cuáles existen (la
+ * lista se guarda 6 horas en un archivo temporal, es la misma para todos) y,
+ * si no responde, usa los nombres conocidos: ver gemini_model_chain().
+ *
+ * POR QUÉ: Google retira modelos todo el tiempo (Gemini 2.0 se apagó el 1 de
+ * junio de 2026; la línea 2.5 el 16 de octubre de 2026) y una lista escrita a
+ * mano se desactualiza. 'gemini-flash-latest' va primero porque es un alias
+ * que Google mantiene apuntando al Flash vigente.
  */
 function gemini_models_for_key($apiKey) {
     $cacheFile = sys_get_temp_dir() . '/abaco_gemini_models.json';
-    $cached = @json_decode((string) @file_get_contents($cacheFile), true);
-    if (is_array($cached) && isset($cached['at'], $cached['models']) && is_array($cached['models']) && time() - intval($cached['at']) < 21600) {
-        return gemini_model_chain($cached['models']);
+    $cached = ai_models_cache_read($cacheFile);
+    if (is_array($cached)) {
+        return gemini_model_chain($cached);
     }
 
-    $ch = curl_init('https://generativelanguage.googleapis.com/v1beta/models?pageSize=200');
-    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-    curl_setopt($ch, CURLOPT_HTTPHEADER, ['x-goog-api-key: ' . $apiKey]);
-    curl_setopt($ch, CURLOPT_TIMEOUT, 4);
-    $response = curl_exec($ch);
-    curl_close($ch);
-
+    [, $response] = ai_http_json('https://generativelanguage.googleapis.com/v1beta/models?pageSize=200', ['x-goog-api-key: ' . $apiKey], null, 4);
     $discovered = $response ? gemini_pick_models(json_decode($response, true)) : [];
     if (!empty($discovered)) {
-        @file_put_contents($cacheFile, json_encode(['at' => time(), 'models' => $discovered]));
+        ai_models_cache_write($cacheFile, $discovered);
     }
     return gemini_model_chain($discovered);
 }
 
-function callGemini($payload, $apiKey) {
-    $models = gemini_models_for_key($apiKey);
+/** Dirección base de Groq. Se puede apuntar a otro servidor con GROQ_BASE_URL (pruebas). */
+function groq_base_url() {
+    return rtrim(getenv('GROQ_BASE_URL') ?: 'https://api.groq.com/openai/v1', '/');
+}
+
+/**
+ * Modelos de Groq a probar, del más capaz al menos (ver ai_groq_pick_models:
+ * hay un piso de calidad). Si Groq no responde la lista, se usan los nombres
+ * conocidos; si responde y ninguno califica, devuelve [] y NO se inventa uno.
+ */
+function groq_models_for_key($apiKey, $needsVision) {
+    $cacheFile = sys_get_temp_dir() . '/abaco_groq_models.json';
+    $listing = ai_models_cache_read($cacheFile);
+
+    if (!is_array($listing)) {
+        [, $response] = ai_http_json(groq_base_url() . '/models', ['Authorization: Bearer ' . $apiKey], null, 4);
+        $decoded = $response ? json_decode($response, true) : null;
+        if (is_array($decoded) && !empty($decoded['data']) && is_array($decoded['data'])) {
+            $listing = ['data' => array_map(fn($m) => ['id' => $m['id'] ?? '', 'active' => $m['active'] ?? true], $decoded['data'])];
+            ai_models_cache_write($cacheFile, $listing);
+        }
+    }
+
+    if (!is_array($listing)) {
+        return ai_groq_fallback_models($needsVision);
+    }
+    return ai_groq_pick_models($listing, $needsVision);
+}
+
+function ai_models_for_key($apiKey, $provider, $needsVision) {
+    return $provider === 'groq' ? groq_models_for_key($apiKey, $needsVision) : gemini_models_for_key($apiKey);
+}
+
+/**
+ * Una petición a UN modelo de UN proveedor, ya clasificada (ver
+ * gemini_classify_response / ai_openai_classify_response). null si ni
+ * siquiera hubo conexión.
+ */
+function ai_request_once($provider, $modelName, array $payload, $apiKey, $timeout) {
+    if ($provider === 'groq') {
+        [$code, $response, $error] = ai_http_json(
+            groq_base_url() . '/chat/completions',
+            ['Authorization: Bearer ' . $apiKey],
+            ai_openai_payload_from_gemini($payload, $modelName),
+            $timeout
+        );
+        if ($error) return null;
+        return ai_openai_classify_response($code, json_decode((string) $response, true), 'groq');
+    }
+
+    [, $response, $error] = ai_http_json(
+        'https://generativelanguage.googleapis.com/v1beta/models/' . $modelName . ':generateContent',
+        ['x-goog-api-key: ' . $apiKey],
+        $payload,
+        $timeout
+    );
+    if ($error) return null;
+    $classified = gemini_classify_response(json_decode((string) $response, true));
+    $classified['provider'] = 'gemini';
+    return $classified;
+}
+
+/**
+ * Llama al proveedor de IA elegido y devuelve una respuesta YA CLASIFICADA
+ * (ver backend/lib/gemini_response.php): ['status' => 'ok'|'error'|..., 'text' => ...].
+ *
+ * Antes devolvía el JSON crudo y cada endpoint lo interpretaba por su cuenta
+ * mirando solo si venía un campo 'error'. Eso dejaba pasar como buenas las
+ * respuestas que llegan con HTTP 200 y sin texto, que es justo lo que
+ * rompía la IA en producción.
+ *
+ * RAZONAMIENTO (Gemini): los Gemini 3 "piensan" antes de responder y esos
+ * tokens salen del MISMO presupuesto (maxOutputTokens) que la respuesta
+ * visible. Con prompts largos el modelo se quedaba sin espacio y terminaba
+ * con finishReason=MAX_TOKENS y cero texto, sin error alguno. Por eso se
+ * pide el nivel de razonamiento más bajo Y se deja un presupuesto amplio. En
+ * los flash 3.x el razonamiento NO se puede apagar del todo, y el parámetro
+ * antiguo (thinkingBudget) lo ignoran: el que aplica es
+ * thinkingConfig.thinkingLevel.
+ */
+function callAI($payload, $apiKey, $provider = 'gemini') {
+    $needsVision = ai_payload_has_image($payload);
+    $models = ai_models_for_key($apiKey, $provider, $needsVision);
+    $name = ai_provider_name($provider);
+
+    if (empty($models)) {
+        return [
+            'status' => 'error', 'text' => '', 'kind' => 'no_model', 'finish_reason' => null, 'provider' => $provider,
+            'message' => $needsVision
+                ? "Ningún modelo de tu cuenta de {$name} puede leer imágenes, así que con esta clave no se pueden escanear recibos. Vincula una clave de Gemini en Ajustes → IA Personal para usar el escáner."
+                : "Tu cuenta de {$name} no tiene ningún modelo con la capacidad que necesita el Asesor IA (los modelos pequeños inventan cifras). Prueba con la clave de otro proveedor en Ajustes → IA Personal.",
+        ];
+    }
 
     // Configuración base (respeta lo que ya traiga el endpoint que llama).
     if (!isset($payload['generationConfig'])) {
@@ -98,7 +211,7 @@ function callGemini($payload, $apiKey) {
     if (!isset($payload['generationConfig']['maxOutputTokens'])) {
         $payload['generationConfig']['maxOutputTokens'] = 8192;
     }
-    if (!isset($payload['generationConfig']['thinkingConfig'])) {
+    if ($provider === 'gemini' && !isset($payload['generationConfig']['thinkingConfig'])) {
         $payload['generationConfig']['thinkingConfig'] = ['thinkingLevel' => 'low'];
     }
 
@@ -115,7 +228,6 @@ function callGemini($payload, $apiKey) {
 
     foreach ($models as $modelName) {
         if (microtime(true) >= $deadline) break;
-        $url = "https://generativelanguage.googleapis.com/v1beta/models/" . $modelName . ":generateContent";
 
         for ($attempt = 1; $attempt <= 2; $attempt++) {
             $remaining = $deadline - microtime(true);
@@ -126,33 +238,20 @@ function callGemini($payload, $apiKey) {
                 unset($body['generationConfig']['thinkingConfig']);
             }
 
-            $ch = curl_init($url);
-            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-            curl_setopt($ch, CURLOPT_POST, true);
-            curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($body));
-            // La clave viaja en una cabecera y no en la URL (las URLs quedan en
-            // logs de proxies y del propio servidor), y con el certificado de
-            // Google verificado: antes la verificación estaba apagada, así que
-            // cualquiera en el camino podía leer la clave del usuario.
-            curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json', 'x-goog-api-key: ' . $apiKey]);
-            curl_setopt($ch, CURLOPT_TIMEOUT, (int) max(1, min(15, $remaining)));
+            $classified = ai_request_once($provider, $modelName, $body, $apiKey, min(15, $remaining));
 
-            $response = curl_exec($ch);
-            $curlErr = curl_error($ch);
-            curl_close($ch);
-
-            if ($curlErr) {
+            if ($classified === null) {   // sin conexión
                 if ($deadline - microtime(true) > 1) usleep(300000);
                 continue;
             }
 
-            $classified = gemini_classify_response(json_decode($response, true));
             $lastClassified = $classified;
             if (!($classified['status'] === 'error' && $classified['kind'] === 'model_gone')) {
                 $lastRealError = $classified;
             }
 
             if ($classified['status'] === 'ok') {
+                $classified['model'] = $modelName;
                 return $classified;
             }
 
@@ -172,11 +271,11 @@ function callGemini($payload, $apiKey) {
                     break; // este modelo ya no existe: probar el siguiente
                 }
                 if ($classified['kind'] === 'rate_limit') {
-                    // Sin cupo, cupo del día agotado o modelo sobrecargado:
-                    // reintentar este mismo modelo no sirve de nada. Cada
-                    // modelo tiene su propia cuota y su propia carga, así que
-                    // se pasa directo al siguiente.
-                    if (in_array(gemini_rate_limit_detail($classified), ['daily', 'zero', 'overloaded'], true)) {
+                    // Sin cupo, cupo del día agotado, modelo sobrecargado o
+                    // petición demasiado grande para ese modelo: reintentar
+                    // el mismo no sirve de nada. Cada modelo tiene su propia
+                    // cuota y su propia carga, así que se pasa al siguiente.
+                    if (in_array(gemini_rate_limit_detail($classified), ['daily', 'zero', 'overloaded', 'too_large'], true)) {
                         break;
                     }
                     // Es el límite por minuto de la clave gratuita, no un fallo
@@ -191,15 +290,16 @@ function callGemini($payload, $apiKey) {
             }
 
             // Se quedó sin tokens razonando: una segunda oportunidad con el
-            // doble de espacio antes de pasar al siguiente modelo.
-            if ($classified['status'] === 'truncated' && !$bumpedTokens) {
+            // doble de espacio antes de pasar al siguiente modelo. Solo en
+            // Gemini: Groq limita lo que se puede pedir de salida.
+            if ($classified['status'] === 'truncated' && !$bumpedTokens && $provider === 'gemini') {
                 $bumpedTokens = true;
                 $payload['generationConfig']['maxOutputTokens'] =
                     min(32768, $payload['generationConfig']['maxOutputTokens'] * 2);
                 continue;
             }
 
-            // Bloqueado por los filtros de Google: otro modelo lo bloqueará igual.
+            // Bloqueado por los filtros del proveedor: otro modelo lo bloqueará igual.
             if ($classified['status'] === 'blocked') {
                 return $classified;
             }
@@ -216,6 +316,7 @@ function callGemini($payload, $apiKey) {
         'kind' => 'no_response',
         'finish_reason' => null,
         'message' => '',
+        'provider' => $provider,
     ];
 }
 
@@ -293,15 +394,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         ];
 
         try {
-            $result = callGemini($payload, $apiKeyToUse);
+            $result = callAI($payload, $apiKeyToUse, $aiProvider);
 
             if ($result['status'] !== 'ok') {
                 http_response_code(400);
-                echo json_encode(["success" => false, "error" => gemini_status_message($result)]);
+                // 'kind' le dice a Ajustes si la clave es mala (invalid_key) o si
+                // fue algo pasajero (límite, servidor saturado): en ese caso la
+                // clave se conserva en uso.
+                echo json_encode(["success" => false, "kind" => $result['kind'] ?? null, "error" => gemini_status_message($result)]);
                 exit();
             }
 
-            echo json_encode(["success" => true, "message" => "Conexión verificada: tu clave de Gemini funciona correctamente."]);
+            echo json_encode([
+                "success" => true,
+                "provider" => $aiProvider,
+                "model" => $result['model'] ?? null,
+                "message" => "Conexión verificada: tu clave de " . ai_provider_name($aiProvider) . " funciona correctamente" . (!empty($result['model']) ? " (modelo {$result['model']})." : ".")
+            ]);
         } catch (Exception $e) {
             http_response_code(500);
             echo json_encode(["success" => false, "error" => $e->getMessage()]);
@@ -361,7 +470,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         ];
 
         try {
-            $result = callGemini($payload, $apiKeyToUse);
+            $result = callAI($payload, $apiKeyToUse, $aiProvider);
 
             if ($result['status'] !== 'ok') {
                 throw new Exception(gemini_status_message($result));
@@ -428,11 +537,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         ];
 
         try {
-            $result = callGemini($payload, $apiKeyToUse);
+            $result = callAI($payload, $apiKeyToUse, $aiProvider);
             // Reintento de contingencia sin responseMimeType si falla
             if ($result['status'] !== 'ok') {
                 unset($payload['generationConfig']['responseMimeType']);
-                $result = callGemini($payload, $apiKeyToUse);
+                $result = callAI($payload, $apiKeyToUse, $aiProvider);
             }
 
             $parsedData = null;
@@ -512,7 +621,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         ];
 
         try {
-            $result = callGemini($payload, $apiKeyToUse);
+            $result = callAI($payload, $apiKeyToUse, $aiProvider);
 
             if ($result['status'] !== 'ok') {
                 echo json_encode(["response" => "⚠️ " . gemini_status_message($result)]);
@@ -560,7 +669,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         ];
 
         try {
-            $result = callGemini($payload, $apiKeyToUse);
+            $result = callAI($payload, $apiKeyToUse, $aiProvider);
 
             if ($result['status'] !== 'ok') {
                 throw new Exception(gemini_status_message($result));
@@ -601,7 +710,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 ]
             ],
             // Respuesta de 5 secciones en markdown: necesita más margen que
-            // el default de callGemini() para no cortarse a mitad de camino
+            // el default de callAI() para no cortarse a mitad de camino
             // (el razonamiento del modelo sale de este mismo cupo de tokens).
             "generationConfig" => [
                 "maxOutputTokens" => 16384
@@ -609,7 +718,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         ];
 
         try {
-            $result = callGemini($payload, $apiKeyToUse);
+            $result = callAI($payload, $apiKeyToUse, $aiProvider);
 
             if ($result['status'] !== 'ok') {
                 echo json_encode(["error" => gemini_status_message($result)]);
@@ -649,7 +758,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         ];
 
         try {
-            $result = callGemini($payload, $apiKeyToUse);
+            $result = callAI($payload, $apiKeyToUse, $aiProvider);
 
             if ($result['status'] !== 'ok') {
                 echo json_encode(["error" => gemini_status_message($result)]);

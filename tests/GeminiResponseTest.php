@@ -211,7 +211,7 @@ class GeminiResponseTest extends TestCase
 
         $mensaje = gemini_status_message($result);
 
-        $this->assertStringContainsString('Detalle de Google: Quota exceeded for metric: x.', $mensaje);
+        $this->assertStringContainsString('Detalle de Gemini: Quota exceeded for metric: x.', $mensaje);
         $this->assertStringContainsString('…', $mensaje);
         $this->assertLessThan(700, mb_strlen($mensaje));
     }
@@ -220,7 +220,7 @@ class GeminiResponseTest extends TestCase
     {
         $result = gemini_classify_response(['error' => ['message' => 'API key not valid. Please pass a valid API key.']]);
 
-        $this->assertStringNotContainsString('Detalle de Google', gemini_status_message($result));
+        $this->assertStringNotContainsString('Detalle de', gemini_status_message($result));
     }
 
     // ---- elección de modelos ----

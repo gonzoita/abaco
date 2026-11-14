@@ -72,6 +72,19 @@ ni en el prompt: a la IA se le entregan números ya calculados. Su SQL usa
 rangos de fecha (nada de `MONTH()`/`YEAR()`) para correr igual en MySQL y
 en el SQLite de las pruebas.
 
+**Proveedores de IA.** `ai.php` habla con Gemini o Groq a través de
+`callAI()`; el proveedor viaja en la cabecera `X-AI-Provider` (si falta, se
+deduce del prefijo de la clave: `gsk_` es Groq). Por dentro los prompts y
+payloads siguen en formato Gemini: `backend/lib/ai_providers.php` los traduce
+al formato OpenAI para Groq y clasifica la respuesta con la misma forma que
+`gemini_classify_response()`, así que los endpoints no saben con quién hablan.
+Los modelos NO están escritos a mano: se le pregunta a cada proveedor cuáles
+existen (caché de 6 h) y se elige por capacidad, con un piso de calidad para
+Groq (sin modelos pequeños, que inventan cifras). Ante límites o sobrecarga se
+salta al siguiente modelo. En el frontend, `src/utils/aiProvider.js` guarda la
+clave en uso en `gemini_api_key` (nombre heredado que leen todas las vistas) y
+el interceptor de `App.vue` agrega `X-AI-Provider` a cada petición.
+
 `backend/config/` tiene la conexión a BD, JWT, y la tabla de control de
 migraciones (`schema_migrations`, para que `migrate_workspaces.php` no
 repita migraciones en cada deploy).
@@ -115,7 +128,8 @@ en el hosting, así que `deploy.php` usa `proc_open()`.
   PRESTÓ (cartera por cobrar), no lo que debe.
 - Un abono a una meta de ahorro se registra como `egreso` con descripción
   "Abono a meta de ahorro: …": es ahorro, no gasto.
-- Cada usuario usa su propia API key de Gemini (no hay clave compartida ni
-  se debe agregar una).
+- Cada usuario usa su propia API key gratuita de IA (Gemini o Groq; no hay
+  clave compartida ni se debe agregar una). La clave solo vive en el
+  navegador del usuario y viaja en una cabecera, nunca en la URL.
 - Los mensajes de commit y comentarios del código están en español,
   consistente con el resto del repo.
