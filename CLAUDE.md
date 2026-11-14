@@ -99,12 +99,18 @@ testeadas junto a cada módulo (`src/utils/*.js` + `*.test.js` al lado).
 `emptyOutDir: false`), no a `frontend/dist`, porque `deploy.php` sincroniza
 todo el repo tal cual al `public_html` del hosting con `rsync --delete`.
 GitHub Actions (`.github/workflows/ci.yml`) corre `php -l` sobre todo el
-PHP, PHPUnit, Vitest, y `vite build` en cada pull request hacia `main` (es
-la compuerta: `main` exige que el chequeo `build` pase, y los PR se mezclan
-solos con auto-merge cuando está en verde) y también en cada push a `main`;
-solo en el push commitea de vuelta el frontend recompilado, con `[skip ci]`
-(para no disparar el workflow de nuevo). Mezclar a `main` publica a
-producción, así que nada llega ahí sin pasar las pruebas. Un webhook de GitHub firmado con HMAC
+PHP, PHPUnit, Vitest y `vite build` en cada pull request hacia `main` y en
+cada push a `main`. Es la compuerta: `main` exige que el chequeo `build`
+pase, y los PR se mezclan solos con auto-merge cuando está en verde. Mezclar
+a `main` publica a producción, así que nada llega ahí sin pasar las pruebas.
+
+**El frontend compilado (`index.html` y `assets/`) se commitea en el MISMO
+PR que cambia el código, nunca desde CI**: la regla de `main` rechaza el push
+del robot (GH013) y el hosting no tiene Node. Antes de abrir un PR que toque
+`frontend/`: `git rm -q 'assets/*.js' 'assets/*.css'`, `cd frontend && npm run
+build`, `git add -A index.html assets`. CI repite ese build y falla si no
+coincide con lo commiteado (el build es reproducible entre Node 20 y 22).
+Un webhook de GitHub firmado con HMAC
 (`GITHUB_WEBHOOK_SECRET`) dispara `deploy.php` en el servidor, que etiqueta
 el commit actual como punto de rollback (`git tag pre-deploy-*`), corre
 `php -l` de nuevo (si falla, aborta sin tocar nada), sincroniza con rsync y

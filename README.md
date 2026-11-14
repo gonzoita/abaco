@@ -96,14 +96,15 @@ repo tal cual a `public_html` del hosting.
 
 Flujo de un cambio:
 
-0. En cada **pull request** hacia `main`, GitHub Actions corre lint de PHP,
-   PHPUnit, Vitest y `vite build`. Si pasan, el PR se mezcla solo
-   (auto-merge); si fallan, no llega a `main` ni a producción.
-
-Y en cada push a `main`:
-
-1. **GitHub Actions** vuelve a correr lint de PHP, PHPUnit, Vitest y
-   `vite build`. Si el build cambió algo, lo commitea de vuelta con `[skip ci]`.
+0. Si el cambio toca `frontend/`, el frontend compilado (`index.html` y
+   `assets/`) se commitea en el mismo pull request: se borran los
+   `assets/*.js` y `assets/*.css` anteriores, se corre `npm run build` en
+   `frontend/` y se agrega el resultado. CI no lo hace por nadie, porque la
+   regla de `main` rechaza que el robot escriba directo en esa rama.
+1. En cada **pull request** hacia `main`, GitHub Actions corre lint de PHP,
+   PHPUnit, Vitest y `vite build`, y falla si el frontend compilado del repo
+   no coincide con el código fuente. Si todo pasa, el PR se mezcla solo
+   (auto-merge); si falla, no llega a `main` ni a producción.
 2. **Webhook de GitHub** (firmado con HMAC, ver `GITHUB_WEBHOOK_SECRET`)
    dispara `deploy.php` en el servidor.
 3. `deploy.php`: etiqueta el commit actual como punto de rollback, corre
