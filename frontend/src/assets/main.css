@@ -3,15 +3,15 @@
 
 :root {
   /* Oscuro sobrio: grafito, un solo acento azul */
-  --bg-primary: #0e1014;
-  --bg-secondary: #13161b;
+  --bg-primary: #0a0c0f;
+  --bg-secondary: #0f1217;
   --bg-tertiary: #191d23;
 
-  --card-bg: #13161b;
-  --card-border: rgba(255, 255, 255, 0.06);
+  --card-bg: #14171d;
+  --card-border: rgba(255, 255, 255, 0.07);
   --card-border-strong: rgba(255, 255, 255, 0.12);
   --card-glow: rgba(255, 255, 255, 0.02);
-  --card-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --card-shadow: var(--shadow-md);
 
   --text-primary: #e8eaee;
   --text-secondary: rgba(232, 234, 238, 0.58);
@@ -36,13 +36,20 @@
   --radius-sm: 8px;
   --radius-md: 12px;
   --radius-lg: 16px;
+  /* Elevación: superficies en capas con sombras reales */
+  --surface-gradient: linear-gradient(180deg, #181c23 0%, #14171d 100%);
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.03) inset;
+  --shadow-md: 0 1px 0 rgba(255, 255, 255, 0.05) inset, 0 2px 4px rgba(0, 0, 0, 0.35), 0 10px 24px -10px rgba(0, 0, 0, 0.65);
+  --shadow-lg: 0 1px 0 rgba(255, 255, 255, 0.06) inset, 0 4px 8px rgba(0, 0, 0, 0.4), 0 24px 48px -12px rgba(0, 0, 0, 0.75);
+  --shadow-btn: 0 1px 0 rgba(255, 255, 255, 0.12) inset, 0 1px 2px rgba(0, 0, 0, 0.5);
+  --shadow-inset: inset 0 1px 2px rgba(0, 0, 0, 0.45);
   --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
   --transition-smooth: all 0.2s var(--ease-out);
 }
 
 /* Tema Claro (Apple HIG Light) */
 body.light-theme {
-  --bg-primary: #f5f6f8;
+  --bg-primary: #eceff3;
   --bg-secondary: #ffffff;
   --bg-tertiary: #eff1f4;
 
@@ -50,7 +57,13 @@ body.light-theme {
   --card-border: rgba(15, 23, 42, 0.07);
   --card-border-strong: rgba(15, 23, 42, 0.16);
   --card-glow: rgba(37, 99, 235, 0.04);
-  --card-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
+  --card-shadow: var(--shadow-md);
+  --surface-gradient: linear-gradient(180deg, #ffffff 0%, #fbfcfd 100%);
+  --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.08);
+  --shadow-md: 0 1px 2px rgba(15, 23, 42, 0.06), 0 8px 20px -8px rgba(15, 23, 42, 0.14);
+  --shadow-lg: 0 4px 8px rgba(15, 23, 42, 0.06), 0 24px 44px -12px rgba(15, 23, 42, 0.22);
+  --shadow-btn: 0 1px 0 rgba(255, 255, 255, 0.18) inset, 0 1px 2px rgba(15, 23, 42, 0.25);
+  --shadow-inset: inset 0 1px 2px rgba(15, 23, 42, 0.08);
 
   --text-primary: #0f172a;
   --text-secondary: rgba(15, 23, 42, 0.64);
@@ -112,18 +125,20 @@ body {
 
 /* Clases de Utilidad */
 .glass-card {
-  background: var(--card-bg);
+  background: var(--surface-gradient);
   border: 1px solid var(--card-border);
   border-radius: var(--radius-md);
   padding: 20px;
-  box-shadow: var(--card-shadow);
-  transition: border-color 0.2s var(--ease-out), box-shadow 0.2s var(--ease-out);
+  box-shadow: var(--shadow-md);
+  transition: border-color 0.25s var(--ease-out), box-shadow 0.25s var(--ease-out), transform 0.25s var(--ease-out);
   max-width: 100%;
   box-sizing: border-box;
 }
 .glass-card:hover {
   border-color: var(--card-border-strong);
+  box-shadow: var(--shadow-lg);
 }
+.glass-card.modal-content, .modal-content.glass-card { box-shadow: var(--shadow-lg); }
 
 .text-gradient-purple {
   background: linear-gradient(135deg, var(--color-primary), var(--color-accent));
@@ -179,6 +194,7 @@ input, select, textarea {
   background: var(--bg-tertiary);
   border: 1px solid var(--card-border);
   border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-inset);
   color: var(--text-primary);
   font-family: var(--font-main);
   font-size: 15px;
@@ -189,7 +205,7 @@ input, select, textarea {
 
 input:focus, select:focus, textarea:focus {
   border-color: var(--color-primary);
-  box-shadow: 0 0 0 3px var(--accent-soft);
+  box-shadow: var(--shadow-inset), 0 0 0 3px var(--accent-soft);
   background: var(--bg-tertiary);
 }
 
@@ -206,11 +222,16 @@ input:focus, select:focus, textarea:focus {
   align-items: center;
   justify-content: center;
   gap: 8px;
-  box-shadow: none;
-  transition: background-color 0.18s var(--ease-out), border-color 0.18s var(--ease-out), color 0.18s var(--ease-out), transform 0.12s var(--ease-out);
+  box-shadow: var(--shadow-btn);
+  transition: box-shadow 0.18s var(--ease-out), background-color 0.18s var(--ease-out), border-color 0.18s var(--ease-out), color 0.18s var(--ease-out), transform 0.12s var(--ease-out);
+}
+.btn-primary:hover:not(:disabled), .btn-secondary:hover:not(:disabled), .btn-success:hover:not(:disabled), .btn-danger:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-btn), 0 6px 14px -6px rgba(0, 0, 0, 0.55);
 }
 .btn-primary:active, .btn-secondary:active, .btn-success:active, .btn-danger:active {
-  transform: translateY(1px);
+  transform: translateY(0);
+  box-shadow: var(--shadow-inset);
 }
 .btn-primary:focus-visible, .btn-secondary:focus-visible, .btn-success:focus-visible, .btn-danger:focus-visible,
 .nav-item:focus-visible {
@@ -223,14 +244,14 @@ input:focus, select:focus, textarea:focus {
 }
 
 .btn-primary {
-  background: var(--color-primary);
+  background: linear-gradient(180deg, var(--color-primary-hover) 0%, var(--color-primary) 100%);
   color: #f2f5fa;
   border: 1px solid transparent;
 }
-.btn-primary:hover:not(:disabled) { background: var(--color-primary-hover); }
+.btn-primary:hover:not(:disabled) { filter: brightness(1.08); }
 
 .btn-secondary {
-  background: transparent;
+  background: var(--surface-gradient);
   color: var(--text-primary);
   border: 1px solid var(--card-border-strong);
 }
@@ -241,7 +262,7 @@ input:focus, select:focus, textarea:focus {
 
 /* Éxito y peligro: contorno fino y texto de color; sin rellenos pastel */
 .btn-success, .btn-danger {
-  background: transparent;
+  background: var(--surface-gradient);
   border: 1px solid var(--card-border-strong);
 }
 .btn-success { color: var(--color-success); }
@@ -265,6 +286,7 @@ input:focus, select:focus, textarea:focus {
   align-items: center;
   z-index: 100;
   padding: 0 10px;
+  box-shadow: 0 -8px 24px -10px rgba(0, 0, 0, 0.55);
   transition: background-color 0.4s ease;
 }
 body.light-theme .mobile-nav {
@@ -398,6 +420,10 @@ body.light-theme .mobile-nav {
     background: var(--bg-secondary);
     border-top: none;
     border-right: 1px solid var(--card-border);
+    box-shadow: 8px 0 24px -12px rgba(0, 0, 0, 0.5);
+  }
+  body.light-theme .mobile-nav {
+    box-shadow: 6px 0 18px -14px rgba(15, 23, 42, 0.25);
   }
   
   .nav-item {
