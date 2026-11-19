@@ -1,13 +1,6 @@
 // C:\laragon\www\control-finanzas\frontend\src\router\index.js
 import { createRouter, createWebHashHistory } from 'vue-router'
 import DashboardView from '../views/DashboardView.vue'
-import LoginView from '../views/LoginView.vue'
-import RegisterView from '../views/RegisterView.vue'
-import AccountsView from '../views/AccountsView.vue'
-import AIChatView from '../views/AIChatView.vue'
-import BudgetsView from '../views/BudgetsView.vue'
-import SettingsView from '../views/SettingsView.vue'
-import LoansView from '../views/LoansView.vue'
 
 const routes = [
   {
@@ -19,12 +12,12 @@ const routes = [
   {
     path: '/login',
     name: 'login',
-    component: LoginView
+    component: () => import('../views/LoginView.vue')
   },
   {
     path: '/register',
     name: 'register',
-    component: RegisterView
+    component: () => import('../views/RegisterView.vue')
   },
   {
     path: '/legal',
@@ -34,31 +27,31 @@ const routes = [
   {
     path: '/accounts',
     name: 'accounts',
-    component: AccountsView,
+    component: () => import('../views/AccountsView.vue'),
     meta: { requiresAuth: true }
   },
   {
     path: '/ai',
     name: 'ai',
-    component: AIChatView,
+    component: () => import('../views/AIChatView.vue'),
     meta: { requiresAuth: true }
   },
   {
     path: '/budgets',
     name: 'budgets',
-    component: BudgetsView,
+    component: () => import('../views/BudgetsView.vue'),
     meta: { requiresAuth: true }
   },
   {
     path: '/loans',
     name: 'loans',
-    component: LoansView,
+    component: () => import('../views/LoansView.vue'),
     meta: { requiresAuth: true }
   },
   {
     path: '/settings',
     name: 'settings',
-    component: SettingsView,
+    component: () => import('../views/SettingsView.vue'),
     meta: { requiresAuth: true }
   },
   {
