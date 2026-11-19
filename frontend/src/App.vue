@@ -8,7 +8,7 @@
         
         <!-- Conmutador de Espacio (Personal ⇄ Mi Negocio) Móvil (Único lugar arriba en móviles) -->
         <button type="button" @click="toggleWorkspace" class="workspace-pill-btn" style="display:inline-flex; align-items:center; gap:5px; padding:4px 10px; border-radius:16px; background:rgba(255,255,255,0.08); border:1px solid var(--card-border); cursor:pointer; font-size:11px; font-weight:700; color:var(--text-primary); transition:all 0.2s ease;">
-          <i :class="activeWorkspace === 'business' ? 'fa-solid fa-store' : 'fa-solid fa-user'" :style="{ color: activeWorkspace === 'business' ? '#38bdf8' : '#a855f7' }"></i>
+          <i :class="activeWorkspace === 'business' ? 'fa-solid fa-store' : 'fa-solid fa-user'" :style="{ color: 'var(--color-primary)' }"></i>
           <span>{{ activeWorkspace === 'business' ? (businessName || 'Mi Negocio') : 'Personal' }}</span>
           <i class="fa-solid fa-arrows-rotate" style="font-size:9px; color:var(--text-muted);"></i>
         </button>
@@ -31,7 +31,7 @@
       <!-- Selector de Espacio (Personal ⇄ Mi Negocio) Exclusivo para Desktop Sidebar -->
       <div class="sidebar-workspace-card desktop-only-workspace" @click="toggleWorkspace" style="margin:10px 14px 16px 14px; padding:10px 12px; border-radius:12px; background:rgba(255,255,255,0.04); border:1px solid var(--card-border); display:flex; justify-content:space-between; align-items:center; cursor:pointer; transition:all 0.2s ease;">
         <div style="display:flex; align-items:center; gap:10px;">
-          <div :style="{ background: activeWorkspace === 'business' ? 'rgba(56,189,248,0.15)' : 'rgba(168,85,247,0.15)', padding:'8px', borderRadius:'8px', color: activeWorkspace === 'business' ? '#38bdf8' : '#a855f7' }">
+          <div :style="{ background: 'var(--accent-soft)', padding:'8px', borderRadius:'8px', color: 'var(--color-primary)' }">
             <i :class="activeWorkspace === 'business' ? 'fa-solid fa-store' : 'fa-solid fa-user'" style="font-size:15px;"></i>
           </div>
           <div style="display:flex; flex-direction:column; text-align:left;">
@@ -44,21 +44,13 @@
 
       <!-- Dashboard -->
       <router-link to="/" class="nav-item mobile-visible">
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <rect x="3" y="3" width="7" height="9"></rect>
-          <rect x="14" y="3" width="7" height="5"></rect>
-          <rect x="14" y="12" width="7" height="9"></rect>
-          <rect x="3" y="16" width="7" height="5"></rect>
-        </svg>
+        <i class="fa-solid fa-table-columns nav-icon"></i>
         <span>Dashboard</span>
       </router-link>
 
       <!-- Cuentas y Tarjetas -->
       <router-link to="/accounts" class="nav-item mobile-visible">
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <rect x="1" y="4" width="22" height="16" rx="2" ry="2"></rect>
-          <line x1="1" y1="10" x2="23" y2="10"></line>
-        </svg>
+        <i class="fa-solid fa-wallet nav-icon"></i>
         <span>Cuentas</span>
       </router-link>
 
@@ -72,10 +64,7 @@
 
       <!-- IA Asistente -->
       <router-link to="/ai" class="nav-item mobile-visible">
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"></path>
-          <path d="M12 7a5 5 0 1 0 0 10 5 5 0 0 0 0-10z"></path>
-        </svg>
+        <i class="fa-solid fa-wand-magic-sparkles nav-icon"></i>
         <span>Asesor IA</span>
       </router-link>
 
@@ -87,65 +76,49 @@
 
       <!-- Presupuestos (Solo Desktop) -->
       <router-link to="/budgets" class="nav-item">
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <line x1="12" y1="1" x2="12" y2="23"></line>
-          <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path>
-        </svg>
+        <i class="fa-solid fa-chart-pie nav-icon"></i>
         <span>Presupuestos</span>
       </router-link>
 
       <!-- Préstamos (Solo Desktop) -->
       <router-link to="/loans" class="nav-item">
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <circle cx="12" cy="12" r="10"></circle>
-          <path d="M12 8v8M9 10h4.5a1.5 1.5 0 0 0 0-3H9M15 14H10.5a1.5 1.5 0 0 1 0-3H15"></path>
-        </svg>
+        <i class="fa-solid fa-hand-holding-dollar nav-icon"></i>
         <span>Préstamos</span>
       </router-link>
 
       <!-- Tutoriales en Video -->
       <router-link to="/tutorials" class="nav-item">
-        <i class="fa-solid fa-film" style="font-size:18px;"></i>
+        <i class="fa-solid fa-film nav-icon"></i>
         <span>Tutoriales</span>
       </router-link>
 
       <!-- Reportes & Suscripciones -->
       <router-link to="/reports" class="nav-item">
-        <i class="fa-solid fa-file-invoice-dollar" style="font-size:18px;"></i>
+        <i class="fa-solid fa-file-invoice-dollar nav-icon"></i>
         <span>Reportes</span>
       </router-link>
 
       <!-- Configuración (Solo Desktop) -->
       <router-link to="/settings" class="nav-item">
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <circle cx="12" cy="12" r="3"></circle>
-          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
-        </svg>
+        <i class="fa-solid fa-sliders nav-icon"></i>
         <span>Ajustes</span>
       </router-link>
 
       <!-- Privacidad y Términos (Solo Desktop; en móvil vive en el ☰ Menú) -->
       <router-link to="/legal" class="nav-item">
-        <i class="fa-solid fa-file-contract" style="font-size:18px;"></i>
+        <i class="fa-solid fa-file-contract nav-icon"></i>
         <span>Legal</span>
       </router-link>
 
       <!-- Administración (Solo Desktop) -->
       <router-link v-if="isAdmin" to="/admin" class="nav-item">
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
-          <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
-        </svg>
+        <i class="fa-solid fa-shield-halved nav-icon"></i>
         <span>Admin</span>
       </router-link>
 
       <!-- Cerrar Sesión -->
       <a href="#" @click.prevent="logout" class="nav-item">
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
-          <polyline points="16 17 21 12 16 7"></polyline>
-          <line x1="21" y1="12" x2="9" y2="12"></line>
-        </svg>
+        <i class="fa-solid fa-arrow-right-from-bracket nav-icon"></i>
         <span>Salir</span>
       </a>
     </nav>
@@ -157,8 +130,8 @@
         <h3 class="sheet-title">Nueva Transacción</h3>
         <div class="sheet-options">
           <!-- 1º: Dictar por Voz con IA -->
-          <button class="sheet-btn voice" @click="triggerQuickAction('voice')" style="background:rgba(168,85,247,0.15); border:1px solid rgba(168,85,247,0.4); color:#a855f7;">
-            <div class="btn-icon-circle" style="background:#a855f7; color:#ffffff;"><i class="fa-solid fa-microphone"></i></div>
+          <button class="sheet-btn voice" @click="triggerQuickAction('voice')" style="background:var(--accent-soft); border:1px solid var(--accent-ring); color:var(--color-primary);">
+            <div class="btn-icon-circle" style="background:var(--color-primary); color:#ffffff;"><i class="fa-solid fa-microphone"></i></div>
             <span style="font-weight:700;">Dictar por Voz (IA)</span>
           </button>
 
@@ -221,7 +194,7 @@
           </router-link>
 
           <router-link to="/tutorials" class="settings-menu-item" @click="showMobileSettings = false">
-            <span class="item-icon" style="background:#a855f7;">
+            <span class="item-icon" style="background:var(--color-primary);">
               <i class="fa-solid fa-film"></i>
             </span>
             <span>Tutoriales en Video</span>

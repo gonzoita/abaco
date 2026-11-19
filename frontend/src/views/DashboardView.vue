@@ -54,10 +54,7 @@
         @click="toggleTypeFilter('ingreso')"
       >
         <div class="card-header-icon">
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <line x1="12" y1="19" x2="12" y2="5"></line>
-            <polyline points="5 12 12 5 19 12"></polyline>
-          </svg>
+          <i class="fa-solid fa-arrow-up"></i>
         </div>
         <span class="card-label">{{ activeWorkspace === 'business' ? 'Ventas del Mes' : 'Ingresos del Mes' }}</span>
         <h3 class="amount amount-positive">{{ formatCurrency(totals.ingresos) }}</h3>
@@ -72,10 +69,7 @@
         @click="toggleTypeFilter('egreso')"
       >
         <div class="card-header-icon">
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <line x1="12" y1="5" x2="12" y2="19"></line>
-            <polyline points="19 12 12 19 5 12"></polyline>
-          </svg>
+          <i class="fa-solid fa-arrow-down"></i>
         </div>
         <span class="card-label">{{ activeWorkspace === 'business' ? 'Costos & Gastos Negocio' : 'Gastos del Mes' }}</span>
         <h3 class="amount amount-negative">{{ formatCurrency(totals.egresos) }}</h3>
@@ -100,37 +94,28 @@
     <!-- Botones de Acción Rápida (Orden: 1º Dictar por Voz, 2º Escanear Recibo, 3º Ingreso, 4º Gasto) -->
     <div class="actions-container">
       <!-- 1º: Dictar por Voz con IA (Botón Principal Destacado) -->
-      <button class="btn-primary" @click="startVoiceDictation" style="background:linear-gradient(135deg, #a855f7, #7c3aed); border:none; display:flex; align-items:center; justify-content:center; gap:8px; box-shadow: 0 4px 16px rgba(168,85,247,0.4); font-weight:700;">
-        <i class="fa-solid fa-microphone" style="font-size:16px;"></i>
+      <button class="btn-primary" @click="startVoiceDictation">
+        <i class="fa-solid fa-microphone"></i>
         <span>Dictar por Voz (IA)</span>
       </button>
 
       <!-- 2º: Escanear Recibo con IA -->
       <label class="btn-ai-scan glass-card">
         <input ref="receiptInput" type="file" accept="image/*" capture="environment" class="hidden-input" @change="handleReceiptScan" :disabled="aiLoading" />
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="btn-icon" v-if="!aiLoading">
-          <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path>
-          <circle cx="12" cy="13" r="4"></circle>
-        </svg>
+        <i class="fa-solid fa-camera btn-icon" v-if="!aiLoading"></i>
         <div class="spinner" v-else></div>
         <span>{{ aiLoading ? 'Procesando Recibo IA...' : 'Escanear Recibo (IA)' }}</span>
       </label>
 
       <!-- 3º: Registrar Ingreso -->
-      <button class="btn-success" @click="openTransactionModal('ingreso')">
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="btn-icon">
-          <line x1="12" y1="5" x2="12" y2="19"></line>
-          <line x1="5" y1="12" x2="19" y2="12"></line>
-        </svg>
+      <button class="btn-secondary" @click="openTransactionModal('ingreso')">
+        <i class="fa-solid fa-arrow-trend-up btn-icon" style="color:var(--color-success)"></i>
         Registrar Ingreso
       </button>
 
       <!-- 4º: Registrar Gasto -->
-      <button class="btn-primary" @click="openTransactionModal('egreso')">
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="btn-icon">
-          <line x1="12" y1="5" x2="12" y2="19"></line>
-          <line x1="5" y1="12" x2="19" y2="12"></line>
-        </svg>
+      <button class="btn-secondary" @click="openTransactionModal('egreso')">
+        <i class="fa-solid fa-arrow-trend-down btn-icon" style="color:var(--color-danger)"></i>
         Registrar Gasto
       </button>
     </div>
@@ -220,10 +205,7 @@
     <div class="glass-card reminders-panel" v-if="reminders.length > 0">
       <h3 class="reminders-title">
         <span class="bell-icon">
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
-            <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
-          </svg>
+          <i class="fa-solid fa-bell"></i>
         </span>
         Próximos Vencimientos
       </h3>
@@ -237,9 +219,7 @@
           <div class="rem-action">
             <span class="due-date">Vence: <strong>{{ formatDate(rem.due_date) }}</strong></span>
             <button class="btn-check" @click="completeReminder(rem.id)" title="Marcar como pagado/completado">
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                <polyline points="20 6 9 17 4 12"></polyline>
-              </svg>
+              <i class="fa-solid fa-check"></i>
             </button>
           </div>
         </div>
@@ -372,16 +352,10 @@
               </span>
               <!-- Botón Editar Transacción -->
               <button class="btn-edit-action-small" @click="startEditTransaction(tx)" title="Editar transacción" v-if="!tx.description.startsWith('GMF 4x1000')">
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M12 20h9"></path>
-                  <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4Z"></path>
-                </svg>
+                <i class="fa-solid fa-pen"></i>
               </button>
               <button class="btn-delete" @click="deleteTransaction(tx.id)" title="Eliminar transacción">
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <polyline points="3 6 5 6 21 6"></polyline>
-                  <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
-                </svg>
+                <i class="fa-solid fa-trash-can"></i>
               </button>
             </div>
           </div>
@@ -530,7 +504,7 @@
     <div v-if="showVoiceModal" class="modal-overlay" @click.self="closeVoiceModal">
       <div class="glass-card modal-content" style="max-width:440px; text-align:center; padding:28px;">
         <div style="margin-bottom:16px;">
-          <div :style="{ animation: isRecording ? 'pulseGlow 1.2s infinite' : 'none' }" style="width:70px; height:70px; margin:0 auto; background:rgba(168,85,247,0.15); border:2px solid #a855f7; border-radius:50%; display:flex; align-items:center; justify-content:center; color:#a855f7; font-size:28px;">
+          <div :style="{ animation: isRecording ? 'pulseGlow 1.2s infinite' : 'none' }" style="width:70px; height:70px; margin:0 auto; background:var(--accent-soft); border:2px solid var(--color-primary); border-radius:50%; display:flex; align-items:center; justify-content:center; color:var(--color-primary); font-size:28px;">
             <i class="fa-solid fa-microphone"></i>
           </div>
         </div>
@@ -555,13 +529,13 @@
           ></textarea>
         </div>
 
-        <div v-if="voiceProcessing" style="display:flex; flex-direction:column; align-items:center; gap:8px; margin-bottom:16px; color:#a855f7;">
+        <div v-if="voiceProcessing" style="display:flex; flex-direction:column; align-items:center; gap:8px; margin-bottom:16px; color:var(--color-primary);">
           <div class="spinner"></div>
           <span style="font-size:13px; font-weight:600;">La IA está estructurando tu gasto y seleccionando la categoría...</span>
         </div>
 
         <div style="display:flex; gap:10px; justify-content:center; flex-wrap:wrap;">
-          <button v-if="!isRecording" class="btn-primary" @click="startListening" :disabled="voiceProcessing" style="background:#a855f7; border:none; padding:10px 18px; border-radius:8px; font-weight:700;">
+          <button v-if="!isRecording" class="btn-primary" @click="startListening" :disabled="voiceProcessing" style="background:var(--color-primary); border:none; padding:10px 18px; border-radius:8px; font-weight:700;">
             <i class="fa-solid fa-microphone"></i> Dictar por Voz
           </button>
 
@@ -1619,9 +1593,8 @@ export default {
   animation: shake 2.5s infinite;
 }
 
-.bell-icon svg {
-  width: 18px;
-  height: 18px;
+.bell-icon i {
+  font-size: 16px;
 }
 
 .reminders-horizontal-list {
@@ -1727,9 +1700,8 @@ export default {
   transform: scale(1.1);
 }
 
-.btn-check svg {
-  width: 14px;
-  height: 14px;
+.btn-check i {
+  font-size: 13px;
 }
 
 @keyframes shake {
@@ -1855,9 +1827,8 @@ body.light-theme .trial-badge {
   color: var(--color-danger);
 }
 
-.card-header-icon svg {
-  width: 18px;
-  height: 18px;
+.card-header-icon i {
+  font-size: 16px;
 }
 
 /* Acciones rápidas: 2 columnas por defecto (móvil) para no ocupar tanto
@@ -1869,7 +1840,7 @@ body.light-theme .trial-badge {
 }
 
 .actions-container > .btn-primary,
-.actions-container > .btn-success,
+.actions-container > .btn-secondary,
 .actions-container > .btn-ai-scan {
   padding: 10px 8px;
   font-size: 12.5px;
@@ -1880,7 +1851,7 @@ body.light-theme .trial-badge {
 
 .actions-container .btn-icon,
 .actions-container .fa-microphone,
-.actions-container svg {
+.actions-container i {
   flex-shrink: 0;
 }
 
@@ -1890,7 +1861,7 @@ body.light-theme .trial-badge {
   }
 
   .actions-container > .btn-primary,
-  .actions-container > .btn-success,
+  .actions-container > .btn-secondary,
   .actions-container > .btn-ai-scan {
     padding: 10px 20px;
     font-size: 15px;
@@ -1950,8 +1921,7 @@ body.light-theme .trial-badge {
 }
 
 .btn-icon {
-  width: 20px;
-  height: 20px;
+  font-size: 15px;
 }
 
 .btn-ai-scan {
@@ -1963,17 +1933,17 @@ body.light-theme .trial-badge {
   padding: 12px 24px;
   font-weight: 500;
   border-radius: var(--radius-sm);
-  border: 1px solid rgba(94, 92, 230, 0.2);
-  background: rgba(94, 92, 230, 0.08);
+  border: 1px solid var(--accent-ring);
+  background: var(--accent-soft);
   color: var(--color-accent);
   text-align: center;
   transition: var(--transition-smooth);
 }
 
 .btn-ai-scan:hover {
-  background: rgba(94, 92, 230, 0.15);
+  background: var(--accent-soft);
   border-color: var(--color-accent);
-  box-shadow: 0 0 12px rgba(94, 92, 230, 0.15);
+  box-shadow: none;
 }
 
 .hidden-input {
@@ -2168,8 +2138,7 @@ body.light-theme .trial-badge {
 }
 
 .icon-svg {
-  width: 18px;
-  height: 18px;
+  font-size: 16px;
 }
 
 .tx-title {
@@ -2227,9 +2196,8 @@ body.light-theme .trial-badge {
   background: rgba(10, 132, 255, 0.15);
 }
 
-.btn-delete svg, .btn-edit-action-small svg {
-  width: 15px;
-  height: 15px;
+.btn-delete i, .btn-edit-action-small i {
+  font-size: 13px;
 }
 
 /* Estilos de modal */
@@ -2412,54 +2380,15 @@ body.light-theme .trial-badge {
   color: var(--text-primary) !important;
 }
 
-/* Modificar botones de acción para que sean transparentes y vidriosos estilo iOS */
-.actions-container .btn-primary {
-  background: rgba(255, 69, 58, 0.08) !important;
-  border: 1px solid rgba(255, 69, 58, 0.15) !important;
-  color: var(--color-danger) !important;
-  box-shadow: none !important;
-}
-body.light-theme .actions-container .btn-primary {
-  background: rgba(255, 59, 48, 0.08) !important;
-  color: #ff3b30 !important;
-  border-color: rgba(255, 59, 48, 0.15) !important;
-}
-.actions-container .btn-primary:hover {
-  background: rgba(255, 69, 58, 0.15) !important;
-  border-color: var(--color-danger) !important;
-  transform: scale(1.01) !important;
-}
-
-.actions-container .btn-success {
-  background: rgba(48, 209, 88, 0.08) !important;
-  border: 1px solid rgba(48, 209, 88, 0.15) !important;
-  color: var(--color-success) !important;
-  box-shadow: none !important;
-}
-body.light-theme .actions-container .btn-success {
-  background: rgba(52, 199, 89, 0.08) !important;
-  color: #34c759 !important;
-  border-color: rgba(52, 199, 89, 0.15) !important;
-}
-.actions-container .btn-success:hover {
-  background: rgba(48, 209, 88, 0.15) !important;
-  border-color: var(--color-success) !important;
-  transform: scale(1.01) !important;
-}
-
+/* Acciones rápidas: la voz es la acción principal; el resto, neutras */
 .actions-container .btn-ai-scan {
-  background: rgba(94, 92, 230, 0.08) !important;
-  border: 1px solid rgba(94, 92, 230, 0.15) !important;
-  color: var(--color-accent) !important;
-  box-shadow: none !important;
-}
-body.light-theme .actions-container .btn-ai-scan {
-  background: rgba(88, 86, 214, 0.08) !important;
-  color: #5856d6 !important;
-  border-color: rgba(88, 86, 214, 0.15) !important;
+  background: transparent;
+  border: 1px solid var(--card-border-strong);
+  color: var(--text-primary);
+  box-shadow: none;
 }
 .actions-container .btn-ai-scan:hover {
-  background: rgba(94, 92, 230, 0.15) !important;
-  border-color: var(--color-accent) !important;
+  background: var(--hover-bg);
+  border-color: var(--text-muted);
 }
 </style>
