@@ -188,7 +188,7 @@
     </div>
 
     <!-- Acceso a Salud & Autonomía Financiera (análisis con IA en su propio módulo) -->
-    <router-link v-if="insightsData" to="/financial-health" class="glass-card financial-health-cta">
+    <router-link v-if="insightsData && insightsData.runway" to="/financial-health" class="glass-card financial-health-cta">
       <div class="fh-cta-icon" :style="{ background: insightsData.health_color + '20', color: insightsData.health_color }">
         <i class="fa-solid fa-heart-pulse"></i>
       </div>
@@ -915,6 +915,18 @@ export default {
 
     watch([selectedCategoryFilter, selectedTypeFilter], refreshServerFilter)
 
+    let insightsRequest = 0
+    const loadInsights = async (headers) => {
+      const mine = ++insightsRequest
+      try {
+        const data = await fetchJsonSafe(`${API_BASE}/insights.php`, { headers })
+        // Si mientras tanto se cambió de espacio o período, esta respuesta ya no aplica.
+        if (mine === insightsRequest) insightsData.value = data
+      } catch (e) {
+        console.error('Error al cargar los insights del dashboard:', e)
+      }
+    }
+
     const fetchData = async () => {
       loading.value = true
       loadError.value = false
@@ -946,10 +958,14 @@ export default {
         fetchJsonSafe(`${API_BASE}/categories.php`, { headers }),
         fetchJsonSafe(txUrl, { headers }),
         fetchJsonSafe(repUrl, { headers }),
-        fetchJsonSafe(`${API_BASE}/reminders.php`, { headers }),
-        fetchJsonSafe(`${API_BASE}/insights.php`, { headers })
+        fetchJsonSafe(`${API_BASE}/reminders.php`, { headers })
       ])
-      const [rAcc, rCat, rTx, rRep, rRem, rIns] = results
+      const [rAcc, rCat, rTx, rRep, rRem] = results
+
+      // Los insights son lo más pesado de calcular en el servidor y no
+      // son necesarios para pintar el tablero: se piden aparte, sin hacer
+      // esperar a las cifras principales.
+      loadInsights(headers)
       let anyFailed = false
 
       if (rAcc.status === 'fulfilled') accounts.value = rAcc.value
@@ -971,9 +987,6 @@ export default {
       }
 
       if (rRem.status === 'fulfilled') reminders.value = rRem.value
-      else anyFailed = true
-
-      if (rIns.status === 'fulfilled') insightsData.value = rIns.value
       else anyFailed = true
 
       if (anyFailed) {

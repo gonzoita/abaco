@@ -249,6 +249,39 @@ try {
         mark_migration_done($db, 'loan_clients_workspace_v1');
     }
 
+    // Índices compuestos para las consultas que más se repiten (todas filtran
+    // por usuario + espacio y casi siempre por fecha). Sin ellos MySQL recorre
+    // todos los movimientos del usuario en cada pantalla, y se nota más cuanto
+    // más historial hay. Idempotente: salta lo que ya existe o no aplica, y un
+    // fallo en un índice no frena el despliegue.
+    if (!migration_done($db, 'performance_indexes_v1')) {
+        $wanted = [
+            'transactions' => ['idx_tx_user_ws_date' => ['user_id', 'workspace', 'date']],
+            'accounts'     => ['idx_acc_user_ws' => ['user_id', 'workspace']],
+            'categories'   => ['idx_cat_user_ws' => ['user_id', 'workspace']],
+            'budgets'      => ['idx_bud_user_ws' => ['user_id', 'workspace']],
+            'reminders'    => ['idx_rem_user_ws' => ['user_id', 'workspace']],
+        ];
+        $created = 0;
+        foreach ($wanted as $table => $indexes) {
+            try {
+                if (!$db->query("SHOW TABLES LIKE '{$table}'")->fetch()) continue;
+                $cols = array_map('strtolower', $db->query("SHOW COLUMNS FROM {$table}")->fetchAll(PDO::FETCH_COLUMN));
+                $existing = array_column($db->query("SHOW INDEX FROM {$table}")->fetchAll(PDO::FETCH_ASSOC), 'Key_name');
+                foreach ($indexes as $name => $indexCols) {
+                    if (in_array($name, $existing, true)) continue;
+                    if (array_diff($indexCols, $cols)) continue;
+                    $db->exec("ALTER TABLE {$table} ADD INDEX {$name} (" . implode(', ', $indexCols) . ")");
+                    $created++;
+                }
+            } catch (Exception $e) {
+                error_log("performance_indexes_v1 ({$table}): " . $e->getMessage());
+            }
+        }
+        $migrated[] = "índices de rendimiento: {$created} creados";
+        mark_migration_done($db, 'performance_indexes_v1');
+    }
+
     echo json_encode([
         "success" => true,
         "message" => "Migración de espacios de trabajo (workspaces) completada con éxito.",
