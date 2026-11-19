@@ -157,7 +157,10 @@ if ($method === 'GET') {
     // 1. Obtener Clientes
     if ($action === 'get_clients') {
         try {
-            $stmt = $db->prepare("SELECT * FROM loan_clients WHERE user_id = ? ORDER BY name ASC");
+            // Los clientes son de un espacio (Personal o Negocio): el mismo
+            // cliente no aparece en los dos.
+            $cWsCond = get_workspace_sql_clause('workspace');
+            $stmt = $db->prepare("SELECT * FROM loan_clients WHERE user_id = ? AND {$cWsCond} ORDER BY name ASC");
             $stmt->execute([$userId]);
             echo json_encode($stmt->fetchAll());
         } catch (Exception $e) {
@@ -280,8 +283,8 @@ if ($method === 'POST') {
         }
         
         try {
-            $stmt = $db->prepare("INSERT INTO loan_clients (user_id, name, document, phone, email, address) VALUES (?, ?, ?, ?, ?, ?)");
-            $stmt->execute([$userId, $name, $document, $phone, $email, $address]);
+            $stmt = $db->prepare("INSERT INTO loan_clients (user_id, name, document, phone, email, address, workspace) VALUES (?, ?, ?, ?, ?, ?, ?)");
+            $stmt->execute([$userId, $name, $document, $phone, $email, $address, $workspace]);
             
             $clientId = $db->lastInsertId();
             echo json_encode(["success" => true, "id" => $clientId]);
@@ -309,6 +312,16 @@ if ($method === 'POST') {
             exit();
         }
         
+        // El cliente tiene que ser de este mismo espacio.
+        $cWsCond = get_workspace_sql_clause('workspace');
+        $stmtClient = $db->prepare("SELECT id FROM loan_clients WHERE id = ? AND user_id = ? AND {$cWsCond}");
+        $stmtClient->execute([$clientId, $userId]);
+        if (!$stmtClient->fetch()) {
+            http_response_code(400);
+            echo json_encode(["error" => "Ese cliente no pertenece a este espacio."]);
+            exit();
+        }
+
         try {
             $db->beginTransaction();
             

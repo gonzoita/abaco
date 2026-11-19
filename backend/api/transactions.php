@@ -3,6 +3,7 @@
 require_once __DIR__ . '/cors.php';
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/auth_helper.php';
+require_once __DIR__ . '/../lib/workspace_data.php';
 
 function get_db_columns($db, $tableName) {
     static $colsCache = [];
@@ -258,10 +259,7 @@ if ($method === 'POST') {
             $taxAmount = $amount * 0.004; // 0.4%
             if ($taxAmount > 0) {
                 // Buscar la categoría "Gastos Bancarios"
-                $stmtGetCat = $db->prepare("SELECT id FROM categories WHERE name = 'Gastos Bancarios' AND (user_id IS NULL OR user_id = ?) LIMIT 1");
-                $stmtGetCat->execute([$userId]);
-                $bankCat = $stmtGetCat->fetch();
-                $bankCatId = $bankCat ? $bankCat['id'] : null;
+                $bankCatId = ws_bank_fees_category_id($db, $userId, $workspace);
 
                 // Insertar transacción de impuesto de forma dinámica y segura
                 $taxDesc = "GMF 4x1000 - " . (empty($description) ? "Impuesto Financiero" : $description);
@@ -440,10 +438,7 @@ if ($method === 'PUT') {
         if (intval($newAcc['tax_exempt'] ?? 0) == 0 && ($type === 'egreso' || $type === 'transferencia')) {
             $taxAmount = $amount * 0.004;
             if ($taxAmount > 0) {
-                $stmtGetCat = $db->prepare("SELECT id FROM categories WHERE name = 'Gastos Bancarios' AND (user_id IS NULL OR user_id = ?) LIMIT 1");
-                $stmtGetCat->execute([$userId]);
-                $bankCat = $stmtGetCat->fetch();
-                $bankCatId = $bankCat ? $bankCat['id'] : null;
+                $bankCatId = ws_bank_fees_category_id($db, $userId, $workspace);
 
                 $taxDesc = "GMF 4x1000 - " . (empty($description) ? "Impuesto Financiero" : $description);
                 insert_tax_transaction($db, $userId, $accountId, $bankCatId, $taxAmount, $taxDesc, $date, $workspace);

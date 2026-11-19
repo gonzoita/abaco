@@ -11,6 +11,10 @@ $db = Database::getConnection();
 $method = $_SERVER['REQUEST_METHOD'];
 $id = isset($_GET['id']) ? trim($_GET['id']) : null;
 
+// Cada espacio (Personal / Negocio) tiene sus propios recordatorios.
+$workspace = get_active_workspace();
+$rWsCond = get_workspace_sql_clause('workspace');
+
 $input = json_decode(file_get_contents('php://input'), true);
 if (!$input) {
     $input = $_POST;
@@ -25,7 +29,7 @@ if ($method === 'GET') {
         $daysBefore = $userObj ? intval($userObj['reminder_days_before']) : 5;
 
         // 2. Obtener recordatorios personalizados (físicos en base de datos)
-        $stmtCustom = $db->prepare("SELECT * FROM reminders WHERE user_id = ? AND status = 'pendiente' ORDER BY due_date ASC");
+        $stmtCustom = $db->prepare("SELECT * FROM reminders WHERE user_id = ? AND status = 'pendiente' AND {$rWsCond} ORDER BY due_date ASC");
         $stmtCustom->execute([$userId]);
         $customReminders = $stmtCustom->fetchAll();
         foreach ($customReminders as &$cr) {
@@ -34,7 +38,7 @@ if ($method === 'GET') {
         }
 
         // 3. Generar recordatorios virtuales de Tarjetas de Crédito con deuda pendiente
-        $stmtCards = $db->prepare("SELECT id, name, due_day, balance, currency FROM accounts WHERE user_id = ? AND type = 'tarjeta_credito'");
+        $stmtCards = $db->prepare("SELECT id, name, due_day, balance, currency FROM accounts WHERE user_id = ? AND type = 'tarjeta_credito' AND {$rWsCond}");
         $stmtCards->execute([$userId]);
         $cards = $stmtCards->fetchAll();
 
@@ -83,11 +87,13 @@ if ($method === 'GET') {
         }
 
         // 4. Generar recordatorios virtuales de Servicios / Suscripciones Recurrentes
+        // Los pagos recurrentes no guardan el espacio: lo toman de su categoría.
+        $cWsCond = get_workspace_sql_clause('c.workspace');
         $stmtRecur = $db->prepare("
             SELECT r.*, c.name as category_name 
             FROM recurrences r 
             JOIN categories c ON r.category_id = c.id 
-            WHERE r.user_id = ? AND r.active = 1
+            WHERE r.user_id = ? AND r.active = 1 AND {$cWsCond}
         ");
         $stmtRecur->execute([$userId]);
         $recurrences = $stmtRecur->fetchAll();
@@ -142,8 +148,8 @@ if ($method === 'POST') {
     }
 
     try {
-        $stmt = $db->prepare("INSERT INTO reminders (user_id, title, description, due_date, status) VALUES (?, ?, ?, ?, 'pendiente')");
-        $stmt->execute([$userId, $title, $description, $dueDate]);
+        $stmt = $db->prepare("INSERT INTO reminders (user_id, title, description, due_date, status, workspace) VALUES (?, ?, ?, ?, 'pendiente', ?)");
+        $stmt->execute([$userId, $title, $description, $dueDate, $workspace]);
         
         $newId = $db->lastInsertId();
         echo json_encode([
@@ -173,7 +179,7 @@ if ($method === 'PUT') {
     try {
         // Si es un recordatorio físico en DB
         if (is_numeric($id)) {
-            $stmt = $db->prepare("UPDATE reminders SET status = 'completado' WHERE id = ? AND user_id = ?");
+            $stmt = $db->prepare("UPDATE reminders SET status = 'completado' WHERE id = ? AND user_id = ? AND {$rWsCond}");
             $stmt->execute([$id, $userId]);
             echo json_encode(["message" => "Recordatorio completado."]);
         } else {

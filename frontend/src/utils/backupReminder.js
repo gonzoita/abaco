@@ -4,7 +4,13 @@
 // cargar la app. Lo que sí se puede es no depender de que el usuario se
 // acuerde, avisándole cuando el último respaldo ya está viejo.
 
+// El respaldo es por espacio (Personal / Negocio), así que la fecha del último
+// también: respaldar uno no debe apagar el aviso del otro. La clave del
+// espacio personal es la de siempre, para no perder lo ya registrado.
 export const BACKUP_STORAGE_KEY = 'abaco_last_backup_at'
+export function backupStorageKey(workspace = 'personal') {
+  return workspace === 'business' ? BACKUP_STORAGE_KEY + '_business' : BACKUP_STORAGE_KEY
+}
 export const STALE_AFTER_DAYS = 7
 
 export function daysSince(lastBackupIso, now = new Date()) {
@@ -27,18 +33,18 @@ export function isBackupStale(lastBackupIso, now = new Date(), staleAfterDays = 
 // localStorage puede no estar disponible (ventana privada, datos del sitio
 // bloqueados), y ahí el aviso simplemente no se muestra: nunca debe tumbar
 // la pantalla de Ajustes.
-export function readLastBackup() {
+export function readLastBackup(workspace = 'personal') {
   try {
-    return localStorage.getItem(BACKUP_STORAGE_KEY)
+    return localStorage.getItem(backupStorageKey(workspace))
   } catch {
     return null
   }
 }
 
-export function recordBackup(now = new Date()) {
+export function recordBackup(workspace = 'personal', now = new Date()) {
   const iso = now.toISOString()
   try {
-    localStorage.setItem(BACKUP_STORAGE_KEY, iso)
+    localStorage.setItem(backupStorageKey(workspace), iso)
   } catch {
     // Sin almacenamiento disponible no hay nada que recordar.
   }

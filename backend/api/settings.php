@@ -4,12 +4,16 @@ require_once __DIR__ . '/cors.php';
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/auth_helper.php';
 require_once __DIR__ . '/../lib/import_insert_row.php';
+require_once __DIR__ . '/../lib/backup_logic.php';
 
 $userData = authenticate();
 $userId = $userData['user_id'];
 $db = Database::getConnection();
 
 $method = $_SERVER['REQUEST_METHOD'];
+// Exportar, cargar y restablecer actúan solo sobre el espacio activo.
+$workspace = get_active_workspace();
+$workspaceLabel = $workspace === 'business' ? 'Negocio' : 'Personal';
 $action = isset($_GET['action']) ? $_GET['action'] : '';
 
 $input = json_decode(file_get_contents('php://input'), true);
@@ -20,52 +24,7 @@ if (!$input) {
 if ($method === 'GET') {
     if ($action === 'export_data') {
         try {
-            // Obtener perfil
-            $stmtUser = $db->prepare("SELECT id, name, email, currency, reminder_days_before FROM users WHERE id = ?");
-            $stmtUser->execute([$userId]);
-            $user = $stmtUser->fetch();
-
-            // Obtener categorías personalizadas (las del sistema son globales, user_id NULL, y siempre existen)
-            $stmtCats = $db->prepare("SELECT * FROM categories WHERE user_id = ?");
-            $stmtCats->execute([$userId]);
-            $categories = $stmtCats->fetchAll();
-
-            // Obtener cuentas
-            $stmtAcc = $db->prepare("SELECT * FROM accounts WHERE user_id = ?");
-            $stmtAcc->execute([$userId]);
-            $accounts = $stmtAcc->fetchAll();
-
-            // Obtener transacciones
-            $stmtTx = $db->prepare("SELECT * FROM transactions WHERE user_id = ? ORDER BY date DESC");
-            $stmtTx->execute([$userId]);
-            $transactions = $stmtTx->fetchAll();
-
-            // Obtener presupuestos
-            $stmtBudgets = $db->prepare("SELECT * FROM budgets WHERE user_id = ?");
-            $stmtBudgets->execute([$userId]);
-            $budgets = $stmtBudgets->fetchAll();
-
-            // Obtener metas
-            $stmtGoals = $db->prepare("SELECT * FROM savings_goals WHERE user_id = ?");
-            $stmtGoals->execute([$userId]);
-            $goals = $stmtGoals->fetchAll();
-
-            // Obtener recordatorios
-            $stmtRem = $db->prepare("SELECT * FROM reminders WHERE user_id = ?");
-            $stmtRem->execute([$userId]);
-            $reminders = $stmtRem->fetchAll();
-
-            echo json_encode([
-                "export_date" => date('Y-m-d H:i:s'),
-                "backup_version" => 1,
-                "user" => $user,
-                "categories" => $categories,
-                "accounts" => $accounts,
-                "transactions" => $transactions,
-                "budgets" => $budgets,
-                "savings_goals" => $goals,
-                "reminders" => $reminders
-            ]);
+            echo json_encode(backup_export($db, $userId, $workspace));
         } catch (Exception $e) {
             http_response_code(500);
             echo json_encode(["error" => "Error al exportar datos: " . $e->getMessage()]);
@@ -148,6 +107,16 @@ if ($method === 'POST') {
             exit();
         }
 
+        // Solo se carga lo que corresponde al espacio activo (ver backup_prepare_import).
+        $prepared = backup_prepare_import($backup, $workspace);
+        if (isset($prepared['error'])) {
+            http_response_code(400);
+            echo json_encode(["error" => $prepared['error']]);
+            exit();
+        }
+        $backup = $prepared['backup'];
+        $ignored = $prepared['ignored'];
+
         try {
             $db->beginTransaction();
 
@@ -216,7 +185,11 @@ if ($method === 'POST') {
             }
 
             $db->commit();
-            echo json_encode(["message" => "Respaldo restaurado con éxito.", "imported" => $imported]);
+            $message = "Respaldo restaurado en el espacio {$workspaceLabel}.";
+            if ($ignored > 0) {
+                $message .= " Se omitieron {$ignored} registro(s) que eran del otro espacio.";
+            }
+            echo json_encode(["message" => $message, "imported" => $imported, "ignored" => $ignored]);
         } catch (Exception $e) {
             if ($db->inTransaction()) $db->rollBack();
             http_response_code(500);
@@ -229,30 +202,11 @@ if ($method === 'POST') {
         try {
             $db->beginTransaction();
 
-            // Eliminar todos los datos transaccionales y de configuración del usuario
-            $db->prepare("DELETE FROM transactions WHERE user_id = ?")->execute([$userId]);
-            $db->prepare("DELETE FROM budgets WHERE user_id = ?")->execute([$userId]);
-            $db->prepare("DELETE FROM savings_goals WHERE user_id = ?")->execute([$userId]);
-            $db->prepare("DELETE FROM reminders WHERE user_id = ?")->execute([$userId]);
-            $db->prepare("DELETE FROM accounts WHERE user_id = ?")->execute([$userId]);
-            
-            // Eliminar categorías personalizadas (las del sistema tienen user_id NULL)
-            $db->prepare("DELETE FROM categories WHERE user_id = ?")->execute([$userId]);
-
-            // Recrear cuentas predeterminadas
-            $stmtUser = $db->prepare("SELECT currency FROM users WHERE id = ?");
-            $stmtUser->execute([$userId]);
-            $user = $stmtUser->fetch();
-            $currency = $user ? $user['currency'] : 'COP';
-
-            $stmtAcc = $db->prepare("INSERT INTO accounts (user_id, name, type, balance, currency, tax_exempt) VALUES (?, ?, ?, ?, ?, ?)");
-            // Efectivo (no exenta)
-            $stmtAcc->execute([$userId, 'Efectivo', 'efectivo', 0.00, $currency, 0]);
-            // Banco (exenta de 4x1000 por defecto de Laragon)
-            $stmtAcc->execute([$userId, 'Mi Cuenta de Ahorros', 'banco', 0.00, $currency, 1]);
+            // Solo el espacio activo: lo del otro espacio no se toca.
+            backup_reset_workspace($db, $userId, $workspace);
 
             $db->commit();
-            echo json_encode(["message" => "Base de datos restablecida con éxito. Se han recreado tus cuentas por defecto."]);
+            echo json_encode(["message" => "Se restablecieron los datos del espacio {$workspaceLabel} y se recrearon sus cuentas por defecto."]);
         } catch (Exception $e) {
             $db->rollBack();
             http_response_code(500);

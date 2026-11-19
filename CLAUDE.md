@@ -125,6 +125,12 @@ en el hosting, así que `deploy.php` usa `proc_open()`.
 - Toda query de datos de usuario debe filtrar por workspace activo vía
   `get_workspace_sql_clause()` — el modo "Mi Negocio" depende de esto para
   no mezclar datos con "Personal".
+- Los espacios son independientes de punta a punta: categorías propias del
+  negocio (se siembran una vez por usuario, `ws_seed_business_categories()`),
+  clientes de préstamos, recordatorios, respaldo y restablecer actúan solo
+  sobre el espacio activo. Un respaldo declara su espacio y no se carga en el
+  otro. Lógica pura en `backend/lib/workspace_data.php` y `backup_logic.php`.
+  Las migraciones de corrección dejan rastro en `workspace_fix_log`.
 - El presupuesto es "el vigente": un mes nuevo arranca con el del período
   anterior ya guardado (`budgets_ensure_period_filled()`), y lo que el
   usuario ajuste pasa a ser el vigente. No reintroducir herencia solo

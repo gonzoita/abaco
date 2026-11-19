@@ -3,6 +3,7 @@
 require_once __DIR__ . '/cors.php';
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/auth_helper.php';
+require_once __DIR__ . '/../lib/workspace_data.php';
 
 $userData = authenticate();
 $userId = $userData['user_id'];
@@ -19,6 +20,15 @@ if (!$input) {
 $workspace = get_active_workspace();
 
 if ($method === 'GET') {
+    // El negocio tiene sus propias categorías base, sembradas una sola vez
+    // por usuario: son suyas y editarlas o borrarlas no afecta a nadie más.
+    if ($workspace === 'business') {
+        try {
+            ws_seed_business_categories($db, $userId);
+        } catch (Exception $e) {
+            // Si la siembra falla, igual se listan las que haya.
+        }
+    }
     $wsCond = get_workspace_sql_clause('workspace');
     $stmt = $db->prepare("SELECT * FROM categories WHERE (user_id IS NULL OR user_id = ?) AND {$wsCond} ORDER BY user_id ASC, name ASC");
     $stmt->execute([$userId]);
@@ -93,13 +103,20 @@ if ($method === 'PUT') {
 
     try {
         // Obtener la categoría
-        $stmtCheck = $db->prepare("SELECT id, user_id FROM categories WHERE id = ?");
+        $stmtCheck = $db->prepare("SELECT id, user_id, workspace FROM categories WHERE id = ?");
         $stmtCheck->execute([$id]);
         $category = $stmtCheck->fetch();
         
         if (!$category) {
             http_response_code(404);
             echo json_encode(["error" => "Categoría no encontrada."]);
+            exit();
+        }
+        // Cada espacio tiene sus propias categorías: no se editan ni se borran
+        // desde el otro.
+        if (ws_norm($category['workspace'] ?? null) !== $workspace) {
+            http_response_code(404);
+            echo json_encode(["error" => "Esa categoría no pertenece a este espacio."]);
             exit();
         }
         
@@ -131,13 +148,20 @@ if ($method === 'DELETE') {
 
     try {
         // Obtener la categoría
-        $stmtCheck = $db->prepare("SELECT id, user_id FROM categories WHERE id = ?");
+        $stmtCheck = $db->prepare("SELECT id, user_id, workspace FROM categories WHERE id = ?");
         $stmtCheck->execute([$id]);
         $category = $stmtCheck->fetch();
         
         if (!$category) {
             http_response_code(404);
             echo json_encode(["error" => "Categoría no encontrada."]);
+            exit();
+        }
+        // Cada espacio tiene sus propias categorías: no se editan ni se borran
+        // desde el otro.
+        if (ws_norm($category['workspace'] ?? null) !== $workspace) {
+            http_response_code(404);
+            echo json_encode(["error" => "Esa categoría no pertenece a este espacio."]);
             exit();
         }
         

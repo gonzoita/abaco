@@ -23,7 +23,7 @@ const AI_PROMPT_DEFAULTS = [
         . "'comercio' (nombre del local o establecimiento, string), "
         . "'fecha' (fecha de compra en formato YYYY-MM-DD, string, si no se encuentra pon la fecha de hoy), "
         . "'monto' (el total pagado de la compra como número, sin símbolos de moneda ni comas de miles), "
-        . "'categoria_sugerida' (debe ser estrictamente una de estas categorías: Alimentación, Vivienda, Transporte, Salud, Entretenimiento, Servicios Públicos, Educación, Compras, Inversiones, Otros), "
+        . "'categoria_sugerida' (debe ser estrictamente una de estas categorías: {{CATEGORIAS_LISTA}}), "
         . "'descripcion' (resumen corto de los artículos comprados, string)."
         . "No incluyas explicaciones adicionales, texto introductorio, ni bloques de código de markdown. Devuelve solo el JSON puro.",
 
@@ -160,7 +160,7 @@ const AI_PROMPT_LABELS = [
 
 /** Placeholders válidos por prompt, para mostrarlos como referencia en el admin. */
 const AI_PROMPT_PLACEHOLDERS = [
-    'scan_receipt' => [],
+    'scan_receipt' => ['{{CATEGORIAS_LISTA}}'],
     'voice_transaction' => ['{{TRANSCRIPCION}}', '{{CATEGORIAS_JSON}}', '{{CUENTAS_JSON}}', '{{CUENTA_DEFECTO_ID}}'],
     'chat_business_system' => ['{{RESUMEN_FINANCIERO}}'],
     'chat_personal_system' => ['{{RESUMEN_FINANCIERO}}'],
