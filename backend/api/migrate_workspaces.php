@@ -13,6 +13,7 @@ if (php_sapi_name() !== 'cli') {
 require_once __DIR__ . '/cors.php';
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../config/migrations.php';
+require_once __DIR__ . '/../lib/workspace_data.php';
 
 header('Content-Type: application/json; charset=utf-8');
 
@@ -188,6 +189,64 @@ try {
         ) ENGINE=InnoDB");
         $migrated[] = 'ai_prompts (tabla nueva)';
         mark_migration_done($db, 'ai_prompts_table');
+    }
+
+    // ---- Independencia entre los espacios Personal y Negocio ----
+    // Tablas de apoyo: la bitácora de cada dato que se reasigna (para poder
+    // revertirlo a mano) y la marca de que a un usuario ya se le sembraron
+    // las categorías base del negocio.
+    if (!migration_done($db, 'workspace_fix_tables_v1')) {
+        $db->exec("CREATE TABLE IF NOT EXISTS workspace_fix_log (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            table_name VARCHAR(64) NOT NULL,
+            row_id INT NOT NULL,
+            column_name VARCHAR(64) NOT NULL,
+            old_value VARCHAR(255) NULL,
+            new_value VARCHAR(255) NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        ) ENGINE=InnoDB");
+        $db->exec("CREATE TABLE IF NOT EXISTS user_workspace_seeds (
+            user_id INT NOT NULL,
+            workspace VARCHAR(20) NOT NULL,
+            seeded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (user_id, workspace)
+        ) ENGINE=InnoDB");
+        $migrated[] = 'workspace_fix_log y user_workspace_seeds (tablas nuevas)';
+        mark_migration_done($db, 'workspace_fix_tables_v1');
+    }
+
+    // Movimientos y presupuestos de un espacio que apuntan a una categoría
+    // del otro pasan a la categoría equivalente de su propio espacio.
+    // Idempotente: cada cambio queda en workspace_fix_log.
+    if (!migration_done($db, 'categories_cross_workspace_fix_v1')) {
+        $db->beginTransaction();
+        try {
+            $moved = ws_fix_cross_workspace_categories($db);
+            $db->commit();
+        } catch (Exception $e) {
+            if ($db->inTransaction()) $db->rollBack();
+            throw $e;
+        }
+        $migrated[] = "categorías reasignadas a su espacio: {$moved} fila(s)";
+        mark_migration_done($db, 'categories_cross_workspace_fix_v1');
+    }
+
+    // Los clientes de préstamos quedaron todos como 'personal': se infiere su
+    // espacio de sus préstamos (ver ws_assign_client_workspaces).
+    if (!migration_done($db, 'loan_clients_workspace_v1')) {
+        $hasClients = $db->query("SHOW TABLES LIKE 'loan_clients'")->fetch() && $db->query("SHOW TABLES LIKE 'loans'")->fetch();
+        if ($hasClients) {
+            $db->beginTransaction();
+            try {
+                $clients = ws_assign_client_workspaces($db);
+                $db->commit();
+            } catch (Exception $e) {
+                if ($db->inTransaction()) $db->rollBack();
+                throw $e;
+            }
+            $migrated[] = "clientes de préstamos: {$clients['moved']} pasaron de espacio, {$clients['split']} se dividieron";
+        }
+        mark_migration_done($db, 'loan_clients_workspace_v1');
     }
 
     echo json_encode([

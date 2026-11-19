@@ -247,18 +247,20 @@
       <h3 class="card-title text-gradient-green">
         <i class="fa-solid fa-screwdriver-wrench"></i> Herramientas y Datos
       </h3>
-      <p class="card-subtitle">Administra tus bases de datos, exporta respaldos para análisis de IA o restablece el sistema</p>
+      <p class="card-subtitle">
+        Datos del espacio <strong>{{ workspaceLabel }}</strong>: exporta respaldos o restablécelo. Cada espacio se respalda y se restablece por separado; para trabajar con el otro, cámbialo arriba a la izquierda.
+      </p>
 
       <div class="tools-buttons" style="margin-top: 15px; display: flex; flex-direction: column; gap: 16px;">
         <div class="tool-action-group">
           <h4 style="font-size: 14.5px; font-weight: 500; margin-bottom: 4px;">Copia de Seguridad (SaaS Backup)</h4>
-          <p style="font-size: 12px; color: var(--text-secondary); margin-bottom: 8px;">Descarga o restaura toda tu información financiera (transacciones, presupuestos, cuentas, categorías) en formato JSON estructurado. Restaurar es aditivo: se suma a lo que ya tienes, no lo reemplaza.</p>
+          <p style="font-size: 12px; color: var(--text-secondary); margin-bottom: 8px;">Descarga o restaura la información financiera del espacio {{ workspaceLabel }} (transacciones, presupuestos, cuentas y categorías) en formato JSON. Un respaldo solo se puede cargar en el espacio del que salió. Restaurar es aditivo: se suma a lo que ya tienes, no lo reemplaza.</p>
 
           <div v-if="backupStale" style="display:flex; align-items:center; gap:10px; padding:10px 12px; margin-bottom:10px; border-radius:10px; background:rgba(239,68,68,0.12); border:1px solid rgba(239,68,68,0.3);">
             <i class="fa-solid fa-triangle-exclamation" style="color:#f87171; font-size:18px;"></i>
             <span style="font-size:12.5px; color:var(--text-secondary);">
-              <strong style="color:#f87171;">Tu respaldo está viejo.</strong>
-              {{ backupAgeDays === null ? 'No hay ningún respaldo registrado en este dispositivo.' : `El último fue hace ${backupAgeDays} día(s).` }}
+              <strong style="color:#f87171;">Tu respaldo del espacio {{ workspaceLabel }} está viejo.</strong>
+              {{ backupAgeDays === null ? 'No hay ningún respaldo de este espacio registrado en este dispositivo.' : `El último fue hace ${backupAgeDays} día(s).` }}
               Respalda ahora para no perder tu presupuesto ni tu historial.
             </span>
           </div>
@@ -316,9 +318,9 @@
 
         <div class="tool-action-group danger-zone" style="border-top: 1px solid var(--card-border); padding-top: 12px;">
           <h4 style="font-size: 14.5px; font-weight: 500; margin-bottom: 4px; color: var(--color-danger);">Zona de Peligro</h4>
-          <p style="font-size: 12px; color: var(--text-secondary); margin-bottom: 8px;">Borra de forma permanente todas tus transacciones, presupuestos y cuentas personalizadas. Esto reiniciará tus saldos a cero.</p>
+          <p style="font-size: 12px; color: var(--text-secondary); margin-bottom: 8px;">Borra de forma permanente las transacciones, presupuestos, cuentas y categorías propias del espacio {{ workspaceLabel }} y recrea sus cuentas por defecto. El otro espacio no se toca.</p>
           <button class="btn-danger btn-tool" @click="resetDatabase" style="width: 100%;">
-            <i class="fa-solid fa-trash-can"></i> Restablecer Aplicación
+            <i class="fa-solid fa-trash-can"></i> Restablecer espacio {{ workspaceLabel }}
           </button>
         </div>
       </div>
@@ -819,12 +821,23 @@ export default {
       }
     }
 
-    const lastBackupAt = ref(readLastBackup())
+    // Espacio con el que se está trabajando (cambiarlo recarga la app).
+    const currentWorkspace = localStorage.getItem('active_workspace') === 'business' ? 'business' : 'personal'
+    const workspaceLabel = (() => {
+      if (currentWorkspace !== 'business') return 'Personal'
+      try {
+        return JSON.parse(localStorage.getItem('user') || '{}').business_name || 'Mi Negocio'
+      } catch (e) {
+        return 'Mi Negocio'
+      }
+    })()
+
+    const lastBackupAt = ref(readLastBackup(currentWorkspace))
     const backupStale = ref(isBackupStale(lastBackupAt.value))
     const backupAgeDays = ref(daysSince(lastBackupAt.value))
 
     const markBackupDone = () => {
-      lastBackupAt.value = recordBackup()
+      lastBackupAt.value = recordBackup(currentWorkspace)
       backupStale.value = false
       backupAgeDays.value = 0
     }
@@ -847,7 +860,7 @@ export default {
         const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(data, null, 2))
         const downloadAnchor = document.createElement('a')
         downloadAnchor.setAttribute("href", dataStr)
-        downloadAnchor.setAttribute("download", `respaldo_finanzas_${new Date().toISOString().split('T')[0]}.json`)
+        downloadAnchor.setAttribute("download", `respaldo_${currentWorkspace}_${new Date().toISOString().split('T')[0]}.json`)
         document.body.appendChild(downloadAnchor)
         downloadAnchor.click()
         downloadAnchor.remove()
@@ -910,7 +923,7 @@ export default {
           alert('El archivo seleccionado no es un JSON válido.')
           return
         }
-        if (!confirm('¿Restaurar este respaldo? Se agregará a tu cuenta actual, no reemplaza lo que ya tienes.')) return
+        if (!confirm(`¿Restaurar este respaldo en el espacio ${workspaceLabel}? Se agregará a lo que ya tienes, no lo reemplaza.`)) return
         sendImport(backupData)
       }
       reader.readAsText(file)
@@ -996,7 +1009,7 @@ export default {
         const data = await res.json()
 
         const folderId = await ensureDriveFolder(token)
-        const fileName = `abaco_respaldo_${new Date().toISOString().split('T')[0]}_${Date.now()}.json`
+        const fileName = `abaco_respaldo_${currentWorkspace}_${new Date().toISOString().split('T')[0]}_${Date.now()}.json`
         const metadata = { name: fileName, parents: [folderId], mimeType: 'application/json' }
         const boundary = 'abaco_boundary_' + Date.now()
         const fileContent = JSON.stringify(data, null, 2)
@@ -1049,7 +1062,7 @@ export default {
     }
 
     const importFromDriveFile = async (fileId, fileName) => {
-      if (!confirm(`¿Restaurar el respaldo "${fileName}"? Se agregará a tu cuenta actual, no reemplaza lo que ya tienes.`)) return
+      if (!confirm(`¿Restaurar el respaldo "${fileName}" en el espacio ${workspaceLabel}? Se agregará a lo que ya tienes, no lo reemplaza.`)) return
       driveFilesModal.value = false
       try {
         const token = await getDriveAccessToken()
@@ -1066,11 +1079,13 @@ export default {
 
     // Restablecer base de datos
     const resetDatabase = async () => {
-      const confirm1 = confirm('¿ATENCIÓN! ¿Estás seguro de que deseas restablecer la base de datos? Se borrarán todas las transacciones, cuentas y presupuestos creados.')
+      const confirm1 = confirm(`ATENCIÓN: vas a restablecer el espacio ${workspaceLabel}. Se borrarán sus transacciones, cuentas, presupuestos y categorías propias. El otro espacio no se toca.`)
       if (!confirm1) return
 
-      const confirm2 = confirm('Esta acción no se puede deshacer. Escribe "ACEPTAR" para proceder a borrar todo.')
-      if (!confirm2) return
+      // El mensaje pedía escribir "ACEPTAR" pero solo mostraba un confirm: en
+      // una acción irreversible hay que escribirlo de verdad.
+      const typed = prompt(`Esta acción no se puede deshacer. Escribe ACEPTAR para borrar los datos del espacio ${workspaceLabel}.`)
+      if (!typed || typed.trim().toUpperCase() !== 'ACEPTAR') return
 
       const token = localStorage.getItem('token')
       try {
@@ -1164,6 +1179,7 @@ export default {
       lastBackupAt,
       backupStale,
       backupAgeDays,
+      workspaceLabel,
       importing,
       importFileInput,
       triggerImportFile,

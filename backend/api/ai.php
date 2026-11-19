@@ -6,6 +6,7 @@ require_once __DIR__ . '/auth_helper.php';
 require_once __DIR__ . '/../lib/gemini_response.php';
 require_once __DIR__ . '/../lib/ai_prompts.php';
 require_once __DIR__ . '/../lib/ai_providers.php';
+require_once __DIR__ . '/../lib/workspace_data.php';
 require_once __DIR__ . '/../lib/finance_analytics.php';
 
 $userData = authenticate();
@@ -451,7 +452,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         // Construir prompt para estructurar la salida en JSON (editable desde
         // el panel de admin -> Prompts IA, ver backend/lib/ai_prompts.php)
-        $prompt = ai_prompt_get($db, 'scan_receipt');
+        // Solo las categorías de gasto del espacio activo: el escáner del negocio
+        // sugiere "Proveedores", no "Alimentación". Si por algo no hay ninguna,
+        // queda la lista base de siempre.
+        $workspace = get_active_workspace();
+        $categoryNames = [];
+        try {
+            if ($workspace === 'business') {
+                ws_seed_business_categories($db, $userId);
+            }
+            $stmtNames = $db->prepare("SELECT name FROM categories WHERE type = 'egreso' AND (user_id IS NULL OR user_id = ?) AND " . get_workspace_sql_clause('workspace') . " ORDER BY name");
+            $stmtNames->execute([$userId]);
+            $categoryNames = $stmtNames->fetchAll(PDO::FETCH_COLUMN);
+        } catch (Exception $e) {}
+        if (empty($categoryNames)) {
+            $categoryNames = ['Alimentación', 'Vivienda', 'Transporte', 'Salud', 'Entretenimiento', 'Servicios Públicos', 'Educación', 'Compras', 'Inversiones', 'Otros'];
+        }
+
+        $prompt = ai_prompt_fill(ai_prompt_get($db, 'scan_receipt'), [
+            '{{CATEGORIAS_LISTA}}' => implode(', ', $categoryNames),
+        ]);
 
         $payload = [
             "contents" => [
@@ -502,7 +522,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $accountsList = [];
         try {
             $aWsCond = get_workspace_sql_clause('workspace');
-            $stmtC = $db->prepare("SELECT id, name, type FROM categories WHERE user_id = ? OR is_default = 1");
+            // Las categorías del espacio activo y solo esas: antes se mezclaban
+            // las del negocio y las personales.
+            if (get_active_workspace() === 'business') {
+                ws_seed_business_categories($db, $userId);
+            }
+            $stmtC = $db->prepare("SELECT id, name, type FROM categories WHERE (user_id IS NULL OR user_id = ?) AND " . get_workspace_sql_clause('workspace'));
             $stmtC->execute([$userId]);
             $categoriesList = $stmtC->fetchAll(PDO::FETCH_ASSOC);
 

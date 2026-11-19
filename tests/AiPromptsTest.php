@@ -67,6 +67,19 @@ final class AiPromptsTest extends TestCase
         $this->assertSame('Cuentas: [{"id":1}] | Defecto: 1', $result);
     }
 
+    // Las categorías del recibo dependen del espacio activo (Personal / Negocio):
+    // el prompt ya no lleva una lista fija, la recibe por este token.
+    public function testScanReceiptTakesItsCategoriesFromTheWorkspaceToken(): void
+    {
+        $this->assertStringContainsString('{{CATEGORIAS_LISTA}}', AI_PROMPT_DEFAULTS['scan_receipt']);
+        $this->assertContains('{{CATEGORIAS_LISTA}}', AI_PROMPT_PLACEHOLDERS['scan_receipt']);
+
+        $filled = ai_prompt_fill(AI_PROMPT_DEFAULTS['scan_receipt'], ['{{CATEGORIAS_LISTA}}' => 'Proveedores, Nómina']);
+
+        $this->assertStringContainsString('Proveedores, Nómina', $filled);
+        $this->assertStringNotContainsString('{{CATEGORIAS_LISTA}}', $filled);
+    }
+
     public function testLeavesUnknownTokensUntouched(): void
     {
         $result = ai_prompt_fill('Texto sin marcadores conocidos {{OTRO}}', ['{{NOMBRE}}' => 'Ana']);

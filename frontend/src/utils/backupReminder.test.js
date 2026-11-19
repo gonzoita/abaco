@@ -1,5 +1,5 @@
-import { describe, it, expect } from 'vitest'
-import { daysSince, isBackupStale } from './backupReminder.js'
+import { describe, it, expect, beforeEach } from 'vitest'
+import { daysSince, isBackupStale, backupStorageKey, readLastBackup, recordBackup } from './backupReminder.js'
 
 describe('daysSince', () => {
   it('returns null when there is no recorded backup', () => {
@@ -37,5 +37,37 @@ describe('isBackupStale', () => {
     const now = new Date('2026-10-02T12:00:00Z')
     expect(isBackupStale('2026-09-25T12:00:00Z', now, 7)).toBe(true)
     expect(isBackupStale('2026-09-26T12:00:00Z', now, 7)).toBe(false)
+  })
+})
+
+describe('respaldo por espacio', () => {
+  beforeEach(() => {
+    const data = new Map()
+    globalThis.localStorage = {
+      getItem: (k) => (data.has(k) ? data.get(k) : null),
+      setItem: (k, v) => data.set(k, String(v)),
+      removeItem: (k) => data.delete(k),
+    }
+  })
+
+  it('keeps the legacy key for the personal space', () => {
+    expect(backupStorageKey('personal')).toBe('abaco_last_backup_at')
+    expect(backupStorageKey()).toBe('abaco_last_backup_at')
+    expect(backupStorageKey('business')).not.toBe(backupStorageKey('personal'))
+  })
+
+  // Caso real: respaldar el espacio personal no debe apagar el aviso del negocio.
+  it('backing up one space does not clear the warning of the other', () => {
+    recordBackup('personal', new Date('2026-11-14T12:00:00Z'))
+
+    expect(readLastBackup('personal')).toBe('2026-11-14T12:00:00.000Z')
+    expect(readLastBackup('business')).toBeNull()
+    expect(isBackupStale(readLastBackup('business'))).toBe(true)
+  })
+
+  it('does not lose a backup date recorded before spaces existed', () => {
+    localStorage.setItem('abaco_last_backup_at', '2026-11-10T00:00:00.000Z')
+
+    expect(readLastBackup('personal')).toBe('2026-11-10T00:00:00.000Z')
   })
 })
