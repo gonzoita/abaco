@@ -1934,9 +1934,7 @@ body.light-theme .trial-badge {
 }
 
 .btn-ai-scan:hover {
-  background: var(--accent-soft);
   border-color: var(--color-accent);
-  box-shadow: none;
 }
 
 .hidden-input {
@@ -2375,13 +2373,13 @@ body.light-theme .trial-badge {
 
 /* Acciones rápidas: la voz es la acción principal; el resto, neutras */
 .actions-container .btn-ai-scan {
-  background: transparent;
+  background: var(--surface-gradient);
   border: 1px solid var(--card-border-strong);
   color: var(--text-primary);
-  box-shadow: none;
+  box-shadow: var(--shadow-btn);
 }
 .actions-container .btn-ai-scan:hover {
-  background: var(--hover-bg);
   border-color: var(--text-muted);
+  transform: translateY(-1px);
 }
 </style>
