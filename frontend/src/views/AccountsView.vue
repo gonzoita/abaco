@@ -342,7 +342,7 @@
           </div>
 
           <div v-if="loanAILoading" class="loan-ai-loading" style="display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 40px 20px; gap: 16px; color: var(--text-secondary);">
-            <div class="spinner" style="width: 32px; height: 32px; border: 3px solid rgba(94, 92, 230, 0.15); border-top-color: var(--color-accent); border-radius: 50%; animation: spin 1s linear infinite;"></div>
+            <div class="spinner" style="width: 32px; height: 32px; border: 3px solid var(--accent-soft); border-top-color: var(--color-accent); border-radius: 50%; animation: spin 1s linear infinite;"></div>
             <p style="text-align: center; font-size: 14px;">La IA está analizando tu préstamo y calculando consejos para ahorrar intereses...</p>
           </div>
 
@@ -898,8 +898,8 @@ Dame un análisis financiero y 3 o 4 consejos específicos sobre cómo puedo pag
 }
 
 .account-card.tarjeta_credito {
-  background: linear-gradient(135deg, rgba(28, 28, 30, 0.9), rgba(94, 92, 230, 0.2));
-  border-color: rgba(94, 92, 230, 0.3);
+  background: linear-gradient(135deg, rgba(28, 28, 30, 0.9), var(--accent-soft));
+  border-color: var(--accent-soft);
 }
 
 .card-chip {
@@ -1125,10 +1125,10 @@ Dame un análisis financiero y 3 o 4 consejos específicos sobre cómo puedo pag
 }
 
 .credit-card-fields-wrapper {
-  background: rgba(99, 102, 241, 0.04);
+  background: var(--accent-soft);
   padding: 12px;
   border-radius: var(--radius-sm);
-  border: 1px dashed rgba(99, 102, 241, 0.2);
+  border: 1px dashed var(--accent-soft);
   margin-bottom: 8px;
   display: flex;
   flex-direction: column;
@@ -1257,8 +1257,8 @@ Dame un análisis financiero y 3 o 4 consejos específicos sobre cómo puedo pag
 
 .btn-ai-loan {
   margin-top: 14px;
-  background: rgba(94, 92, 230, 0.08);
-  border: 1px solid rgba(94, 92, 230, 0.2);
+  background: var(--accent-soft);
+  border: 1px solid var(--accent-soft);
   color: var(--color-accent);
   border-radius: var(--radius-sm);
   padding: 8px 12px;
@@ -1274,7 +1274,7 @@ Dame un análisis financiero y 3 o 4 consejos específicos sobre cómo puedo pag
 }
 
 .btn-ai-loan:hover {
-  background: rgba(94, 92, 230, 0.15);
+  background: var(--accent-soft);
   border-color: var(--color-accent);
 }
 

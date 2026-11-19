@@ -1461,7 +1461,7 @@ export default {
 }
 
 .status-activo {
-  background: rgba(10, 132, 255, 0.1);
+  background: var(--accent-soft);
   color: var(--color-primary);
 }
 
@@ -1937,7 +1937,7 @@ export default {
 }
 
 .btn-collect-action {
-  background: rgba(10, 132, 255, 0.1);
+  background: var(--accent-soft);
   color: var(--color-primary);
   border: none;
   font-size: 11px;

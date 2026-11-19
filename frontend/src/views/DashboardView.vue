@@ -3,7 +3,7 @@
     <!-- Encabezado de bienvenida -->
     <div class="view-header dashboard-header">
       <div>
-        <div v-if="activeWorkspace === 'business'" style="display:inline-flex; align-items:center; gap:6px; padding:4px 10px; border-radius:20px; background:rgba(56,189,248,0.15); border:1px solid rgba(56,189,248,0.3); color:#38bdf8; font-size:12px; font-weight:700; margin-bottom:6px;">
+        <div v-if="activeWorkspace === 'business'" style="display:inline-flex; align-items:center; gap:6px; padding:4px 10px; border-radius:20px; background:var(--accent-soft); border:1px solid var(--accent-soft); color:var(--color-primary); font-size:12px; font-weight:700; margin-bottom:6px;">
           <i class="fa-solid fa-store"></i> Panel de {{ businessName || 'Mi Negocio' }}
         </div>
         <h1 class="view-title">{{ activeWorkspace === 'business' ? (businessName || 'Mi Negocio') : 'Hola, ' + user.name }}</h1>
@@ -38,7 +38,7 @@
 
     <!-- Grid de Balances Principales -->
     <div v-else class="balance-grid" :class="{ 'business-grid': activeWorkspace === 'business' }">
-      <div class="glass-card balance-card total" :style="activeWorkspace === 'business' ? { borderTop: '3px solid #38bdf8' } : {}">
+      <div class="glass-card balance-card total" :style="activeWorkspace === 'business' ? { borderTop: '3px solid var(--color-primary)' } : {}">
         <span class="card-label">{{ activeWorkspace === 'business' ? 'Caja & Liquidez del Negocio' : 'Balance Total' }}</span>
         <h2 class="amount">
           {{ formatCurrency(totalAccountsBalance) }}
@@ -311,14 +311,14 @@
         </div>
 
         <!-- Banner de Filtro de Categoría Activo -->
-        <div v-if="selectedCategoryFilter" class="category-filter-banner" style="display:flex; justify-content:space-between; align-items:center; background:rgba(10,132,255,0.15); border:1px solid rgba(10,132,255,0.3); padding:10px 14px; border-radius:8px; margin-bottom:16px; font-size:13.5px; color:var(--text-primary);">
+        <div v-if="selectedCategoryFilter" class="category-filter-banner" style="display:flex; justify-content:space-between; align-items:center; background:var(--accent-soft); border:1px solid var(--accent-soft); padding:10px 14px; border-radius:8px; margin-bottom:16px; font-size:13.5px; color:var(--text-primary);">
           <span>
-            <i class="fa-solid fa-filter" style="color:#0a84ff; margin-right:6px;"></i>
-            Filtrando categoría: <strong style="color:#0a84ff;">{{ selectedCategoryFilter }}</strong>
+            <i class="fa-solid fa-filter" style="color:var(--color-primary); margin-right:6px;"></i>
+            Filtrando categoría: <strong style="color:var(--color-primary);">{{ selectedCategoryFilter }}</strong>
             <template v-if="filterLoading"> · <i class="fa-solid fa-circle-notch fa-spin"></i> cargando movimientos...</template>
             <template v-else> ({{ filteredTransactions.length }} movimientos)</template>
           </span>
-          <button @click="clearCategoryFilter" style="background:none; border:none; color:#0a84ff; font-weight:700; cursor:pointer; font-size:12px; outline:none;">Quitar Filtro</button>
+          <button @click="clearCategoryFilter" style="background:none; border:none; color:var(--color-primary); font-weight:700; cursor:pointer; font-size:12px; outline:none;">Quitar Filtro</button>
         </div>
 
         <div v-if="filterLoading && filteredTransactions.length === 0" class="empty-state">
@@ -465,7 +465,7 @@
                   type="button" 
                   class="cat-chip-btn create-new-chip" 
                   @click="createCategoryOnTheFly(categorySearchQuery)"
-                  style="display:inline-flex; align-items:center; gap:6px; padding:6px 10px; border-radius:6px; border:1px dashed var(--color-primary); background:rgba(10,132,255,0.15); color:var(--color-primary); font-size:12px; font-weight:600; cursor:pointer;"
+                  style="display:inline-flex; align-items:center; gap:6px; padding:6px 10px; border-radius:6px; border:1px dashed var(--color-primary); background:var(--accent-soft); color:var(--color-primary); font-size:12px; font-weight:600; cursor:pointer;"
                 >
                   <i class="fa-solid fa-plus"></i>
                   <span>Crear "{{ categorySearchQuery.trim() }}"</span>
@@ -1741,13 +1741,13 @@ export default {
   text-transform: uppercase;
   letter-spacing: 0.5px;
   color: var(--color-primary);
-  background: rgba(10, 132, 255, 0.08);
-  border: 1px solid rgba(10, 132, 255, 0.15);
+  background: var(--accent-soft);
+  border: 1px solid var(--accent-soft);
 }
 body.light-theme .trial-badge {
-  background: rgba(0, 122, 255, 0.06);
-  border-color: rgba(0, 122, 255, 0.12);
-  color: #007aff;
+  background: var(--accent-soft);
+  border-color: var(--accent-soft);
+  color: var(--color-primary);
 }
 
 .balance-grid {
@@ -1774,13 +1774,6 @@ body.light-theme .trial-badge {
   background: var(--card-bg);
 }
 
-.balance-card.income {
-  border-color: rgba(48, 209, 88, 0.15);
-}
-
-.balance-card.expense {
-  border-color: rgba(255, 69, 58, 0.15);
-}
 
 .card-label {
   font-size: 14px;
@@ -1818,12 +1811,12 @@ body.light-theme .trial-badge {
 }
 
 .income .card-header-icon {
-  background: rgba(16, 185, 129, 0.1);
+  background: transparent;
   color: var(--color-success);
 }
 
 .expense .card-header-icon {
-  background: rgba(239, 68, 68, 0.1);
+  background: transparent;
   color: var(--color-danger);
 }
 
@@ -2193,7 +2186,7 @@ body.light-theme .trial-badge {
 
 .btn-edit-action-small:hover {
   color: var(--color-primary);
-  background: rgba(10, 132, 255, 0.15);
+  background: var(--accent-soft);
 }
 
 .btn-delete i, .btn-edit-action-small i {
@@ -2260,10 +2253,10 @@ body.light-theme .trial-badge {
 
 .card-installments {
   animation: fadeIn 0.3s ease;
-  background: rgba(99, 102, 241, 0.05);
+  background: var(--accent-soft);
   padding: 12px;
   border-radius: var(--radius-sm);
-  border: 1px dashed rgba(99, 102, 241, 0.3);
+  border: 1px dashed var(--accent-soft);
 }
 
 @keyframes scaleIn {

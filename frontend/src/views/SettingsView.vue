@@ -25,10 +25,10 @@
           </div>
 
           <div class="form-group" style="margin-top: 12px; margin-bottom: 12px;">
-            <label for="set-bizname" style="color:#38bdf8; font-weight:700; display:flex; align-items:center; gap:6px;">
+            <label for="set-bizname" style="color:var(--color-primary); font-weight:700; display:flex; align-items:center; gap:6px;">
               <i class="fa-solid fa-store"></i> Nombre de tu Negocio / Emprendimiento
             </label>
-            <input type="text" id="set-bizname" v-model="form.business_name" placeholder="Ej: Mi Tienda, Calzado Express, Restaurante..." style="border-color: rgba(56,189,248,0.4);" />
+            <input type="text" id="set-bizname" v-model="form.business_name" placeholder="Ej: Mi Tienda, Calzado Express, Restaurante..." style="border-color: var(--accent-soft);" />
           </div>
 
           <div class="form-row">
@@ -89,7 +89,7 @@
               @click="selectProvider(p.id)"
               :style="{ flex:'1', padding:'9px 12px', borderRadius:'10px', fontSize:'13px', fontWeight:'700', cursor:'pointer',
                         border: aiProvider === p.id ? '1px solid var(--color-primary)' : '1px solid var(--card-border)',
-                        background: aiProvider === p.id ? 'rgba(99,102,241,0.15)' : 'rgba(255,255,255,0.04)',
+                        background: aiProvider === p.id ? 'var(--accent-soft)' : 'rgba(255,255,255,0.04)',
                         color: aiProvider === p.id ? 'var(--text-primary)' : 'var(--text-secondary)' }">
               {{ p.name }}
               <span v-if="activeProvider === p.id && hasActiveKey" style="font-size:10.5px; font-weight:600; color:var(--color-success); margin-left:4px;">· en uso</span>
@@ -100,7 +100,7 @@
           <div v-if="geminiApiKey && aiProvider === activeProvider" style="display:flex; align-items:center; gap:8px; margin-top:10px; padding:8px 12px; border-radius:8px; background:rgba(48,209,88,0.1); border:1px solid rgba(48,209,88,0.2); color:var(--color-success); font-size:12.5px; font-weight:600;">
             <i class="fa-solid fa-circle-check"></i> Tu clave de {{ currentProvider.name }} está configurada y en uso. El Asesor IA y el dictado por voz ya funcionan.
           </div>
-          <div v-else-if="geminiApiKey" style="display:flex; align-items:center; gap:8px; margin-top:10px; padding:8px 12px; border-radius:8px; background:rgba(99,102,241,0.1); border:1px solid rgba(99,102,241,0.25); color:var(--text-secondary); font-size:12.5px; font-weight:600;">
+          <div v-else-if="geminiApiKey" style="display:flex; align-items:center; gap:8px; margin-top:10px; padding:8px 12px; border-radius:8px; background:var(--accent-soft); border:1px solid var(--accent-soft); color:var(--text-secondary); font-size:12.5px; font-weight:600;">
             <i class="fa-solid fa-circle-info"></i> Tienes una clave de {{ currentProvider.name }} guardada, pero hoy la app usa {{ activeProviderName }}. Presiona "Vincular" para cambiar a {{ currentProvider.name }}.
           </div>
           <div v-else style="display:flex; align-items:center; gap:8px; margin-top:10px; padding:8px 12px; border-radius:8px; background:rgba(255,159,10,0.1); border:1px solid rgba(255,159,10,0.25); color:var(--color-warning); font-size:12.5px; font-weight:600;">
@@ -235,7 +235,7 @@
           <span>Exportar a Excel / CSV</span>
         </button>
 
-        <button @click="openPnlModal" class="btn-primary" style="background:linear-gradient(135deg, #0ea5e9, #6366f1); display:flex; align-items:center; justify-content:center; gap:8px; height:42px; font-size:13px; border-radius:8px;">
+        <button @click="openPnlModal" class="btn-primary" style="background:linear-gradient(135deg, #0ea5e9, var(--color-primary)); display:flex; align-items:center; justify-content:center; gap:8px; height:42px; font-size:13px; border-radius:8px;">
           <i class="fa-solid fa-chart-line"></i>
           <span>Estado de Resultados (P&L)</span>
         </button>
@@ -431,9 +431,9 @@
           </div>
 
           <!-- 3. Utilidad / Ganancia Neta -->
-          <div :style="{ background: (pnlData.totals?.neto || 0) >= 0 ? 'rgba(56,189,248,0.15)' : 'rgba(239,68,68,0.15)', borderColor: (pnlData.totals?.neto || 0) >= 0 ? '#38bdf8' : '#ef4444' }" style="border:1px solid; border-radius:12px; padding:16px; display:flex; justify-content:space-between; align-items:center;">
+          <div :style="{ background: (pnlData.totals?.neto || 0) >= 0 ? 'var(--accent-soft)' : 'var(--danger-bg)', borderColor: (pnlData.totals?.neto || 0) >= 0 ? 'var(--card-border-strong)' : 'var(--color-danger)' }" style="border:1px solid; border-radius:12px; padding:16px; display:flex; justify-content:space-between; align-items:center;">
             <div>
-              <span style="font-size:11.5px; text-transform:uppercase; font-weight:700; letter-spacing:0.5px;" :style="{ color: (pnlData.totals?.neto || 0) >= 0 ? '#38bdf8' : '#ef4444' }">
+              <span style="font-size:11.5px; text-transform:uppercase; font-weight:700; letter-spacing:0.5px;" :style="{ color: (pnlData.totals?.neto || 0) >= 0 ? 'var(--color-primary)' : '#ef4444' }">
                 (=) Utilidad Neta Operativa (P&L)
               </span>
               <h2 style="margin:4px 0 0 0; font-size:24px; font-weight:800; color:var(--text-primary);">{{ formatCurrency(pnlData.totals?.neto || 0) }}</h2>
@@ -527,7 +527,7 @@ export default {
     const catForm = ref({
       name: '',
       type: 'egreso',
-      color: '#6366f1',
+      color: '#6b86b0',
       icon: 'fa-tag'
     })
 
@@ -545,7 +545,7 @@ export default {
         catForm.value = {
           name: '',
           type: 'egreso',
-          color: '#6366f1',
+          color: '#6b86b0',
           icon: 'fa-tag'
         }
       }
@@ -791,7 +791,7 @@ export default {
       catForm.value = {
         name: '',
         type: 'egreso',
-        color: '#6366f1',
+        color: '#6b86b0',
         icon: 'fa-tag'
       }
       catError.value = ''
@@ -1240,8 +1240,8 @@ export default {
   width: 20px;
   height: 20px;
   border-radius: 50%;
-  background: rgba(10, 132, 255, 0.15);
-  color: #0a84ff;
+  background: var(--accent-soft);
+  color: var(--color-primary);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1251,8 +1251,8 @@ export default {
   margin-top: 1px;
 }
 body.light-theme .step-num {
-  background: rgba(0, 122, 255, 0.1);
-  color: #007aff;
+  background: var(--accent-soft);
+  color: var(--color-primary);
 }
 
 .step-item p {
@@ -1529,8 +1529,8 @@ body.light-theme .step-item p code {
 }
 
 .btn-edit-action {
-  background: rgba(99, 102, 241, 0.15);
-  border: 1px solid rgba(99, 102, 241, 0.3);
+  background: var(--accent-soft);
+  border: 1px solid var(--accent-soft);
   color: var(--color-accent);
   width: 32px;
   height: 32px;
@@ -1598,7 +1598,7 @@ body.light-theme .step-item p code {
 }
 
 .btn-secondary.active {
-  background: rgba(10, 132, 255, 0.12) !important;
+  background: var(--accent-soft) !important;
   border-color: var(--color-primary) !important;
   color: var(--color-primary) !important;
 }

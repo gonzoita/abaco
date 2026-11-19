@@ -49,7 +49,7 @@
             </div>
             <div class="step-item">
               <span class="step-num">2</span>
-              <p>Toca el botón <strong>Compartir</strong> <i class="fa-solid fa-arrow-up-from-bracket" style="color: #007aff;"></i> en la parte inferior</p>
+              <p>Toca el botón <strong>Compartir</strong> <i class="fa-solid fa-arrow-up-from-bracket" style="color: var(--color-primary);"></i> en la parte inferior</p>
             </div>
             <div class="step-item">
               <span class="step-num">3</span>
@@ -614,8 +614,8 @@ body.light-theme .tab-btn.active {
   width: 20px;
   height: 20px;
   border-radius: 50%;
-  background: rgba(10, 132, 255, 0.15);
-  color: #0a84ff;
+  background: var(--accent-soft);
+  color: var(--color-primary);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -625,8 +625,8 @@ body.light-theme .tab-btn.active {
   margin-top: 1px;
 }
 body.light-theme .step-num {
-  background: rgba(0, 122, 255, 0.1);
-  color: #007aff;
+  background: var(--accent-soft);
+  color: var(--color-primary);
 }
 
 .step-item p {

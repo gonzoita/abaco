@@ -3,7 +3,7 @@
     <div class="view-header">
       <div>
         <h1 class="view-title" style="display:flex; align-items:center; gap:10px;">
-          <i class="fa-solid fa-film" style="color:#a855f7;"></i> Tutoriales en Video
+          <i class="fa-solid fa-film" style="color:var(--color-primary);"></i> Tutoriales en Video
         </h1>
         <p class="view-subtitle">Aprende a dominar todas las funciones de Ábaco y escalar tus finanzas paso a paso</p>
       </div>
@@ -33,10 +33,10 @@
         <div class="video-thumbnail-container" style="position:relative; width:100%; height:160px; border-radius:12px; overflow:hidden; background:#1e293b; display:flex; align-items:center; justify-content:center;">
           <img v-if="video.thumbnail" :src="video.thumbnail" :alt="video.title" style="width:100%; height:100%; object-fit:cover;" />
           <div v-else style="display:flex; flex-direction:column; align-items:center; gap:8px; color:var(--text-muted);">
-            <i class="fa-solid fa-circle-play" style="font-size:42px; color:#a855f7;"></i>
+            <i class="fa-solid fa-circle-play" style="font-size:42px; color:var(--color-primary);"></i>
           </div>
           <div class="play-overlay" style="position:absolute; inset:0; background:rgba(0,0,0,0.35); display:flex; align-items:center; justify-content:center; opacity:0.9; transition:all 0.2s ease;">
-            <div style="width:50px; height:50px; border-radius:50%; background:rgba(168,85,247,0.9); display:flex; align-items:center; justify-content:center; color:#fff; font-size:18px; box-shadow:0 4px 15px rgba(168,85,247,0.5);">
+            <div style="width:50px; height:50px; border-radius:50%; background:var(--accent-soft); display:flex; align-items:center; justify-content:center; color:#fff; font-size:18px; box-shadow:0 4px 15px var(--accent-soft);">
               <i class="fa-solid fa-play" style="margin-left:3px;"></i>
             </div>
           </div>
@@ -46,7 +46,7 @@
         </div>
 
         <div class="tutorial-card-body" style="padding-top:14px;">
-          <span class="category-badge" style="font-size:10px; font-weight:700; text-transform:uppercase; color:#38bdf8; letter-spacing:0.5px;">
+          <span class="category-badge" style="font-size:10px; font-weight:700; text-transform:uppercase; color:var(--color-primary); letter-spacing:0.5px;">
             {{ video.category }}
           </span>
           <h3 style="font-size:15px; font-weight:700; color:var(--text-primary); margin:4px 0 6px 0; line-height:1.3;">
@@ -82,7 +82,7 @@
         </div>
 
         <div style="margin-top:14px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
-          <span style="font-size:11px; font-weight:700; color:#38bdf8; text-transform:uppercase;">
+          <span style="font-size:11px; font-weight:700; color:var(--color-primary); text-transform:uppercase;">
             Categoría: {{ activeVideo.category }}
           </span>
           <p style="font-size:13px; color:var(--text-secondary); margin:0; line-height:1.4; flex:1 1 100%;">
@@ -197,9 +197,9 @@ export default {
   transition: all 0.2s ease;
 }
 .filter-pill-btn.active, .filter-pill-btn:hover {
-  background: rgba(168, 85, 247, 0.18);
-  border-color: rgba(168, 85, 247, 0.4);
-  color: #a855f7;
+  background: var(--accent-soft);
+  border-color: var(--accent-soft);
+  color: var(--color-primary);
 }
 .tutorial-card {
   cursor: pointer;
