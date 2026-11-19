@@ -7,7 +7,7 @@
       </div>
       <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
         <button class="btn-diagnosis-header" @click="openDiagnosisModal" title="Generar informe completo de 5 fases">
-          <i class="fa-solid fa-stethoscope" style="color:#38bdf8;"></i>
+          <i class="fa-solid fa-stethoscope" style="color:var(--color-primary);"></i>
           <span>Diagnóstico 360°</span>
         </button>
         <button class="btn-clear-history" @click="clearHistory" title="Limpiar historial de conversación">
@@ -55,7 +55,7 @@
               ¡Hola, {{ userName }}! Soy tu mentor financiero en Ábaco. Puedo ayudarte a ahorrar, optimizar tus costos, gestionar tus préstamos o guiarte en el uso de la app. ¿En qué trabajamos hoy?
             </div>
             <div class="suggestions-list">
-              <button class="btn-suggestion" @click="openDiagnosisModal" style="background:rgba(56,189,248,0.15); color:#38bdf8; border-color:rgba(56,189,248,0.3);">
+              <button class="btn-suggestion" @click="openDiagnosisModal" style="background:var(--accent-soft); color:var(--color-primary); border-color:var(--accent-soft);">
                 🩺 Diagnóstico Financiero 360°
               </button>
               <button class="btn-suggestion" @click="sendPredefined('¿Cómo funciona el módulo de préstamos cuando le presto dinero a alguien?')">
@@ -83,7 +83,7 @@
               v-if="msg.role === 'assistant' && (msg.isDiagnosis || msg.text.includes('Diagnóstico general'))" 
               @click="printDiagnosisPdf(msg.text)" 
               class="btn-primary" 
-              style="margin-top:12px; height:34px; font-size:12px; border-radius:8px; display:flex; align-items:center; gap:6px; background:linear-gradient(135deg, #6366f1, #a855f7);"
+              style="margin-top:12px; height:34px; font-size:12px; border-radius:8px; display:flex; align-items:center; gap:6px; background:linear-gradient(135deg, var(--color-primary), var(--color-primary));"
             >
               <i class="fa-solid fa-file-pdf"></i> Descargar Diagnóstico en PDF
             </button>
@@ -126,7 +126,7 @@
       <div class="glass-card modal-content" style="max-width:540px; width:100%; padding:22px; border-radius:16px; background:var(--card-bg); border:1px solid var(--card-border); box-shadow:0 20px 50px rgba(0,0,0,0.5);">
         <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--card-border); padding-bottom:12px; margin-bottom:14px;">
           <h3 style="font-size:17px; font-weight:700; color:var(--text-primary); margin:0; display:flex; align-items:center; gap:8px;">
-            <i class="fa-solid fa-stethoscope" style="color:#38bdf8;"></i> Diagnóstico Financiero 360°
+            <i class="fa-solid fa-stethoscope" style="color:var(--color-primary);"></i> Diagnóstico Financiero 360°
           </h3>
           <button class="btn-close" @click="showDiagnosisModal = false" style="background:none; border:none; color:var(--text-secondary); font-size:22px; cursor:pointer;">&times;</button>
         </div>
@@ -149,7 +149,7 @@
 
         <div style="display:flex; justify-content:flex-end; gap:10px;">
           <button type="button" class="btn-secondary" @click="showDiagnosisModal = false" style="height:40px; padding:0 16px; border-radius:8px;">Cancelar</button>
-          <button type="button" class="btn-primary" @click="runDiagnosis" :disabled="loading" style="height:40px; padding:0 20px; border-radius:8px; display:flex; align-items:center; gap:8px; background:linear-gradient(135deg, #0ea5e9, #6366f1);">
+          <button type="button" class="btn-primary" @click="runDiagnosis" :disabled="loading" style="height:40px; padding:0 20px; border-radius:8px; display:flex; align-items:center; gap:8px; background:linear-gradient(135deg, #0ea5e9, var(--color-primary));">
             <i class="fa-solid fa-wand-magic-sparkles"></i> Generar Diagnóstico IA
           </button>
         </div>
@@ -375,8 +375,8 @@ export default {
           <title>Diagnóstico Financiero Personal 360° - Ábaco</title>
           <style>
             body { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; color: #1e293b; padding: 40px; background: #fff; line-height: 1.65; }
-            .header { display: flex; justify-content: space-between; align-items: center; border-bottom: 3px solid #6366f1; padding-bottom: 16px; margin-bottom: 24px; }
-            .logo { font-size: 26px; font-weight: 800; color: #6366f1; text-transform: uppercase; letter-spacing: 1px; }
+            .header { display: flex; justify-content: space-between; align-items: center; border-bottom: 3px solid var(--color-primary); padding-bottom: 16px; margin-bottom: 24px; }
+            .logo { font-size: 26px; font-weight: 800; color: var(--color-primary); text-transform: uppercase; letter-spacing: 1px; }
             .subtitle { font-size: 13px; color: #64748b; margin-top: 4px; }
             ul, ol { padding-left: 20px; }
             .footer { margin-top: 50px; border-top: 1px solid #e2e8f0; padding-top: 16px; font-size: 11px; color: #94a3b8; text-align: center; }
@@ -388,7 +388,7 @@ export default {
         </head>
         <body>
           <div class="no-print" style="margin-bottom: 20px; text-align: right;">
-            <button onclick="window.print()" style="background:#6366f1; color:#fff; border:none; padding:10px 20px; border-radius:8px; font-weight:bold; cursor:pointer;">
+            <button onclick="window.print()" style="background:var(--color-primary); color:#fff; border:none; padding:10px 20px; border-radius:8px; font-weight:bold; cursor:pointer;">
               🖨️ Imprimir / Guardar en PDF
             </button>
           </div>
@@ -481,9 +481,9 @@ export default {
   display: flex;
   align-items: center;
   gap: 6px;
-  background: rgba(56, 189, 248, 0.12);
-  border: 1px solid rgba(56, 189, 248, 0.3);
-  color: #38bdf8;
+  background: var(--accent-soft);
+  border: 1px solid var(--accent-soft);
+  color: var(--color-primary);
   padding: 6px 14px;
   border-radius: 20px;
   font-size: 11.5px;
@@ -492,8 +492,8 @@ export default {
   transition: var(--transition-smooth);
 }
 .btn-diagnosis-header:hover {
-  background: rgba(56, 189, 248, 0.25);
-  box-shadow: 0 4px 12px rgba(56, 189, 248, 0.2);
+  background: var(--accent-soft);
+  box-shadow: 0 4px 12px var(--accent-soft);
 }
 .btn-clear-history {
   display: flex;
@@ -562,12 +562,12 @@ export default {
   width: 32px;
   height: 32px;
   border-radius: 50%;
-  background: linear-gradient(135deg, rgba(168, 85, 247, 0.2), rgba(56, 189, 248, 0.2));
-  border: 1px solid rgba(168, 85, 247, 0.4);
+  background: linear-gradient(135deg, var(--accent-soft), var(--accent-soft));
+  border: 1px solid var(--accent-soft);
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #a855f7;
+  color: var(--color-primary);
   flex-shrink: 0;
   margin-top: 2px;
 }
@@ -576,7 +576,7 @@ export default {
   font-size: 10.5px;
   font-weight: 700;
   text-transform: uppercase;
-  color: #a855f7;
+  color: var(--color-primary);
   letter-spacing: 0.5px;
   margin-bottom: 4px;
 }
@@ -601,11 +601,11 @@ body.light-theme .message-bubble {
 }
 
 .message.user .message-bubble {
-  background: linear-gradient(135deg, #6366f1 0%, #a855f7 100%);
+  background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-primary) 100%);
   color: #ffffff;
   border: none;
   border-radius: 18px 18px 4px 18px;
-  box-shadow: 0 4px 15px rgba(99, 102, 241, 0.3);
+  box-shadow: 0 4px 15px var(--accent-soft);
 }
 
 .formatted-text {
@@ -635,9 +635,9 @@ body.light-theme .message-bubble {
 }
 
 .btn-suggestion:hover {
-  background: rgba(168, 85, 247, 0.2);
-  color: #a855f7;
-  border-color: rgba(168, 85, 247, 0.4);
+  background: var(--accent-soft);
+  color: var(--color-primary);
+  border-color: var(--accent-soft);
 }
 
 /* Barra de Entrada Flotante */
@@ -689,7 +689,7 @@ body.light-theme .chat-input-bar {
   width: 40px;
   height: 40px;
   border-radius: 50%;
-  background: linear-gradient(135deg, #6366f1 0%, #a855f7 100%);
+  background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-primary) 100%);
   color: #ffffff;
   border: none;
   display: flex;
@@ -699,7 +699,7 @@ body.light-theme .chat-input-bar {
   cursor: pointer;
   flex-shrink: 0;
   transition: transform 0.2s ease, box-shadow 0.2s ease;
-  box-shadow: 0 4px 12px rgba(168, 85, 247, 0.4);
+  box-shadow: 0 4px 12px var(--accent-soft);
 }
 
 .btn-send-pill:active {
@@ -717,7 +717,7 @@ body.light-theme .chat-input-bar {
 .typing-dots span {
   width: 7px;
   height: 7px;
-  background-color: #a855f7;
+  background-color: var(--color-primary);
   border-radius: 50%;
   animation: typingDot 1.4s infinite both;
 }

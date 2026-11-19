@@ -29,7 +29,7 @@
     </div>
 
     <!-- Banner de Copia de Presupuesto Anterior (Carry-Over) -->
-    <div v-if="showCarryOverBanner" class="budget-alert-banner warning" style="display: flex; justify-content: space-between; align-items: center; padding: 14px 18px; border-radius: 12px; background: rgba(59, 130, 246, 0.15); border: 1px solid rgba(59, 130, 246, 0.3); margin-bottom: 8px;">
+    <div v-if="showCarryOverBanner" class="budget-alert-banner warning" style="display: flex; justify-content: space-between; align-items: center; padding: 14px 18px; border-radius: 12px; background: var(--accent-soft); border: 1px solid var(--accent-soft); margin-bottom: 8px;">
       <div style="display: flex; align-items: center; gap: 12px;">
         <i class="fa-solid fa-calendar-plus" style="font-size: 24px; color: #60a5fa;"></i>
         <div>
@@ -304,7 +304,7 @@
                 type="button" 
                 class="cat-chip-btn create-new-chip" 
                 @click="createBudgetCategoryOnTheFly(budgetCatSearch)"
-                style="display:inline-flex; align-items:center; gap:6px; padding:6px 10px; border-radius:6px; border:1px dashed var(--color-primary); background:rgba(10,132,255,0.15); color:var(--color-primary); font-size:12px; font-weight:600; cursor:pointer;"
+                style="display:inline-flex; align-items:center; gap:6px; padding:6px 10px; border-radius:6px; border:1px dashed var(--color-primary); background:var(--accent-soft); color:var(--color-primary); font-size:12px; font-weight:600; cursor:pointer;"
               >
                 <i class="fa-solid fa-plus"></i>
                 <span>Crear "{{ budgetCatSearch.trim() }}"</span>
@@ -322,7 +322,7 @@
               <button 
                 type="button" 
                 @click="addBudgetItem" 
-                style="background:rgba(168,85,247,0.15); border:1px solid rgba(168,85,247,0.3); color:#a855f7; font-size:12px; font-weight:600; padding:4px 10px; border-radius:6px; cursor:pointer; display:inline-flex; align-items:center; gap:4px;"
+                style="background:var(--accent-soft); border:1px solid var(--accent-soft); color:var(--color-primary); font-size:12px; font-weight:600; padding:4px 10px; border-radius:6px; cursor:pointer; display:inline-flex; align-items:center; gap:4px;"
               >
                 <i class="fa-solid fa-plus"></i> Agregar Ítem
               </button>
@@ -1046,7 +1046,7 @@ export default {
 .ai-spark-icon {
   width: 44px;
   height: 44px;
-  background: rgba(94, 92, 230, 0.15);
+  background: var(--accent-soft);
   border-radius: 50%;
   display: flex;
   align-items: center;
@@ -1059,7 +1059,7 @@ export default {
 .btn-ai {
   background: var(--color-accent); /* Indigo del sistema Apple */
   border: none;
-  box-shadow: 0 4px 12px rgba(94, 92, 230, 0.2);
+  box-shadow: 0 4px 12px var(--accent-soft);
 }
 
 .ai-loading-box {
@@ -1075,7 +1075,7 @@ export default {
 .spinner {
   width: 36px;
   height: 36px;
-  border: 3px solid rgba(94, 92, 230, 0.15);
+  border: 3px solid var(--accent-soft);
   border-top-color: var(--color-accent);
   border-radius: 50%;
   animation: spin 1s linear infinite;

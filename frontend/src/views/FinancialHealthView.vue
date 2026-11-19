@@ -146,7 +146,7 @@
     <div class="glass-card fh-analysis-card">
       <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;">
         <h4 style="margin:0; font-size:13px; text-transform:uppercase; letter-spacing:0.5px; color:var(--text-secondary); font-weight:700;">
-          <i class="fa-solid fa-wand-magic-sparkles" style="color:#a855f7; margin-right:6px;"></i> Análisis del Asesor IA
+          <i class="fa-solid fa-wand-magic-sparkles" style="color:var(--color-primary); margin-right:6px;"></i> Análisis del Asesor IA
         </h4>
         <button v-if="!loadingAnalysis" @click="runAnalysis" class="btn-secondary" style="height:32px; padding:0 12px; font-size:12px; border-radius:8px; display:flex; align-items:center; gap:6px;">
           <i class="fa-solid fa-rotate"></i> Regenerar

@@ -202,7 +202,7 @@
           </router-link>
 
           <router-link to="/reports" class="settings-menu-item" @click="showMobileSettings = false">
-            <span class="item-icon" style="background:#5e5ce6;">
+            <span class="item-icon" style="background:var(--color-primary);">
               <i class="fa-solid fa-file-invoice-dollar"></i>
             </span>
             <span>Reportes & Suscripciones</span>
@@ -722,13 +722,13 @@ body.light-theme .settings-menu-item:hover {
 .budgets-color { background: #ff9f0a; }
 .loans-color { background: #30d158; }
 .settings-color { background: #8e8e93; }
-.admin-color { background: #0a84ff; }
+.admin-color { background: var(--color-primary); }
 .logout-color { background: #ff453a; }
 
 body.light-theme .budgets-color { background: #ff9500; }
 body.light-theme .loans-color { background: #2fa84e; }
 body.light-theme .settings-color { background: #8e8e93; }
-body.light-theme .admin-color { background: #007aff; }
+body.light-theme .admin-color { background: var(--color-primary); }
 body.light-theme .logout-color { background: #ff3b30; }
 
 .arrow-icon {
