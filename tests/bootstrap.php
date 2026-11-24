@@ -18,3 +18,4 @@ require_once __DIR__ . '/../backend/lib/ai_providers.php';
 require_once __DIR__ . '/../backend/lib/workspace_data.php';
 require_once __DIR__ . '/../backend/lib/backup_logic.php';
 require_once __DIR__ . '/../backend/lib/finance_analytics.php';
+require_once __DIR__ . '/../backend/lib/loans_cash.php';

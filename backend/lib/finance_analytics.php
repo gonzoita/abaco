@@ -16,6 +16,7 @@ require_once __DIR__ . '/budgets_logic.php';
 // descripción. Es plata que el usuario AHORRÓ, no que gastó: contarla como
 // gasto le bajaba la tasa de ahorro justo a quien más estaba ahorrando.
 const FA_GOAL_CONTRIBUTION_PREFIX = 'Abono a meta de ahorro';
+require_once __DIR__ . '/loans_cash.php';
 
 const FA_LIQUID_ACCOUNT_TYPES = ['efectivo', 'banco', 'ahorro'];
 const FA_DEBT_ACCOUNT_TYPES = ['tarjeta_credito', 'prestamo_pagar'];
@@ -80,7 +81,7 @@ function fa_month_activity($db, $userId, $workspace, $year, $month) {
                SUM(t.amount) AS total
         FROM transactions t
         LEFT JOIN categories c ON t.category_id = c.id
-        WHERE t.user_id = ? AND {$ws} AND t.date >= ? AND t.date <= ?
+        WHERE t.user_id = ? AND {$ws} AND t.date >= ? AND t.date <= ? AND " . loans_cash_exclusion_sql('t.description') . "
         GROUP BY t.type, t.category_id, c.name, is_goal
     ");
     $stmt->execute([FA_GOAL_CONTRIBUTION_PREFIX . '%', $userId, $start, $end]);
@@ -563,7 +564,7 @@ function fa_build_context($db, $userId, $workspace, $today) {
     $stmtTop = $db->prepare("
         SELECT t.date, t.amount, t.description, c.name AS category
         FROM transactions t LEFT JOIN categories c ON t.category_id = c.id
-        WHERE t.user_id = ? AND {$ws} AND t.type = 'egreso' AND t.date >= ? AND t.date <= ? AND COALESCE(t.description, '') NOT LIKE ?
+        WHERE t.user_id = ? AND {$ws} AND t.type = 'egreso' AND t.date >= ? AND t.date <= ? AND COALESCE(t.description, '') NOT LIKE ? AND " . loans_cash_exclusion_sql('t.description') . "
         ORDER BY t.amount DESC LIMIT 5
     ");
     $stmtTop->execute([$userId, $monthStart, $monthEnd, FA_GOAL_CONTRIBUTION_PREFIX . '%']);

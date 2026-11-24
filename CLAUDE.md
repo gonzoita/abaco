@@ -138,6 +138,13 @@ en el hosting, así que `deploy.php` usa `proc_open()`.
 - Deudas del usuario = cuentas `tarjeta_credito` / `prestamo_pagar`, con
   saldo guardado en NEGATIVO. La tabla `loans` es plata que el usuario
   PRESTÓ (cartera por cobrar), no lo que debe.
+- Un préstamo otorgado (`loans`) mueve plata real: al desembolsar sale de UNA
+  cuenta del espacio activo (obligatoria, no deuda, con saldo) y cada cuota
+  cobrada vuelve a esa cuenta (`backend/lib/loans_cash.php`). Esos movimientos
+  llevan prefijo ("Desembolso de préstamo", "Recaudo de capital") y se excluyen
+  de gastos, ingresos y presupuestos con `loans_cash_exclusion_sql()`; solo los
+  intereses ("Intereses de préstamo") cuentan como ingreso. Todo query nuevo
+  que sume gastos/ingresos debe aplicar esa exclusión.
 - Un abono a una meta de ahorro se registra como `egreso` con descripción
   "Abono a meta de ahorro: …": es ahorro, no gasto.
 - Cada usuario usa su propia API key gratuita de IA (Gemini o Groq; no hay

@@ -4,6 +4,7 @@ require_once __DIR__ . '/cors.php';
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/auth_helper.php';
 require_once __DIR__ . '/../lib/budgets_logic.php';
+require_once __DIR__ . '/../lib/loans_cash.php';
 
 $userData = authenticate();
 $userId = $userData['user_id'];
@@ -38,7 +39,7 @@ if ($method === 'GET') {
         $stmtSummary = $db->prepare("
             SELECT type, SUM(amount) as total 
             FROM transactions 
-            WHERE user_id = ? AND {$wsCond} AND date >= ? AND date <= ?
+            WHERE user_id = ? AND {$wsCond} AND date >= ? AND date <= ? AND " . loans_cash_exclusion_sql('description') . "
             GROUP BY type
         ");
         $stmtSummary->execute([$userId, $startDate, $endDate]);
@@ -63,7 +64,7 @@ if ($method === 'GET') {
                    SUM(t.amount) as total 
             FROM transactions t
             LEFT JOIN categories c ON t.category_id = c.id
-            WHERE t.user_id = ? AND {$tWsCond} AND t.type = 'egreso' AND t.date >= ? AND t.date <= ?
+            WHERE t.user_id = ? AND {$tWsCond} AND t.type = 'egreso' AND t.date >= ? AND t.date <= ? AND " . loans_cash_exclusion_sql('t.description') . "
             GROUP BY c.id, c.name, c.color, c.icon
             ORDER BY total DESC
         ");
@@ -85,7 +86,7 @@ if ($method === 'GET') {
         $stmtDaily = $db->prepare("
             SELECT date, type, SUM(amount) as total 
             FROM transactions 
-            WHERE user_id = ? AND {$wsCond} AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
+            WHERE user_id = ? AND {$wsCond} AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY) AND " . loans_cash_exclusion_sql('description') . "
             GROUP BY date, type
             ORDER BY date ASC
         ");
@@ -170,7 +171,7 @@ if ($method === 'GET') {
             $stmtSpent = $db->prepare("
                 SELECT category_id, SUM(amount) as spent 
                 FROM transactions 
-                WHERE user_id = ? AND {$wsCond} AND type = 'egreso' AND date >= ? AND date <= ?
+                WHERE user_id = ? AND {$wsCond} AND type = 'egreso' AND date >= ? AND date <= ? AND " . loans_cash_exclusion_sql('description') . "
                 GROUP BY category_id
             ");
             $stmtSpent->execute([$userId, $startDate, $endDate]);
@@ -178,7 +179,7 @@ if ($method === 'GET') {
             $stmtSpent = $db->prepare("
                 SELECT category_id, SUM(amount) as spent 
                 FROM transactions 
-                WHERE user_id = ? AND {$wsCond} AND type = 'egreso' AND MONTH(date) = ? AND YEAR(date) = ?
+                WHERE user_id = ? AND {$wsCond} AND type = 'egreso' AND MONTH(date) = ? AND YEAR(date) = ? AND " . loans_cash_exclusion_sql('description') . "
                 GROUP BY category_id
             ");
             $stmtSpent->execute([$userId, $month, $year]);

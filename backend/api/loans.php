@@ -3,6 +3,7 @@
 require_once __DIR__ . '/cors.php';
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/auth_helper.php';
+require_once __DIR__ . '/../lib/loans_cash.php';
 
 $userData = authenticate();
 $userId = $userData['user_id'];
@@ -312,11 +313,19 @@ if ($method === 'POST') {
             exit();
         }
         
+        $accountId = intval($input['account_id'] ?? 0);
+        if ($accountId <= 0) {
+            http_response_code(400);
+            echo json_encode(["error" => "Elige la cuenta de la que sale el dinero del préstamo."]);
+            exit();
+        }
+
         // El cliente tiene que ser de este mismo espacio.
         $cWsCond = get_workspace_sql_clause('workspace');
-        $stmtClient = $db->prepare("SELECT id FROM loan_clients WHERE id = ? AND user_id = ? AND {$cWsCond}");
+        $stmtClient = $db->prepare("SELECT id, name FROM loan_clients WHERE id = ? AND user_id = ? AND {$cWsCond}");
         $stmtClient->execute([$clientId, $userId]);
-        if (!$stmtClient->fetch()) {
+        $clientRow = $stmtClient->fetch();
+        if (!$clientRow) {
             http_response_code(400);
             echo json_encode(["error" => "Ese cliente no pertenece a este espacio."]);
             exit();
@@ -326,9 +335,12 @@ if ($method === 'POST') {
             $db->beginTransaction();
             
             // Insertar préstamo
-            $stmt = $db->prepare("INSERT INTO loans (user_id, client_id, principal, interest_rate, rate_type, installments_count, frequency, method, start_date, workspace) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
-            $stmt->execute([$userId, $clientId, $principal, $interestRate, $rateType, $installmentsCount, $frequency, $methodLoan, $startDate, $workspace]);
+            $stmt = $db->prepare("INSERT INTO loans (user_id, client_id, principal, interest_rate, rate_type, installments_count, frequency, method, start_date, workspace, account_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+            $stmt->execute([$userId, $clientId, $principal, $interestRate, $rateType, $installmentsCount, $frequency, $methodLoan, $startDate, $workspace, $accountId]);
             $loanId = $db->lastInsertId();
+
+            // El dinero sale de la cuenta elegida (y de ninguna otra).
+            loans_disburse($db, $userId, $workspace, $accountId, $clientRow['name'], $principal, date('Y-m-d'));
             
             // Calcular cuotas
             $schedule = calculateAmortizationPHP($principal, $interestRate, $rateType, $installmentsCount, $frequency, $methodLoan, $startDate);
@@ -349,6 +361,12 @@ if ($method === 'POST') {
             
             $db->commit();
             echo json_encode(["success" => true, "id" => $loanId]);
+        } catch (InvalidArgumentException $e) {
+            if ($db->inTransaction()) {
+                $db->rollBack();
+            }
+            http_response_code(400);
+            echo json_encode(["error" => $e->getMessage()]);
         } catch (Exception $e) {
             if ($db->inTransaction()) {
                 $db->rollBack();
@@ -373,6 +391,17 @@ if ($method === 'POST') {
             exit();
         }
         
+        // El préstamo tiene que ser del usuario y de este espacio (antes no se verificaba).
+        $lWsCond = get_workspace_sql_clause('l.workspace');
+        $stmtLoan = $db->prepare("SELECT l.id, l.account_id, c.name AS client_name FROM loans l JOIN loan_clients c ON l.client_id = c.id WHERE l.id = ? AND l.user_id = ? AND {$lWsCond}");
+        $stmtLoan->execute([$loanId, $userId]);
+        $loanRow = $stmtLoan->fetch();
+        if (!$loanRow) {
+            http_response_code(404);
+            echo json_encode(["error" => "Préstamo no encontrado en este espacio."]);
+            exit();
+        }
+
         try {
             $db->beginTransaction();
             
@@ -400,6 +429,9 @@ if ($method === 'POST') {
             $stmtTx->execute([$loanId, $installmentNumber, $amount, $date, $note]);
             $txId = $db->lastInsertId();
             
+            // El dinero cobrado vuelve a la cuenta de la que salió el préstamo.
+            loans_collect($db, $userId, $workspace, $loanRow['account_id'], $loanRow['client_name'], $amount, floatval($inst['installment']), floatval($inst['interest']), $date);
+
             // Verificar si el préstamo se liquidó por completo
             $stmtCheck = $db->prepare("SELECT COUNT(*) as unpaid FROM loan_installments WHERE loan_id = ? AND status != 'pagado'");
             $stmtCheck->execute([$loanId]);

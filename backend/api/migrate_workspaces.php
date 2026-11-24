@@ -249,6 +249,20 @@ try {
         mark_migration_done($db, 'loan_clients_workspace_v1');
     }
 
+    // Cada préstamo recuerda de qué cuenta salió el dinero, para que los
+    // cobros vuelvan a esa misma cuenta. Los préstamos anteriores quedan sin
+    // cuenta (NULL): se registraron sin mover saldos y así se quedan.
+    if (!migration_done($db, 'loans_account_id_v1')) {
+        if ($db->query("SHOW TABLES LIKE 'loans'")->fetch()) {
+            $hasCol = $db->query("SHOW COLUMNS FROM loans LIKE 'account_id'")->fetch();
+            if (!$hasCol) {
+                $db->exec("ALTER TABLE loans ADD COLUMN account_id INT NULL");
+                $migrated[] = "loans: columna account_id";
+            }
+        }
+        mark_migration_done($db, 'loans_account_id_v1');
+    }
+
     // Índices compuestos para las consultas que más se repiten (todas filtran
     // por usuario + espacio y casi siempre por fecha). Sin ellos MySQL recorre
     // todos los movimientos del usuario en cada pantalla, y se nota más cuanto

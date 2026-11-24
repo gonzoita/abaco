@@ -27,6 +27,7 @@ CREATE TABLE IF NOT EXISTS loans (
     method ENUM('frances', 'aleman', 'americano', 'simple') NOT NULL,
     start_date DATE NOT NULL,
     status ENUM('activo', 'finalizado', 'vencido') DEFAULT 'activo',
+    account_id INT NULL, -- cuenta de la que salió el dinero (los cobros vuelven ahí)
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
     FOREIGN KEY (client_id) REFERENCES loan_clients(id) ON DELETE CASCADE
