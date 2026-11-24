@@ -513,7 +513,24 @@
               </div>
             </div>
 
-            <button type="submit" class="btn-primary" style="margin-top: 10px;" :disabled="btnLoading">
+            <!-- Cuenta de la que sale el dinero (solo las del espacio activo) -->
+            <div class="form-group">
+              <label>¿De qué cuenta sale el dinero?</label>
+              <select v-model="loanForm.account_id" required>
+                <option value="">Seleccione una cuenta...</option>
+                <option v-for="a in lendingAccounts" :key="a.id" :value="a.id">
+                  {{ a.name }} · {{ formatCOP(a.balance) }}
+                </option>
+              </select>
+              <small v-if="selectedAccountShort" style="color: var(--color-danger); font-size: 12px;">
+                Esta cuenta no tiene saldo suficiente para este préstamo.
+              </small>
+              <small v-else style="color: var(--text-muted); font-size: 12px;">
+                El saldo de esta cuenta bajará por el monto del préstamo, y los cobros volverán a ella. No cuenta como gasto.
+              </small>
+            </div>
+
+            <button type="submit" class="btn-primary" style="margin-top: 10px;" :disabled="btnLoading || selectedAccountShort">
               <i class="fa-solid fa-paper-plane"></i> Crear y Desembolsar Préstamo
             </button>
           </form>
@@ -717,6 +734,7 @@ export default {
     // Formularios reactivos
     const loanForm = ref({
       client_id: '',
+      account_id: '',
       principal: '',
       interest_rate: '',
       rate_type: 'mensual',
@@ -742,6 +760,16 @@ export default {
 
     // --- Consultas a la API ---
 
+    // Cuentas del espacio activo de las que se puede prestar (no deudas).
+    const accounts = ref([])
+    const lendingAccounts = computed(() =>
+      accounts.value.filter(a => !['tarjeta_credito', 'prestamo_pagar'].includes(a.type))
+    )
+    const selectedAccountShort = computed(() => {
+      const acc = lendingAccounts.value.find(a => a.id === loanForm.value.account_id)
+      return !!acc && parseFloat(acc.balance) < parseFloat(loanForm.value.principal || 0)
+    })
+
     const fetchAllData = async () => {
       loading.value = true
       const token = localStorage.getItem('token')
@@ -750,11 +778,13 @@ export default {
       try {
         // Las 3 peticiones son independientes entre sí: se disparan en
         // paralelo (allSettled: si una falla, las otras 2 igual se aplican).
-        const [rClients, rLoans, rTxs] = await Promise.allSettled([
+        const [rClients, rLoans, rTxs, rAccounts] = await Promise.allSettled([
           fetchJsonSafe(`${API_BASE}/loans.php?action=get_clients`, authHeaders),
           fetchJsonSafe(`${API_BASE}/loans.php?action=get_loans`, authHeaders),
-          fetchJsonSafe(`${API_BASE}/loans.php?action=get_transactions`, authHeaders)
+          fetchJsonSafe(`${API_BASE}/loans.php?action=get_transactions`, authHeaders),
+          fetchJsonSafe(`${API_BASE}/accounts.php`, authHeaders)
         ])
+        if (rAccounts.status === 'fulfilled' && Array.isArray(rAccounts.value)) accounts.value = rAccounts.value
         if (rClients.status === 'fulfilled') clients.value = rClients.value
         if (rLoans.status === 'fulfilled') loans.value = rLoans.value
         if (rTxs.status === 'fulfilled') transactions.value = rTxs.value
@@ -993,6 +1023,7 @@ export default {
     const openNewLoanSheet = (prefilledClientId = null) => {
       loanForm.value = {
         client_id: prefilledClientId || '',
+        account_id: '',
         principal: '',
         interest_rate: '',
         rate_type: 'mensual',
@@ -1062,6 +1093,7 @@ export default {
           },
           body: JSON.stringify({
             client_id: loanForm.value.client_id,
+            account_id: loanForm.value.account_id,
             principal: loanForm.value.principal,
             interest_rate: loanForm.value.interest_rate,
             rate_type: loanForm.value.rate_type,
@@ -1253,6 +1285,8 @@ export default {
     })
 
     return {
+      lendingAccounts,
+      selectedAccountShort,
       activeSubTab,
       loans,
       clients,
